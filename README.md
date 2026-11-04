@@ -79,7 +79,7 @@ c9view is in active development and not yet released on npm.
 
 ## How it's built
 
-TypeScript throughout: a Hono server over a core library that indexes Claude data and project files into SQLite, and a React 19 + Vite + TanStack web app. The project is developed with [Spec Kit](https://github.com/github/spec-kit) (feature specs in [specs/](specs/), principles in the [constitution](.specify/memory/constitution.md)) and largely written by AI agents. [docs/ai-workflow.md](docs/ai-workflow.md) describes how.
+TypeScript throughout: a browser-facing hub relays requests to a node package that indexes Claude data and project files into SQLite, with a React 19 + Vite + TanStack web app. The project is developed with [Spec Kit](https://github.com/github/spec-kit) (feature specs in [specs/](specs/), principles in the [constitution](.specify/memory/constitution.md)) and largely written by AI agents. [docs/ai-workflow.md](docs/ai-workflow.md) describes how.
 
 ## Contributing
 
