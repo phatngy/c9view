@@ -1,3 +1,5 @@
+import { useMachineId } from './machine.js';
+import { queryKeys } from './queryKeys.js';
 import { nextSessionPage, previousSessionPage } from './session/paging.js';
 import { useLivePolling } from './live/state.js';
 import {
@@ -8,6 +10,8 @@ import {
   type InfiniteData,
 } from '@tanstack/react-query';
 import type {
+  MachineId,
+  MachineSummary,
   FileListResponse,
   FileContentResponse,
   GitStatusResponse,
@@ -58,6 +62,13 @@ export async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
   }
   return body as T;
 }
+export const machinePath = (machineId: MachineId, path: string) =>
+  `/m/${encodeURIComponent(machineId)}${path}`;
+const machineGet = <T>(
+  machineId: MachineId,
+  path: string,
+  signal?: AbortSignal,
+) => get<T>(machinePath(machineId, path), signal);
 const projectPath = (id: string) => `/projects/${encodeURIComponent(id)}`;
 export const fileQueryOptions = {
   staleTime: 30_000,
@@ -79,10 +90,19 @@ export interface UsageFilters {
 export const SESSION_PAGE_SIZE = 50;
 export type SessionPageParam = 'end' | { cursor: number; limit: number };
 export const api = {
-  usage: (filters: UsageFilters, signal?: AbortSignal) =>
-    get<UsageResponse>(`/usage?${new URLSearchParams({ ...filters })}`, signal),
-  health: (signal?: AbortSignal) => get<HealthResponse>('/health', signal),
+  usage: (machineId: MachineId, filters: UsageFilters, signal?: AbortSignal) =>
+    machineGet<UsageResponse>(
+      machineId,
+      `/usage?${new URLSearchParams({ ...filters })}`,
+      signal,
+    ),
+  hubHealth: (signal?: AbortSignal) => get<HealthResponse>('/health', signal),
+  machines: (signal?: AbortSignal) =>
+    get<MachineSummary[]>('/machines', signal),
+  health: (machineId: MachineId, signal?: AbortSignal) =>
+    machineGet<HealthResponse>(machineId, '/health', signal),
   search: (
+    machineId: MachineId,
     filters: SearchFilters,
     cursor: string | null,
     signal?: AbortSignal,
@@ -91,50 +111,87 @@ export const api = {
       Object.entries(filters).filter(([, value]) => value !== ''),
     );
     if (cursor !== null) params.set('cursor', cursor);
-    return get<SearchResponse>(`/search?${params}`, signal);
+    return machineGet<SearchResponse>(machineId, `/search?${params}`, signal);
   },
-  files: (id: string, path: string, signal?: AbortSignal) =>
-    get<FileListResponse>(
+  files: (
+    machineId: MachineId,
+    id: string,
+    path: string,
+    signal?: AbortSignal,
+  ) =>
+    machineGet<FileListResponse>(
+      machineId,
       `${projectPath(id)}/files?path=${encodeURIComponent(path)}`,
       signal,
     ),
-  file: (id: string, path: string, signal?: AbortSignal) =>
-    get<FileContentResponse>(
+  file: (
+    machineId: MachineId,
+    id: string,
+    path: string,
+    signal?: AbortSignal,
+  ) =>
+    machineGet<FileContentResponse>(
+      machineId,
       `${projectPath(id)}/file?path=${encodeURIComponent(path)}`,
       signal,
     ),
-  gitStatus: (id: string, signal?: AbortSignal) =>
-    get<GitStatusResponse>(`${projectPath(id)}/git/status`, signal),
-  gitDiff: (id: string, path: string, signal?: AbortSignal) =>
-    get<GitDiffResponse>(
+  gitStatus: (machineId: MachineId, id: string, signal?: AbortSignal) =>
+    machineGet<GitStatusResponse>(
+      machineId,
+      `${projectPath(id)}/git/status`,
+      signal,
+    ),
+  gitDiff: (
+    machineId: MachineId,
+    id: string,
+    path: string,
+    signal?: AbortSignal,
+  ) =>
+    machineGet<GitDiffResponse>(
+      machineId,
       `${projectPath(id)}/git/diff?path=${encodeURIComponent(path)}`,
       signal,
     ),
-  changes: (id: string, sid: string, signal?: AbortSignal) =>
-    get<SessionChangesResponse>(
+  changes: (
+    machineId: MachineId,
+    id: string,
+    sid: string,
+    signal?: AbortSignal,
+  ) =>
+    machineGet<SessionChangesResponse>(
+      machineId,
       `${projectPath(id)}/sessions/${encodeURIComponent(sid)}/changes`,
       signal,
     ),
-  change: (id: string, sid: string, fileId: string, signal?: AbortSignal) =>
-    get<SessionFileDiffResponse>(
+  change: (
+    machineId: MachineId,
+    id: string,
+    sid: string,
+    fileId: string,
+    signal?: AbortSignal,
+  ) =>
+    machineGet<SessionFileDiffResponse>(
+      machineId,
       `${projectPath(id)}/sessions/${encodeURIComponent(sid)}/changes/${encodeURIComponent(fileId)}`,
       signal,
     ),
-  overview: (signal?: AbortSignal) =>
-    get<OverviewResponse>('/overview', signal),
-  projects: (signal?: AbortSignal) =>
-    get<ProjectsResponse>('/projects', signal),
-  project: (id: string, signal?: AbortSignal) =>
-    get<ProjectDetailResponse>(projectPath(id), signal),
-  config: (signal?: AbortSignal) =>
-    get<GlobalConfigResponse>('/config', signal),
+  overview: (machineId: MachineId, signal?: AbortSignal) =>
+    machineGet<OverviewResponse>(machineId, '/overview', signal),
+  projects: (machineId: MachineId, signal?: AbortSignal) =>
+    machineGet<ProjectsResponse>(machineId, '/projects', signal),
+  project: (machineId: MachineId, id: string, signal?: AbortSignal) =>
+    machineGet<ProjectDetailResponse>(machineId, projectPath(id), signal),
+  config: (machineId: MachineId, signal?: AbortSignal) =>
+    machineGet<GlobalConfigResponse>(machineId, '/config', signal),
   session: (
+    machineId: MachineId,
     projectId: string,
     sessionId: string,
     page: SessionPageParam | number = 0,
     signal?: AbortSignal,
   ) =>
-    get<SessionDetailResponse>(
+    machineGet<SessionDetailResponse>(
+      machineId,
       `${projectPath(projectId)}/sessions/${encodeURIComponent(sessionId)}?${
         page === 'end'
           ? `from=end&limit=${SESSION_PAGE_SIZE}`
@@ -144,39 +201,54 @@ export const api = {
       }`,
       signal,
     ),
-  sessionPoll: (projectId: string, sessionId: string, signal?: AbortSignal) =>
-    get<SessionPollResponse>(
+  sessionPoll: (
+    machineId: MachineId,
+    projectId: string,
+    sessionId: string,
+    signal?: AbortSignal,
+  ) =>
+    machineGet<SessionPollResponse>(
+      machineId,
       `${projectPath(projectId)}/sessions/${encodeURIComponent(sessionId)}/status`,
       signal,
     ),
 };
-export const useOverview = () =>
-  useQuery({
-    queryKey: ['overview'],
-    queryFn: ({ signal }) => api.overview(signal),
+export const useOverview = () => {
+  const machineId = useMachineId();
+  return useQuery({
+    queryKey: queryKeys.overview(machineId),
+    queryFn: ({ signal }) => api.overview(machineId, signal),
     refetchInterval: useLivePolling(),
   });
-export const useProjects = () =>
-  useQuery({
-    queryKey: ['projects'],
-    queryFn: ({ signal }) => api.projects(signal),
+};
+export const useProjects = () => {
+  const machineId = useMachineId();
+  return useQuery({
+    queryKey: queryKeys.projects(machineId),
+    queryFn: ({ signal }) => api.projects(machineId, signal),
     refetchInterval: useLivePolling(),
   });
-export const useProject = (id: string) =>
-  useQuery({
-    queryKey: ['project', id],
-    queryFn: ({ signal }) => api.project(id, signal),
+};
+export const useProject = (id: string) => {
+  const machineId = useMachineId();
+  return useQuery({
+    queryKey: queryKeys.project(machineId, id),
+    queryFn: ({ signal }) => api.project(machineId, id, signal),
     refetchInterval: useLivePolling(),
   });
-export const useConfig = () =>
-  useQuery({
-    queryKey: ['config'],
-    queryFn: ({ signal }) => api.config(signal),
+};
+export const useConfig = () => {
+  const machineId = useMachineId();
+  return useQuery({
+    queryKey: queryKeys.config(machineId),
+    queryFn: ({ signal }) => api.config(machineId, signal),
   });
+};
 export const useSession = (projectId: string, sessionId: string) => {
+  const machineId = useMachineId();
   const queryClient = useQueryClient();
   const query = useInfiniteQuery({
-    queryKey: ['session', projectId, sessionId],
+    queryKey: queryKeys.session(machineId, projectId, sessionId),
     initialPageParam: 'end' as SessionPageParam,
     structuralSharing: (previous, next) => {
       const data = next as InfiniteData<
@@ -193,52 +265,61 @@ export const useSession = (projectId: string, sessionId: string) => {
       });
     },
     queryFn: ({ pageParam, signal }) =>
-      api.session(projectId, sessionId, pageParam, signal),
+      api.session(machineId, projectId, sessionId, pageParam, signal),
     getPreviousPageParam: (first) => previousSessionPage(first),
     getNextPageParam: (last) =>
       nextSessionPage(
         last,
-        queryClient.getQueryData<SessionPollResponse>([
-          'session-poll',
-          projectId,
-          sessionId,
-        ])?.totalMessages,
+        queryClient.getQueryData<SessionPollResponse>(
+          queryKeys.sessionPoll(machineId, projectId, sessionId),
+        )?.totalMessages,
       ),
   });
   return query;
 };
-export const useSessionPoll = (projectId: string, sessionId: string) =>
-  useQuery({
-    queryKey: ['session-poll', projectId, sessionId],
-    queryFn: ({ signal }) => api.sessionPoll(projectId, sessionId, signal),
+export const useSessionPoll = (projectId: string, sessionId: string) => {
+  const machineId = useMachineId();
+  return useQuery({
+    queryKey: queryKeys.sessionPoll(machineId, projectId, sessionId),
+    queryFn: ({ signal }) =>
+      api.sessionPoll(machineId, projectId, sessionId, signal),
     refetchInterval: useLivePolling(),
   });
+};
 
-export const useHealth = (enabled = true) =>
-  useQuery({
-    queryKey: ['health'],
-    queryFn: ({ signal }) => api.health(signal),
+export const useHealth = (enabled = true) => {
+  const machineId = useMachineId();
+  return useQuery({
+    queryKey: queryKeys.health(machineId),
+    queryFn: ({ signal }) => api.health(machineId, signal),
     enabled,
     refetchInterval: useLivePolling(),
   });
-export const useGlobalSearch = (filters: SearchFilters) =>
-  useInfiniteQuery({
-    queryKey: ['search', filters],
+};
+export const useGlobalSearch = (filters: SearchFilters) => {
+  const machineId = useMachineId();
+  return useInfiniteQuery({
+    queryKey: queryKeys.search(machineId, filters),
     initialPageParam: null as string | null,
-    queryFn: ({ pageParam, signal }) => api.search(filters, pageParam, signal),
+    queryFn: ({ pageParam, signal }) =>
+      api.search(machineId, filters, pageParam, signal),
     getNextPageParam: (page) => page.nextCursor ?? undefined,
     enabled: !!filters.q.trim(),
     retry: (count, error) =>
       !(error instanceof HttpError && [401, 503].includes(error.status)) &&
       count < 1,
   });
+};
 
-export const useUsage = (filters: UsageFilters) =>
-  useQuery({
-    queryKey: ['usage', filters],
-    queryFn: ({ signal }) => api.usage(filters, signal),
-    placeholderData: (previous) => previous,
+export const useUsage = (filters: UsageFilters) => {
+  const machineId = useMachineId();
+  return useQuery({
+    queryKey: queryKeys.usage(machineId, filters),
+    queryFn: ({ signal }) => api.usage(machineId, filters, signal),
+    placeholderData: (previous, previousQuery) =>
+      previousQuery?.queryKey[0] === machineId ? previous : undefined,
     refetchInterval: useLivePolling(),
     retry: (count, error) =>
       !(error instanceof HttpError && error.status === 503) && count < 1,
   });
+};

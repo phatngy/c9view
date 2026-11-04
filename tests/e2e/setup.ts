@@ -6,11 +6,11 @@ export default async function setup(config: FullConfig) {
     baseURL: config.projects[0]!.use.baseURL!,
   });
   try {
-    // /api/health is also 200 while building (or after an index error).
+    // /api/m/local/health is also 200 while building (or after an index error).
     await expect
       .poll(
         async () => {
-          const response = await api.get('/api/health');
+          const response = await api.get('/api/m/local/health');
           const health = (await response.json()) as {
             index?: { state?: string };
             claudeDir?: string;

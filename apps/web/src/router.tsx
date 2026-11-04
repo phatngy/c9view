@@ -3,9 +3,12 @@ import {
   createRootRoute,
   createRoute,
   createRouter,
+  redirect,
+  notFound,
   Link,
   type SearchSchemaInput,
 } from '@tanstack/react-router';
+import { useMachineId } from './machine.js';
 import { App } from './App.js';
 import { Loading, columns } from './ui.js';
 import type { KanbanColumn } from '@c9view/api';
@@ -29,16 +32,21 @@ const SearchPage = lazy(() =>
 );
 const root = createRootRoute({
   component: App,
-  notFoundComponent: () => (
-    <div className="panel">
-      <h1>Page not found</h1>
-      <Link to="/">Back to overview</Link>
-    </div>
-  ),
+  notFoundComponent: function NotFound() {
+    const machineId = useMachineId();
+    return (
+      <div className="panel">
+        <h1>Page not found</h1>
+        <Link to="/m/$machineId" params={{ machineId }}>
+          Back to overview
+        </Link>
+      </div>
+    );
+  },
 });
 const overview = createRoute({
   getParentRoute: () => root,
-  path: '/',
+  path: '/m/$machineId',
   validateSearch: (search: Record<string, unknown> & SearchSchemaInput) => ({
     project: typeof search.project === 'string' ? search.project : undefined,
     status: columns.includes(search.status as KanbanColumn)
@@ -58,7 +66,7 @@ const overview = createRoute({
 });
 const project = createRoute({
   getParentRoute: () => root,
-  path: '/projects/$projectId',
+  path: '/m/$machineId/projects/$projectId',
   validateSearch: (search: Record<string, unknown> & SearchSchemaInput) => ({
     tab:
       typeof search.tab === 'string' &&
@@ -91,7 +99,7 @@ const project = createRoute({
 });
 const session = createRoute({
   getParentRoute: () => root,
-  path: '/projects/$projectId/sessions/$sessionId',
+  path: '/m/$machineId/projects/$projectId/sessions/$sessionId',
   component: () => {
     const params = session.useParams();
     return (
@@ -103,7 +111,7 @@ const session = createRoute({
 });
 const config = createRoute({
   getParentRoute: () => root,
-  path: '/config',
+  path: '/m/$machineId/config',
   component: () => (
     <Suspense fallback={<Loading />}>
       <ConfigPage />
@@ -112,7 +120,7 @@ const config = createRoute({
 });
 const search = createRoute({
   getParentRoute: () => root,
-  path: '/search',
+  path: '/m/$machineId/search',
   validateSearch: (search: Record<string, unknown> & SearchSchemaInput) => ({
     q: typeof search.q === 'string' ? search.q : '',
     projectId: typeof search.projectId === 'string' ? search.projectId : '',
@@ -126,7 +134,31 @@ const search = createRoute({
     </Suspense>
   ),
 });
+const legacyRoot = createRoute({
+  getParentRoute: () => root,
+  path: '/',
+  beforeLoad: ({ location }) => {
+    throw redirect({
+      href: `/m/local${location.searchStr}${location.hash ? `#${location.hash}` : ''}`,
+      replace: true,
+    });
+  },
+});
+const legacyPath = createRoute({
+  getParentRoute: () => root,
+  path: '$',
+  beforeLoad: ({ location }) => {
+    if (!location.pathname.startsWith('/m/'))
+      throw redirect({
+        href: `/m/local${location.pathname}${location.searchStr}${location.hash ? `#${location.hash}` : ''}`,
+        replace: true,
+      });
+    throw notFound();
+  },
+});
 export const routeTree = root.addChildren([
+  legacyRoot,
+  legacyPath,
   overview,
   project,
   session,

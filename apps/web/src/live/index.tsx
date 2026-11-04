@@ -2,101 +2,124 @@ import { useEffect, type ReactNode } from 'react';
 import {
   useQueryClient,
   type QueryClient,
-  type InfiniteData,
+  type Query,
 } from '@tanstack/react-query';
-import type { LiveEvent, SessionDetailResponse } from '@c9view/api';
-import {
-  api,
-  HttpError,
-  SESSION_PAGE_SIZE,
-  type SessionPageParam,
-} from '../api.js';
+import type { MachineEvent, MachineStateEvent } from '@c9view/api';
+import { queryKeys } from '../queryKeys.js';
+import { api, HttpError } from '../api.js';
 import { resetConnection, setConnection } from './state.js';
 export { useLiveConnection, useLivePolling, useLiveSession } from './state.js';
 
-// Refresh by absolute offset so growth cannot shift a loaded tail and leave gaps.
-export async function refreshNewestPage(
+// Each query has one refresh loop. Hints during a read coalesce into a trailing read.
+const refreshes = new WeakMap<
+  QueryClient,
+  Map<string, { dirty: boolean; promise: Promise<void> }>
+>();
+async function refreshQuery(client: QueryClient, query: Query) {
+  let pending = refreshes.get(client);
+  if (!pending) {
+    pending = new Map();
+    refreshes.set(client, pending);
+  }
+  const running = pending.get(query.queryHash);
+  if (running) {
+    running.dirty = true;
+    return running.promise;
+  }
+  const state = { dirty: false, promise: Promise.resolve() };
+  pending.set(query.queryHash, state);
+  state.promise = (async () => {
+    try {
+      do {
+        state.dirty = false;
+        // Include a request already started by mounting, polling or pagination.
+        if (query.state.fetchStatus !== 'idle')
+          await query.promise?.catch(() => {});
+        await client.invalidateQueries(
+          { queryKey: query.queryKey, exact: true },
+          { cancelRefetch: false },
+        );
+      } while (state.dirty);
+    } finally {
+      pending.delete(query.queryHash);
+    }
+  })();
+  return state.promise;
+}
+/** Polling uses the same serialized invalidation path as live hints. */
+export async function refreshSession(
   client: QueryClient,
+  machineId: string,
   projectId: string,
   sessionId: string,
 ) {
-  const key = ['session', projectId, sessionId];
-  const cached =
-    client.getQueryData<InfiniteData<SessionDetailResponse, SessionPageParam>>(
-      key,
-    );
-  const last = cached?.pages.at(-1);
-  const param = cached?.pageParams.at(-1);
-  if (!cached || !last) return;
-  const limit = typeof param === 'object' ? param.limit : SESSION_PAGE_SIZE;
-  const page = await api.session(projectId, sessionId, {
-    cursor: last.cursor,
-    limit,
-  });
-  client.setQueryData<InfiniteData<SessionDetailResponse, SessionPageParam>>(
-    key,
-    (current) =>
-      current === cached
-        ? { ...cached, pages: [...cached.pages.slice(0, -1), page] }
-        : current,
+  const query = client
+    .getQueryCache()
+    .find({
+      queryKey: queryKeys.session(machineId, projectId, sessionId),
+      exact: true,
+    });
+  if (query) await refreshQuery(client, query);
+}
+export async function refreshMachine(client: QueryClient, machineId?: string) {
+  await Promise.all(
+    client
+      .getQueryCache()
+      .getAll()
+      .filter(
+        (query) =>
+          query.queryKey.length > 1 &&
+          (machineId === undefined || query.queryKey[0] === machineId),
+      )
+      .map((query) => refreshQuery(client, query)),
   );
 }
-
 export async function invalidateLiveEvent(
   client: QueryClient,
-  event: LiveEvent,
+  envelope: MachineEvent,
 ) {
-  const invalidate = (queryKey: readonly unknown[]) =>
-    client.invalidateQueries({ queryKey, exact: true });
-  switch (event.event) {
-    case 'project':
-      await Promise.all([
-        client.invalidateQueries({ queryKey: ['usage'] }),
-        invalidate(['overview']),
-        invalidate(['projects']),
-        invalidate(['project', event.data.projectId]),
-      ]);
-      break;
-    case 'session': {
-      const { projectId, sessionId } = event.data;
-      const key = ['session', projectId, sessionId];
-      await Promise.all([
-        invalidate(['project', projectId]),
-        invalidate(['session-poll', projectId, sessionId]),
-        client.invalidateQueries({
-          queryKey: key,
-          exact: true,
-          refetchType: 'none',
-        }),
-      ]);
-      await refreshNewestPage(client, projectId, sessionId);
-      break;
-    }
-    case 'status':
-      await Promise.all([
-        invalidate(['project', event.data.projectId]),
-        invalidate([
-          'session-poll',
-          event.data.projectId,
-          event.data.sessionId,
-        ]),
-      ]);
-      break;
-    case 'config':
-      await Promise.all([
-        invalidate(['config']),
-        client.invalidateQueries({ queryKey: ['project'] }),
-      ]);
-      break;
-    case 'index':
-      await Promise.all([
-        invalidate(['health']),
-        client.invalidateQueries({ queryKey: ['usage'] }),
-        invalidate(['overview']),
-        client.invalidateQueries({ queryKey: ['search'], exact: false }),
-      ]);
-      break;
-  }
+  const { machineId, event } = envelope;
+  await Promise.all(
+    client
+      .getQueryCache()
+      .getAll()
+      .filter((query) => {
+        const [machine, kind, projectId, sessionId] = query.queryKey;
+        if (machine !== machineId) return false;
+        switch (event.type) {
+          case 'project':
+            return (
+              ['usage', 'overview', 'projects'].includes(String(kind)) ||
+              (kind === 'project' && projectId === event.projectId)
+            );
+          case 'session':
+            return (
+              projectId === event.projectId &&
+              (kind === 'project' ||
+                (['session', 'session-poll', 'status-history'].includes(
+                  String(kind),
+                ) &&
+                  sessionId === event.sessionId))
+            );
+          case 'status':
+            return (
+              projectId === event.projectId &&
+              (kind === 'project' ||
+                (['session-poll', 'status-history'].includes(String(kind)) &&
+                  sessionId === event.sessionId))
+            );
+          case 'config':
+            return kind === 'config' || kind === 'project';
+          case 'index':
+            return ['health', 'usage', 'overview', 'search'].includes(
+              String(kind),
+            );
+          default:
+            return false;
+        }
+      })
+      .map((query) => refreshQuery(client, query)),
+  );
 }
 let source: EventSource | undefined;
 const clients = new Map<QueryClient, number>();
@@ -119,33 +142,8 @@ function start() {
     retryTimer = undefined;
     setConnection('live');
     if (reconnect) {
-      // Catch up after missed events during a disconnection.
-      for (const client of clients.keys()) {
-        for (const query of client
-          .getQueryCache()
-          .findAll({ queryKey: ['session'] })) {
-          if (query.getObserversCount() === 0) continue;
-          const [, projectId, sessionId] = query.queryKey;
-          if (typeof projectId === 'string' && typeof sessionId === 'string')
-            void invalidateLiveEvent(client, {
-              event: 'session',
-              data: { projectId, sessionId },
-            }).catch(() => {});
-        }
-        void client.invalidateQueries({
-          predicate: (query) =>
-            [
-              'overview',
-              'projects',
-              'project',
-              'session-poll',
-              'config',
-              'health',
-              'search',
-              'usage',
-            ].includes(String(query.queryKey[0])),
-        });
-      }
+      for (const client of clients.keys())
+        void refreshMachine(client).catch(() => {});
     }
   };
   current.onerror = () => {
@@ -155,7 +153,7 @@ function start() {
     stopProbe = new AbortController();
     probeUnauthorized = false;
     void api
-      .health(stopProbe.signal)
+      .hubHealth(stopProbe.signal)
       .catch((error: unknown) => {
         if (
           error instanceof HttpError &&
@@ -187,38 +185,58 @@ function start() {
         }, delay);
       });
   };
-  for (const event of [
+  for (const type of [
     'project',
     'session',
     'status',
     'config',
     'index',
-  ] as const) {
-    current.addEventListener(event, (message) => {
+    'machine',
+  ]) {
+    current.addEventListener(type, (message) => {
       if (source !== current) return;
-      let data: unknown;
+      let data: MachineEvent | MachineStateEvent;
       try {
-        data = JSON.parse((message as MessageEvent<string>).data);
+        data = JSON.parse((message as MessageEvent<string>).data) as
+          MachineEvent | MachineStateEvent;
       } catch {
         return;
       }
-      if (!data || typeof data !== 'object') return;
       if (
-        (event === 'project' || event === 'session' || event === 'status') &&
-        (!('projectId' in data) || typeof data.projectId !== 'string')
+        !data ||
+        typeof data !== 'object' ||
+        typeof data.machineId !== 'string'
+      )
+        return;
+      if (type === 'machine') {
+        if (
+          'type' in data &&
+          data.type === 'machine' &&
+          data.state === 'online'
+        )
+          for (const client of clients.keys())
+            void refreshMachine(client, data.machineId).catch(() => {});
+        return;
+      }
+      if (
+        !('event' in data) ||
+        !data.event ||
+        typeof data.event !== 'object' ||
+        data.event.type !== type
       )
         return;
       if (
-        (event === 'session' || event === 'status') &&
-        (!('sessionId' in data) || typeof data.sessionId !== 'string')
+        ['project', 'session', 'status'].includes(type) &&
+        typeof data.event.projectId !== 'string'
+      )
+        return;
+      if (
+        ['session', 'status'].includes(type) &&
+        typeof data.event.sessionId !== 'string'
       )
         return;
       for (const client of clients.keys())
-        void invalidateLiveEvent(client, { event, data } as LiveEvent).catch(
-          () => {
-            /* Keep stale data; the next event or reconnect retries. */
-          },
-        );
+        void invalidateLiveEvent(client, data).catch(() => {});
     });
   }
 }

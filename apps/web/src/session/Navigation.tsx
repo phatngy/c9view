@@ -1,3 +1,5 @@
+import { queryKeys } from '../queryKeys.js';
+import { useMachineId } from '../machine.js';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { Message } from '@c9view/api';
@@ -184,10 +186,12 @@ export function Timeline({
   projectId: string;
   sessionId: string;
 }) {
+  const machineId = useMachineId();
   const [all, setAll] = useState(false);
   const query = useQuery({
-    queryKey: ['status-history', projectId, sessionId],
-    queryFn: ({ signal }) => statusHistory(projectId, sessionId, signal),
+    queryKey: queryKeys.statusHistory(machineId, projectId, sessionId),
+    queryFn: ({ signal }) =>
+      statusHistory(machineId, projectId, sessionId, signal),
     refetchInterval: 5000,
   });
   const changes = query.data?.changes ?? [];

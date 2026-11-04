@@ -35,12 +35,12 @@ const ProjectChanges = lazy(() =>
 export function ProjectPage({ projectId }: { projectId: string }) {
   const query = useProject(projectId);
   useBreadcrumbs([
-    { label: 'Overview', to: '/' },
+    { label: 'Overview', to: '/m/$machineId' },
     { label: query.data?.project.name ?? projectId },
   ]);
-  const search = useSearch({ from: '/projects/$projectId' });
+  const search = useSearch({ from: '/m/$machineId/projects/$projectId' });
   const { tab, path, line, view, filter, sort } = search;
-  const navigate = useNavigate({ from: '/projects/$projectId' });
+  const navigate = useNavigate({ from: '/m/$machineId/projects/$projectId' });
   const [range, setRange] = useState(30);
   const update = (change: { view?: string; filter?: string; sort?: string }) =>
     void navigate({
@@ -70,16 +70,15 @@ export function ProjectPage({ projectId }: { projectId: string }) {
         ) : (
           <Kanban sessions={selected} projectId={projectId} />
         )}
-        {!selected.length && (
-          sessions.length ? (
+        {!selected.length &&
+          (sessions.length ? (
             <Empty>No sessions match your filters.</Empty>
           ) : (
             <EmptyState
               title="No sessions in this project yet"
               text="No sessions found yet."
             />
-          )
-        )}
+          ))}
       </div>
     ) : (
       <Suspense fallback={<Loading />}>

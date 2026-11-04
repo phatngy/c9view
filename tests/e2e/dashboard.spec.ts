@@ -9,7 +9,7 @@ import {
 test('Overview lists fixture projects and filters status and usage range', async ({
   page,
 }) => {
-  await page.goto('/');
+  await page.goto('/m/local');
   await expect(
     page.getByRole('heading', { name: 'Overview', exact: true }),
   ).toBeVisible();
@@ -146,7 +146,7 @@ test('Session Task links to its synthetic subagent and back to the parent call',
 });
 
 test('Config section navigation and filtering work', async ({ page }) => {
-  await page.goto('/config');
+  await page.goto('/m/local/config');
   await expect(
     page.getByRole('heading', { name: 'Global config', exact: true }),
   ).toBeVisible();
@@ -189,7 +189,7 @@ test('Config section navigation and filtering work', async ({ page }) => {
 test('Search highlights fixture text and links to the matching message', async ({
   page,
 }) => {
-  await page.goto('/search');
+  await page.goto('/m/local/search');
   await page.getByRole('searchbox', { name: 'Search query' }).fill('widget');
   await page.getByRole('button', { name: 'Search', exact: true }).click();
   const hit = page.getByRole('link', { name: /Build a sample widget/ });
@@ -207,7 +207,7 @@ test('Search highlights fixture text and links to the matching message', async (
 });
 
 test('Theme menu applies dark and light themes', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/m/local');
   for (const theme of ['Dark', 'Light']) {
     await page
       .getByRole('button', { name: /^Theme: .* Change theme$/ })
@@ -227,4 +227,15 @@ test('Desktop pages fit the viewport and keep visible text at least 12 px', asyn
     await expectPageReady(page, path, text);
     await expectPageLayout(page);
   }
+});
+
+test('legacy project URLs redirect while retaining their query', async ({
+  page,
+}) => {
+  await page.goto('/projects/-synthetic-alpha?tab=files&path=README.md&line=2');
+  await expect(page).toHaveURL(/\/m\/local\/projects\/-synthetic-alpha\?/);
+  const url = new URL(page.url());
+  expect(url.searchParams.get('tab')).toBe('files');
+  expect(url.searchParams.get('path')).toBe('README.md');
+  expect(url.searchParams.get('line')).toBe('2');
 });

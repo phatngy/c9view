@@ -1,3 +1,5 @@
+import { queryKeys } from '../queryKeys.js';
+import { useMachineId } from '../machine.js';
 import { useRef, useState, type KeyboardEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { GitStatusResponse, ProjectFileEntry } from '@c9view/api';
@@ -120,9 +122,10 @@ function Directory({
   onOpen: (entry: ProjectFileEntry) => void;
   badges: Map<string, string>;
 }) {
+  const machineId = useMachineId();
   const query = useQuery({
-    queryKey: ['files', projectId, path],
-    queryFn: ({ signal }) => api.files(projectId, path, signal),
+    queryKey: queryKeys.files(machineId, projectId, path),
+    queryFn: ({ signal }) => api.files(machineId, projectId, path, signal),
     ...fileQueryOptions,
   });
   const [reason, setReason] = useState<string>();

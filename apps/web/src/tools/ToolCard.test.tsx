@@ -63,7 +63,7 @@ describe('tool cards', () => {
     );
     expect(screen.getByRole('link')).toHaveAttribute(
       'href',
-      '/projects/p?tab=files&path=test.ts&line=10',
+      '/m/local/projects/p?tab=files&path=test.ts&line=10',
     );
     fireEvent.click(
       screen.getByRole('button', { name: 'Open in Files changed' }),

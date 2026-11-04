@@ -1,3 +1,4 @@
+import { useMachineId } from '../../machine.js';
 import { useEffect, useRef } from 'react';
 import { Button } from '../../kit/Button.js';
 export interface SessionSearchProps {
@@ -22,6 +23,7 @@ export function SessionSearch({
   projectId,
   close,
 }: SessionSearchProps) {
+  const machineId = useMachineId();
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => input.current?.focus(), []);
   return (
@@ -54,7 +56,7 @@ export function SessionSearch({
       </Button>
       <a
         className="inline-flex h-10 items-center text-sm text-accent focus-visible:outline-2 focus-visible:outline-accent max-sm:min-h-11"
-        href={`/search?${new URLSearchParams({ q: search, projectId })}`}
+        href={`/m/${encodeURIComponent(machineId)}/search?${new URLSearchParams({ q: search, projectId })}`}
       >
         Search all conversations
       </a>

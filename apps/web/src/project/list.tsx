@@ -1,3 +1,4 @@
+import { useMachineId } from '../machine.js';
 import { Link } from '@tanstack/react-router';
 import type { SessionSummary } from '@c9view/api';
 import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react';
@@ -18,6 +19,7 @@ export function SessionList({
   sort: string;
   onSort: (value: string) => void;
 }) {
+  const machineId = useMachineId();
   return (
     <div
       className="project-list"
@@ -64,8 +66,8 @@ export function SessionList({
             <tr key={session.id}>
               <td>
                 <Link
-                  to="/projects/$projectId/sessions/$sessionId"
-                  params={{ projectId, sessionId: session.id }}
+                  to="/m/$machineId/projects/$projectId/sessions/$sessionId"
+                  params={{ machineId, projectId, sessionId: session.id }}
                 >
                   {session.title || 'Untitled session'}
                 </Link>

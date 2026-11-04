@@ -1,3 +1,4 @@
+import '../search/SearchPage.js';
 import {
   act,
   cleanup,
@@ -67,7 +68,7 @@ it.each([
   ).toEqual(marks);
   expect(container.querySelector('script')).toBeNull();
 });
-function open(path = '/search?q=hello', listsPending = false) {
+function open(path = '/m/local/search?q=hello', listsPending = false) {
   vi.spyOn(api, 'projects').mockImplementation(() =>
     listsPending
       ? new Promise(() => {})
@@ -139,6 +140,7 @@ it('keeps project, date and model filters in the shareable URL and debounces typ
   expect(search).not.toHaveBeenCalled();
   await waitFor(() => expect(router.state.location.search.q).toBe('new query'));
   expect(search).toHaveBeenCalledWith(
+    'local',
     expect.objectContaining({
       q: 'new query',
       projectId: project.id,
@@ -150,7 +152,7 @@ it('keeps project, date and model filters in the shareable URL and debounces typ
 });
 it('restores the query draft when browser back returns to an earlier query', async () => {
   vi.spyOn(api, 'search').mockResolvedValue({ results: [], nextCursor: null });
-  const router = open('/search?q=a');
+  const router = open('/m/local/search?q=a');
   await screen.findByText('No results match your search.');
   const input = screen.getByLabelText('Search query');
 
@@ -165,7 +167,7 @@ it('restores the query draft when browser back returns to an earlier query', asy
   await waitFor(() =>
     expect(router.state.location.search.projectId).toBe(project.id),
   );
-  await act(async () => router.history.push('/search?q=b'));
+  await act(async () => router.history.push('/m/local/search?q=b'));
   await waitFor(() => expect(input).toHaveValue('b'));
 
   await act(async () => {
@@ -252,6 +254,7 @@ it('loads another cursor page, groups results and links to message anchors', asy
     await screen.findByText('again', { exact: false }),
   ).toBeInTheDocument();
   expect(search).toHaveBeenLastCalledWith(
+    'local',
     expect.objectContaining({ q: 'hello' }),
     '50',
     expect.any(AbortSignal),
@@ -262,13 +265,13 @@ it('loads another cursor page, groups results and links to message anchors', asy
   expect(screen.getAllByRole('heading', { level: 2 })).toHaveLength(1);
   expect(screen.getByRole('link', { name: /hello world/ })).toHaveAttribute(
     'href',
-    '/projects/project-1/sessions/session-0#m-message-1',
+    '/m/local/projects/project-1/sessions/session-0#m-message-1',
   );
   expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull();
 });
 it('has an empty query state and focuses global search with slash unless typing', async () => {
   const search = vi.spyOn(api, 'search');
-  const router = open('/search');
+  const router = open('/m/local/search');
   await screen.findByText('Enter a query to search conversations.');
   expect(search).not.toHaveBeenCalled();
   const top = screen.getByLabelText('Search all conversations');
@@ -284,7 +287,7 @@ it('has an empty query state and focuses global search with slash unless typing'
   await waitFor(() => expect(router.state.location.search.q).toBe('find me'));
 });
 it('does not steal slash focus from an input or textarea', async () => {
-  open('/search');
+  open('/m/local/search');
   await screen.findByText('Enter a query to search conversations.');
   const input = document.createElement('input');
   const textarea = document.createElement('textarea');
@@ -299,7 +302,7 @@ it('does not steal slash focus from an input or textarea', async () => {
   textarea.remove();
 });
 it('ignores shifted command shortcuts and slash inside an open dialog', async () => {
-  open('/search');
+  open('/m/local/search');
   await screen.findByText('Enter a query to search conversations.');
   const top = screen.getByLabelText('Search all conversations');
   top.blur();
@@ -346,7 +349,7 @@ it('shows kit skeletons while searching, then a kit empty state', async () => {
 it('shows all-filter labels and clears selected filters in the URL', async () => {
   vi.spyOn(api, 'search').mockResolvedValue({ results: [], nextCursor: null });
   const router = open(
-    '/search?q=hello&projectId=project-1&model=claude-sonnet',
+    '/m/local/search?q=hello&projectId=project-1&model=claude-sonnet',
   );
   await screen.findByText('No results match your search.');
   for (const [label, optionName, key] of [
@@ -364,7 +367,7 @@ it('shows all-filter labels and clears selected filters in the URL', async () =>
 });
 
 it('labels search filters and keeps deep-linked values selected while lists load', async () => {
-  open('/search?q=hello&projectId=deep-project&model=deep-model', true);
+  open('/m/local/search?q=hello&projectId=deep-project&model=deep-model', true);
   await screen.findByText('Search conversations');
   const projectFilter = screen.getByRole('combobox', { name: 'Project' });
   const modelFilter = screen.getByRole('combobox', { name: 'Model' });

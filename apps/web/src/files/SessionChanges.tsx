@@ -1,3 +1,5 @@
+import { queryKeys } from '../queryKeys.js';
+import { useMachineId } from '../machine.js';
 import type { ToolFileChange } from '@c9view/api';
 import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -19,12 +21,14 @@ export function SessionChanges({
   dismiss: () => void;
   jump: (id: string) => void;
 }) {
+  const machineId = useMachineId();
   const [selected, setSelected] = useState('');
   const dialog = useRef<HTMLDialogElement>(null);
   const selectedStep = useRef<HTMLLIElement>(null);
   const list = useQuery({
-    queryKey: ['changes', projectId, sessionId],
-    queryFn: ({ signal }) => api.changes(projectId, sessionId, signal),
+    queryKey: queryKeys.changes(machineId, projectId, sessionId),
+    queryFn: ({ signal }) =>
+      api.changes(machineId, projectId, sessionId, signal),
     ...fileQueryOptions,
   });
   const requested = list.data?.files.find(
@@ -32,8 +36,9 @@ export function SessionChanges({
   );
   const fileId = selected || requested?.fileId || '';
   const diff = useQuery({
-    queryKey: ['change', projectId, sessionId, fileId],
-    queryFn: ({ signal }) => api.change(projectId, sessionId, fileId, signal),
+    queryKey: queryKeys.change(machineId, projectId, sessionId, fileId),
+    queryFn: ({ signal }) =>
+      api.change(machineId, projectId, sessionId, fileId, signal),
     enabled: !!fileId,
     ...fileQueryOptions,
   });

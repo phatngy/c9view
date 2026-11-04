@@ -32,6 +32,7 @@ export function relativePath(path: string, root?: string) {
 }
 
 export interface SummaryContext {
+  machineId?: string | undefined;
   projectId?: string | undefined;
   projectPath?: string | undefined;
   callAt?: string | null | undefined;
@@ -77,12 +78,15 @@ const nonempty = (text: string) =>
   text.split('\n').filter((line) => line.trim());
 export function countGrepResult(text: string, mode?: string) {
   if (/No (?:files|matches) found/i.test(text)) return 'no matches';
-  const total = /Found (\d+) total occurrences? across (\d+) files?/i.exec(text);
+  const total = /Found (\d+) total occurrences? across (\d+) files?/i.exec(
+    text,
+  );
   if (total) return `${total[1]} ${total[1] === '1' ? 'match' : 'matches'}`;
   const files = /Found (\d+) files?/i.exec(text);
   if (files) return `${files[1]} ${files[1] === '1' ? 'file' : 'files'}`;
   const lines = nonempty(text);
-  const matches = mode === 'content' || lines.some((line) => /^.+?:\d+:/.test(line));
+  const matches =
+    mode === 'content' || lines.some((line) => /^.+?:\d+:/.test(line));
   return `${lines.length} ${matches ? (lines.length === 1 ? 'match' : 'matches') : lines.length === 1 ? 'line' : 'lines'}`;
 }
 export function parseExit(
@@ -158,7 +162,7 @@ export function toolSummary(
         mono: true,
         ...(relative && ctx.projectId
           ? {
-              href: `/projects/${encodeURIComponent(ctx.projectId)}?${new URLSearchParams({ tab: 'files', path: relative, ...(line ? { line: String(line) } : {}) })}`,
+              href: `/m/${encodeURIComponent(ctx.machineId ?? 'local')}/projects/${encodeURIComponent(ctx.projectId)}?${new URLSearchParams({ tab: 'files', path: relative, ...(line ? { line: String(line) } : {}) })}`,
             }
           : {}),
       },

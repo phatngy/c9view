@@ -64,7 +64,7 @@ function mock(responses: Record<string, Response>) {
     })),
   );
 }
-const base = '/api/projects/p';
+const base = '/api/m/local/projects/p';
 const file: FileContentResponse = {
   path: 'src/demo.ts',
   size: 30,
@@ -200,7 +200,11 @@ describe('files and changes', () => {
     );
   });
   it('lets a clicked hash beat the query and applies the query after changing files', async () => {
-    window.history.replaceState(window.history.state, '', '/projects/p?line=3');
+    window.history.replaceState(
+      window.history.state,
+      '',
+      '/m/local/projects/p?line=3',
+    );
     const { rerender } = render(<FileViewer file={file} line="3" />);
     expect(screen.getByLabelText('Line 3, selected')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('link', { name: '1' }));
@@ -292,7 +296,7 @@ describe('files and changes', () => {
       'change',
     ];
     for (const key of keys) {
-      const query = queries.find((item) => item.queryKey[0] === key);
+      const query = queries.find((item) => item.queryKey[1] === key);
       expect(query?.options).toMatchObject({
         staleTime: 30_000,
         refetchOnWindowFocus: false,
@@ -390,9 +394,7 @@ it('shows folder skeletons followed by a kit empty state', async () => {
     status: 200,
     json: async () => ({ path: '', entries: [] }),
   });
-  expect(
-    await screen.findByText('Empty folder'),
-  ).toBeInTheDocument();
+  expect(await screen.findByText('Empty folder')).toBeInTheDocument();
 });
 
 it('shows kit skeletons for pending working tree changes', () => {

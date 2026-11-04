@@ -1,3 +1,4 @@
+import { useMachineId } from '../machine.js';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { IconButton, Kbd, Tooltip } from '../kit/index.js';
@@ -16,6 +17,7 @@ export function TopSearch({
   shortcuts?: boolean;
   onInputRef?: (input: HTMLInputElement | null) => void;
 }) {
+  const machineId = useMachineId();
   const [query, setQuery] = useState('');
   const input = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
@@ -73,7 +75,8 @@ export function TopSearch({
       onSubmit={(event) => {
         event.preventDefault();
         void navigate({
-          to: '/search',
+          to: '/m/$machineId/search',
+          params: { machineId },
           search: { q: query, projectId: '', from: '', to: '', model: '' },
         });
         onNavigate?.();

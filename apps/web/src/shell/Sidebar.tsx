@@ -1,3 +1,4 @@
+import { useMachineId } from '../machine.js';
 import { IconButton, Tooltip } from '../kit/index.js';
 import { Link } from '@tanstack/react-router';
 import {
@@ -28,6 +29,7 @@ export function Sidebar({
   mobile?: boolean;
   searchInputRef?: (input: HTMLInputElement | null) => void;
 }) {
+  const machineId = useMachineId();
   const { state, polling } = useLiveConnection();
   const connectionLabel =
     state === 'live'
@@ -39,7 +41,8 @@ export function Sidebar({
           : 'Offline';
   const overviewLink = (
     <Link
-      to="/"
+      to="/m/$machineId"
+      params={{ machineId }}
       activeOptions={{ exact: true }}
       activeProps={{ 'data-current': true }}
       className={navLinkClass}
@@ -52,7 +55,8 @@ export function Sidebar({
   );
   const searchLink = (
     <Link
-      to="/search"
+      to="/m/$machineId/search"
+      params={{ machineId }}
       search={{ q: '', projectId: '', from: '', to: '', model: '' }}
       activeProps={{ 'data-current': true }}
       className={navLinkClass}
@@ -65,7 +69,8 @@ export function Sidebar({
   );
   const configLink = (
     <Link
-      to="/config"
+      to="/m/$machineId/config"
+      params={{ machineId }}
       activeProps={{ 'data-current': true }}
       className={navLinkClass}
       aria-label={collapsed ? 'Config' : undefined}
@@ -83,7 +88,8 @@ export function Sidebar({
       <div className="shell-brand-row flex min-h-8 items-center justify-between px-2">
         {!collapsed && (
           <Link
-            to="/"
+            to="/m/$machineId"
+            params={{ machineId }}
             className="shell-wordmark flex min-h-11 items-center text-lg font-semibold tracking-[-.01em] text-ink sm:min-h-9"
             onClick={onNavigate}
           >

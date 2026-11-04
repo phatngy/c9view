@@ -1,3 +1,4 @@
+import '../project.js';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
@@ -18,16 +19,22 @@ afterEach(() => {
 });
 
 it('accepts usage as a project tab and falls back for unknown tabs', () => {
-  const validateSearch = appRouter.routesById['/projects/$projectId'].options
-    .validateSearch as (search: Record<string, unknown>) => { tab: string };
+  const validateSearch = appRouter.routesById[
+    '/m/$machineId/projects/$projectId'
+  ].options.validateSearch as (search: Record<string, unknown>) => {
+    tab: string;
+  };
 
   expect(validateSearch({ tab: 'usage' }).tab).toBe('usage');
   expect(validateSearch({ tab: 'unknown' }).tab).toBe('sessions');
 });
 
 it('keeps a digit-only URL filter as a string', () => {
-  const validateSearch = appRouter.routesById['/projects/$projectId'].options
-    .validateSearch as (search: Record<string, unknown>) => { filter: string };
+  const validateSearch = appRouter.routesById[
+    '/m/$machineId/projects/$projectId'
+  ].options.validateSearch as (search: Record<string, unknown>) => {
+    filter: string;
+  };
 
   expect(validateSearch({ filter: 123 }).filter).toBe('123');
 });
@@ -47,7 +54,9 @@ it('renders inactive sessions as compact project cards', async () => {
   clients.push(client);
   const router = createRouter({
     routeTree,
-    history: createMemoryHistory({ initialEntries: ['/projects/project-1'] }),
+    history: createMemoryHistory({
+      initialEntries: ['/m/local/projects/project-1'],
+    }),
     defaultPendingMinMs: 0,
   });
   render(
@@ -78,7 +87,7 @@ it('exposes aria-sort on the sorted project session table header', async () => {
   const router = createRouter({
     routeTree,
     history: createMemoryHistory({
-      initialEntries: ['/projects/project-1?view=list&sort=title-asc'],
+      initialEntries: ['/m/local/projects/project-1?view=list&sort=title-asc'],
     }),
     defaultPendingMinMs: 0,
   });
@@ -125,13 +134,16 @@ it('shows distinct empty states for projects without sessions and filtered resul
     );
   };
 
-  await renderProject('/projects/project-1', emptyProjectDetail);
+  await renderProject('/m/local/projects/project-1', emptyProjectDetail);
   expect(
     await screen.findByText('No sessions in this project yet'),
   ).toBeInTheDocument();
   cleanup();
 
-  await renderProject('/projects/project-1?filter=missing', projectDetail);
+  await renderProject(
+    '/m/local/projects/project-1?filter=missing',
+    projectDetail,
+  );
   expect(
     await screen.findByText('No sessions match your filters.'),
   ).toBeInTheDocument();
