@@ -14,6 +14,7 @@ export function eventRoutes(transport: NodeTransport | null) {
       {
         start(controller) {
           let finished = false;
+          let announcement: ReturnType<typeof setTimeout> | undefined = undefined;
           const send = (text: string) => {
             if (finished) return;
             const chunk = encoder.encode(text);
@@ -26,6 +27,8 @@ export function eventRoutes(transport: NodeTransport | null) {
           };
           const unsubscribe =
             transport?.subscribe((event) => {
+              // Only the hub may announce machine state on this SSE channel.
+              if (event.type === 'machine') return;
               const payload: MachineEvent = {
                 machineId: 'local',
                 event: {
@@ -56,7 +59,7 @@ export function eventRoutes(transport: NodeTransport | null) {
           send('retry: 3000\n\n');
           // Keep the first retry frame byte-identical for existing SSE clients.
           // Let the HTTP adapter flush retry before announcing the machine.
-          const announcement = setTimeout(() => {
+          announcement = setTimeout(() => {
             if (!transport) return;
             const event: MachineStateEvent = {
               type: 'machine',

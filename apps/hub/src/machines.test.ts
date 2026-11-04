@@ -1,4 +1,7 @@
 import { hostname } from 'node:os';
+import { request } from 'node:http';
+import { once } from 'node:events';
+import { serve } from '@hono/node-server';
 import { expect, it, vi } from 'vitest';
 import { loadConfig, VERSION } from '@c9view/core';
 import {
@@ -100,6 +103,59 @@ it('returns 404 for unknown machines without contacting local', async () => {
     expect(await response.json()).toEqual({ error: 'Not found' });
   }
   expect(transport.request).not.toHaveBeenCalled();
+});
+
+it.each([
+  '__proto__',
+  'constructor',
+  'toString',
+  '%2F',
+  '%2e%2e',
+  'x'.repeat(1_000),
+])('rejects machine id %s without contacting local', async (id) => {
+  const { app, transport } = setup();
+  const server = serve({ fetch: app.fetch, hostname: '127.0.0.1', port: 0 });
+  try {
+    await once(server, 'listening');
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('No port');
+    // node:http preserves encoded dot segments; fetch/Request normalize them.
+    const status = await new Promise<number | undefined>((resolve, reject) => {
+      const req = request(
+        {
+          hostname: '127.0.0.1',
+          port: address.port,
+          path: `/api/m/${id}/projects`,
+        },
+        (response) => {
+          response.resume();
+          response.once('end', () => resolve(response.statusCode));
+        },
+      );
+      req.once('error', reject);
+      req.end();
+    });
+    expect(status).toBe(404);
+    expect(transport.request).not.toHaveBeenCalled();
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((error) => (error ? reject(error) : resolve())),
+    );
+  }
+});
+
+it('returns an empty scoped HEAD response with the GET content type', async () => {
+  const { app, transport } = setup();
+  const get = await app.request('/api/m/local/projects');
+  const head = await app.request('/api/m/local/projects', { method: 'HEAD' });
+  expect(get.status).toBe(200);
+  expect(head.status).toBe(200);
+  expect(head.headers.get('content-type')).toBe('application/json');
+  expect(head.headers.get('content-type')).toBe(
+    get.headers.get('content-type'),
+  );
+  expect(await head.text()).toBe('');
+  expect(vi.mocked(transport.request).mock.calls[1]?.[0].method).toBe('GET');
 });
 
 it('returns no machines or alias data without a local node, while hub routes work', async () => {

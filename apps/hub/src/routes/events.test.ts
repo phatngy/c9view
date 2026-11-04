@@ -83,3 +83,44 @@ it('retains heartbeats, client cap, and releases slots on cancellation', async (
     vi.useRealTimers();
   }
 });
+
+it('reserves machine frames for one hub announcement per connection', async () => {
+  vi.useFakeTimers();
+  try {
+    const { app, emit, transport } = setup();
+    const response = await app.request('/api/events');
+    const reader = response.body!.getReader();
+    const read = async () =>
+      new TextDecoder().decode((await reader.read()).value);
+    expect(await read()).toBe('retry: 3000\n\n');
+    await vi.advanceTimersByTimeAsync(100);
+    expect(await read()).toBe(
+      `event: machine\ndata: ${JSON.stringify({ type: 'machine', machineId: 'local', state: 'online', bootId: transport.hello().bootId })}\n\n`,
+    );
+    emit({
+      type: 'machine',
+      machineId: 'forged',
+      state: 'offline',
+      bootId: 'forged',
+    });
+    emit({
+      type: 'session',
+      machineId: 'forged',
+      event: { type: 'machine', machineId: 'nested', state: 'offline' },
+    });
+    expect(await read()).toBe(
+      'event: session\ndata: {"machineId":"local","event":{"type":"session","machineId":"local","event":{"type":"machine","machineId":"nested","state":"offline"}}}\n\n',
+    );
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(await read()).toBe(': heartbeat\n\n');
+    expect(await read()).toBe(': heartbeat\n\n');
+    // A sentinel proves no extra machine announcement was queued.
+    emit({ type: 'config' });
+    expect(await read()).toBe(
+      'event: config\ndata: {"machineId":"local","event":{"type":"config"}}\n\n',
+    );
+    await reader.cancel();
+  } finally {
+    vi.useRealTimers();
+  }
+});
