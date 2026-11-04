@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import { serve } from '@hono/node-server';
 import { loadConfig } from '@c9view/core';
 import { createApp } from './app.js';
-import { DataStore, startIndex } from '@c9view/node';
+import { createNode, createNodeApp, InProcessTransport } from '@c9view/node';
 import {
   authMode,
   normalizeBindHost,
@@ -79,9 +79,24 @@ export function startServer(options: StartServerOptions = {}) {
     ...(options.claudeDir ? { C9VIEW_CLAUDE_DIR: options.claudeDir } : {}),
     ...(options.db ? { C9VIEW_DB: options.db } : {}),
   });
-  const store = new DataStore(config);
+  const runtime = createNode(config);
+  const indexHandle = runtime.start();
+  const transport = new InProcessTransport(
+    runtime,
+    createNodeApp(runtime).onError((error) => {
+      // Let the hub log the browser-facing path and sanitize the response.
+      throw error;
+    }),
+  );
+  const index = {
+    ready: indexHandle.ready,
+    close: () => {
+      transport.close();
+      return runtime.close();
+    },
+  };
   const app = createApp(config, {
-    store,
+    transport,
     webDist,
     auth: auth.middleware,
     allowedHosts: [hostname, ...allowedHosts],
@@ -95,10 +110,6 @@ export function startServer(options: StartServerOptions = {}) {
     printLogin(url, auth.token);
     options.onListening?.(url);
   });
-  void store.cache.warm(config.claudeDir).catch(() => {
-    /* Request-time reads retry warming failures. */
-  });
-  const index = startIndex(config, store);
   server.once('close', () => {
     void index.close();
   });
