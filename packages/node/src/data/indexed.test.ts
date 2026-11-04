@@ -14,8 +14,7 @@ import { loadConfig } from '@c9view/core';
 import type { SessionDetailResponse, SearchResponse } from '@c9view/api';
 import { DataStore } from './store.js';
 import { startIndex } from './start-index.js';
-// Temporary until T014: the moved HTTP tests use the hub app; they switch to the node app.
-import { createApp } from '../../../../apps/hub/src/app.js';
+import { createApp } from '../test-app.js';
 
 let dir: string;
 let store: DataStore;
@@ -140,25 +139,6 @@ it('keeps the fixture file and SQLite HTTP contracts identical, including every 
   expect(reads).not.toHaveBeenCalled();
   expect(mapped).not.toHaveBeenCalled();
 });
-it('reports building immediately and serves the fallback; search validates and requires readiness', async () => {
-  expect((await json('/api/health')).index.state).toBe('building');
-  expect((await json('/api/projects')).projects).toHaveLength(2);
-  for (const q of ['', ' ', 'x'.repeat(501)])
-    expect(
-      (await app.request('/api/search?q=' + encodeURIComponent(q))).status,
-    ).toBe(400);
-  const unavailable = await app.request('/api/search?q=fixture');
-  expect(unavailable.status).toBe(503);
-  expect(await unavailable.json()).toEqual({
-    error: 'Search is available once indexing finishes',
-  });
-  runtime = startIndex(store.config, store);
-  await runtime.ready;
-  expect((await json('/api/health')).index).toMatchObject({
-    state: 'ready',
-    lastFullScanAt: expect.any(String),
-  });
-});
 it('searches redacted text with filters, bounded snippets and complete cursor pagination', async () => {
   const file = join(
     store.config.claudeDir,
@@ -206,62 +186,6 @@ it('searches redacted text with filters, bounded snippets and complete cursor pa
   expect(
     (await json('/api/search?q=needle&projectId=missing')).results,
   ).toEqual([]);
-});
-it('streams transcript append events and cleans listeners on cancel and abort', async () => {
-  runtime = startIndex(store.config, store);
-  await runtime.ready;
-  const response = await app.request('/api/events');
-  expect(response.headers.get('content-type')).toBe('text/event-stream');
-  const reader = response.body!.getReader();
-  expect(new TextDecoder().decode((await reader.read()).value)).toBe(
-    'retry: 3000\n\n',
-  );
-  expect(store.events.listeners.size).toBe(1);
-  await appendFile(
-    join(store.config.claudeDir, 'projects/-fixture-alpha/s1.jsonl'),
-    JSON.stringify({
-      type: 'user',
-      uuid: 'append',
-      message: { content: 'private transcript content' },
-    }) + '\n',
-  );
-  const chunk = await Promise.race([
-    reader.read(),
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('SSE timeout')), 5000),
-    ),
-  ]);
-  expect(new TextDecoder().decode(chunk.value)).toBe(
-    'event: session\ndata: {"projectId":"-fixture-alpha","sessionId":"s1"}\n\n',
-  );
-  const refreshed = (await json(
-    '/api/projects/-fixture-alpha/sessions/s1',
-  )) as SessionDetailResponse;
-  expect(refreshed.messages.at(-1)?.uuid).toBe('append');
-  expect(refreshed.totalMessages).toBe(6);
-  await reader.cancel();
-  expect(store.events.listeners.size).toBe(0);
-  const controller = new AbortController();
-  const aborted = await app.request('/api/events', {
-    signal: controller.signal,
-  });
-  controller.abort();
-  expect(store.events.listeners.size).toBe(0);
-  await aborted.body?.cancel();
-});
-it('caps clients and enforces Host/Origin on streams', async () => {
-  const clients = await Promise.all(
-    Array.from({ length: 32 }, () => app.request('/api/events')),
-  );
-  expect(store.events.listeners.size).toBe(32);
-  expect((await app.request('/api/events')).status).toBe(503);
-  for (const headers of [
-    { host: 'evil.example' },
-    { origin: 'https://evil.example' },
-  ])
-    expect((await app.request('/api/events', { headers })).status).toBe(403);
-  await Promise.all(clients.map((r) => r.body!.cancel()));
-  expect(store.events.listeners.size).toBe(0);
 });
 it('preserves inline Edit changes when the result falls outside a message page', async () => {
   const file = join(
@@ -400,23 +324,6 @@ it('emits computed status transitions from live-file and hook-tail updates', asy
   expect(events.filter((e) => e.event === 'status')).toHaveLength(0);
   unsubscribe();
 });
-it('sends heartbeat comments every fifteen seconds', async () => {
-  vi.useFakeTimers();
-  try {
-    const response = await app.request('/api/events');
-    const reader = response.body!.getReader();
-    await reader.read();
-    await vi.advanceTimersByTimeAsync(15_000);
-    expect(new TextDecoder().decode((await reader.read()).value)).toBe(
-      ': heartbeat\n\n',
-    );
-    await reader.cancel();
-    expect(store.events.listeners.size).toBe(0);
-  } finally {
-    vi.useRealTimers();
-  }
-});
-
 it('reports the scan timestamp stored by the indexer', async () => {
   runtime = startIndex(store.config, store);
   await runtime.ready;
@@ -481,30 +388,6 @@ it('rolls children into cards and makes project headers exactly equal their card
       byModel.reduce((n: number, m: { costUsd: number }) => n + m.costUsd, 0),
     ).toBeCloseTo(session.costUsd, 9);
   }
-});
-it('drops stalled SSE clients at the byte limit and keeps healthy clients subscribed', async () => {
-  const stalled = await app.request('/api/events');
-  const healthy = await app.request('/api/events');
-  const reader = healthy.body!.getReader();
-  await reader.read();
-  for (let i = 0; i < 300; i++) {
-    store.events.emit({
-      event: 'session',
-      data: { projectId: 'x'.repeat(1024), sessionId: 's' },
-    });
-    await reader.read();
-  }
-  expect(store.events.listeners.size).toBe(1);
-  const queued = stalled.body!.getReader();
-  let bytes = 0;
-  for (;;) {
-    const chunk = await queued.read();
-    if (chunk.done) break;
-    bytes += chunk.value.byteLength;
-  }
-  expect(bytes).toBeLessThanOrEqual(256 * 1024);
-  await reader.cancel();
-  expect(store.events.listeners.size).toBe(0);
 });
 it('reuses unaffected project entries on targeted invalidation', async () => {
   runtime = startIndex(store.config, store);

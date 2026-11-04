@@ -1,11 +1,12 @@
 import { Hono } from 'hono';
-import type { DataStore } from '@c9view/node';
+import type { NodeTransport } from '@c9view/node';
 
-export function eventRoutes(store: DataStore) {
+export function eventRoutes(transport: NodeTransport) {
   const app = new Hono();
+  let clients = 0;
   app.get('/events', (c) => {
-    if (store.events.listeners.size >= 32)
-      return c.json({ error: 'Too many event clients' }, 503);
+    if (clients >= 32) return c.json({ error: 'Too many event clients' }, 503);
+    clients++;
     const encoder = new TextEncoder();
     let cleanup = () => {};
     const body = new ReadableStream<Uint8Array>(
@@ -22,14 +23,15 @@ export function eventRoutes(store: DataStore) {
             }
             controller.enqueue(chunk);
           };
-          const unsubscribe = store.events.subscribe(({ event, data }) =>
-            send(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`),
+          const unsubscribe = transport.subscribe(({ type, ...data }) =>
+            send(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`),
           );
           const heartbeat = setInterval(() => send(': heartbeat\n\n'), 15_000);
           heartbeat.unref();
           cleanup = () => {
             if (finished) return;
             finished = true;
+            clients--;
             clearInterval(heartbeat);
             unsubscribe();
             c.req.raw.signal.removeEventListener('abort', abort);

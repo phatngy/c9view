@@ -6,30 +6,45 @@ import { redactText } from '@c9view/core';
 import type { ApiError } from '@c9view/api';
 import {
   DataStore,
-  redactStrings,
+  createNode,
+  createNodeApp,
+  createNodeHello,
+  InProcessTransport,
+  type NodeTransport,
   type ServerConfig,
-  overviewRoutes,
-  projectRoutes,
-  sessionRoutes,
-  fileRoutes,
-  changeRoutes,
-  configRoutes,
-  usageRoutes,
-  searchRoutes,
 } from '@c9view/node';
+import { transportResponse } from './relay.js';
 import { healthRoutes } from './routes/health.js';
 
 export function createApp(
   config: ServerConfig,
   options: {
     store?: DataStore;
+    transport?: NodeTransport;
     webDist?: string;
     auth?: MiddlewareHandler;
     allowedHosts?: string[];
   } = {},
 ) {
   const app = new Hono();
-  const store = options.store ?? new DataStore(config);
+  const runtime = options.transport
+    ? undefined
+    : options.store
+      ? {
+          store: options.store,
+          events: options.store.events,
+          hello: createNodeHello(),
+        }
+      : createNode(config);
+  const transport =
+    options.transport ??
+    new InProcessTransport(
+      runtime!,
+      createNodeApp(runtime!).onError((error) => {
+        // Let the hub log the browser-facing path and sanitize the response.
+        throw error;
+      }),
+    );
   const allowed = new Set([
     'localhost',
     '127.0.0.1',
@@ -83,49 +98,26 @@ export function createApp(
     );
     return c.json({ error: 'Internal server error' } satisfies ApiError, 500);
   });
-  app.get(
-    '/api/projects/:projectId/sessions/:sessionId/status/history',
-    async (c) => {
-      const found = await store.findSession(
-        c.req.param('projectId'),
-        c.req.param('sessionId'),
-        false,
-        true,
-      );
-      if (!found) return c.json({ error: 'Not found' } satisfies ApiError, 404);
-      return c.json(redactStrings(store.hooks.history(found.session.id)));
-    },
-  );
-  app.use('/api/health', async (c, next) => {
-    await next();
-    if (c.res.ok) {
-      const body = (await c.res.json()) as Record<string, unknown>;
-      c.res = Response.json({
-        ...body,
-        index: store.indexHealth,
-        hooks: redactStrings(await store.hooks.health(store.config.claudeDir)),
-      });
-    }
-  });
-  for (const routes of [
-    healthRoutes,
-    searchRoutes,
-    eventRoutes,
-    overviewRoutes,
-    usageRoutes,
-    projectRoutes,
-    sessionRoutes,
-    configRoutes,
-    fileRoutes,
-    changeRoutes,
-  ])
-    app.route('/api', routes(store));
-  app.all('/api', (c) =>
-    c.json({ error: 'Not found' } satisfies ApiError, 404),
-  );
-  app.all('/api/*', (c) =>
-    c.json({ error: 'Not found' } satisfies ApiError, 404),
-  );
+  app.route('/api', healthRoutes(transport));
+  app.route('/api', eventRoutes(transport));
+  const relay: MiddlewareHandler = async (c) => {
+    if (c.req.method !== 'GET' && c.req.method !== 'POST')
+      return c.json({ error: 'Not found' } satisfies ApiError, 404);
+    const response = await transport.request(
+      {
+        method: c.req.method,
+        path: c.req.path.slice(4) || '/',
+        query: c.req.query(),
+        ...(c.req.method === 'POST'
+          ? { body: new Uint8Array(await c.req.raw.arrayBuffer()) }
+          : {}),
+      },
+      c.req.raw.signal,
+    );
+    return transportResponse(response);
+  };
+  app.all('/api', relay);
+  app.all('/api/*', relay);
   if (options.webDist) {
     app.use('*', serveStatic({ root: options.webDist }));
     app.get('*', serveStatic({ path: `${options.webDist}/index.html` }));

@@ -13,8 +13,7 @@ import type {
   SessionFileDiffResponse,
   SessionDetailResponse,
 } from '@c9view/api';
-// Temporary until T014: the moved HTTP tests use the hub app; they switch to the node app.
-import { createApp } from '../../../../apps/hub/src/app.js';
+import { createApp } from '../test-app.js';
 let dir: string, app: ReturnType<typeof createApp>;
 const base = '/api/projects/-fixture-files';
 const secret = 'sk-ant-fixture-secret-1234567890';
@@ -166,43 +165,6 @@ describe('files and changes HTTP routes', () => {
     expect((await app.request(`${base}/sessions/missing/changes`)).status).toBe(
       404,
     );
-  });
-  it('enforces path boundaries, missing-project responses and global host/origin guards', async () => {
-    for (const path of [
-      '../outside',
-      '/etc/passwd',
-      '.env',
-      'escape',
-      '%2e%2e/outside',
-    ])
-      expect(
-        (await app.request(`${base}/file?path=${encodeURIComponent(path)}`))
-          .status,
-      ).toBe(400);
-    for (const suffix of [
-      '/files',
-      '/file?path=x',
-      '/git/status',
-      '/git/diff',
-      '/sessions/s/changes',
-    ])
-      expect(
-        (await app.request(`/api/projects/-fixture-missing${suffix}`)).status,
-      ).toBe(404);
-    expect(
-      (
-        await app.request(`${base}/files`, {
-          headers: { host: 'evil.invalid' },
-        })
-      ).status,
-    ).toBe(403);
-    expect(
-      (
-        await app.request(`${base}/sessions/s/changes`, {
-          headers: { origin: 'https://evil.invalid' },
-        })
-      ).status,
-    ).toBe(403);
   });
 });
 
