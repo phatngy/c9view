@@ -1,3 +1,4 @@
+import { useMachineId } from '../machine.js';
 import { useEffect, useId, useState } from 'react';
 import type { MessageBlock, SessionDetailResponse } from '@c9view/api';
 import { Markdown } from '../markdown.js';
@@ -122,7 +123,12 @@ export function ToolCard({
   const expanded = open || revealed;
   const id = useId();
   const [mode, setMode] = useDiffMode();
-  const summary = toolSummary(block, results, { ...context, ...timing });
+  const machineId = useMachineId();
+  const summary = toolSummary(block, results, {
+    ...context,
+    ...timing,
+    machineId,
+  });
   let body;
   if (block.name === 'Bash')
     body = <BashCard command={str('command')} results={results} />;

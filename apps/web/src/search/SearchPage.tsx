@@ -1,3 +1,5 @@
+import { queryKeys } from '../queryKeys.js';
+import { useMachineId } from '../machine.js';
 import { useBreadcrumbs } from '../shell/breadcrumbs.js';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
@@ -17,9 +19,10 @@ import { Highlights } from './highlights.js';
 import { cleanSnippet } from './snippet.js';
 
 export function SearchPage() {
+  const machineId = useMachineId();
   useBreadcrumbs([{ label: 'Search' }]);
-  const filters = useSearch({ from: '/search' });
-  const navigate = useNavigate({ from: '/search' });
+  const filters = useSearch({ from: '/m/$machineId/search' });
+  const navigate = useNavigate({ from: '/m/$machineId/search' });
   const [draft, setDraft] = useState(filters.q);
   const [lastPushedQuery, setLastPushedQuery] = useState<string | undefined>();
   const [previousQuery, setPreviousQuery] = useState(filters.q);
@@ -75,8 +78,9 @@ export function SearchPage() {
   const ids = [...new Set(rows.map((row) => row.projectId))];
   const details = useQueries({
     queries: ids.map((id) => ({
-      queryKey: ['project', id],
-      queryFn: ({ signal }: { signal: AbortSignal }) => api.project(id, signal),
+      queryKey: queryKeys.project(machineId, id),
+      queryFn: ({ signal }: { signal: AbortSignal }) =>
+        api.project(machineId, id, signal),
     })),
   });
   const groups = new Map<string, typeof rows>();
@@ -203,8 +207,9 @@ export function SearchPage() {
                     <Link
                       className="block min-h-11 border-t border-line py-3 hover:bg-surface focus-visible:outline-offset-2"
                       key={row.messageUuid}
-                      to="/projects/$projectId/sessions/$sessionId"
+                      to="/m/$machineId/projects/$projectId/sessions/$sessionId"
                       params={{
+                        machineId,
                         projectId: row.projectId,
                         sessionId: row.sessionId,
                       }}

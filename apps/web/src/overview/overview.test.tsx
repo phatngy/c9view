@@ -1,3 +1,4 @@
+import '../overview.js';
 import {
   act,
   cleanup,
@@ -46,7 +47,7 @@ function usage(costUsd = 6): UsageResponse {
     cacheHit: [{ date: '2026-10-30', ratio: 0.5 }],
   };
 }
-function open(path = '/', pendingProjects?: Promise<ProjectsResponse>) {
+function open(path = '/m/local', pendingProjects?: Promise<ProjectsResponse>) {
   vi.spyOn(api, 'overview').mockResolvedValue(overview);
   vi.spyOn(api, 'projects').mockResolvedValue({
     projects: [
@@ -61,11 +62,13 @@ function open(path = '/', pendingProjects?: Promise<ProjectsResponse>) {
     ],
   });
   if (pendingProjects) vi.mocked(api.projects).mockReturnValue(pendingProjects);
-  const query = vi.spyOn(api, 'usage').mockImplementation(async (filters) => {
-    const days =
-      (Date.parse(filters.to) - Date.parse(filters.from)) / 86400000 + 1;
-    return usage(filters.projectId ? 2 : days);
-  });
+  const query = vi
+    .spyOn(api, 'usage')
+    .mockImplementation(async (_machineId, filters) => {
+      const days =
+        (Date.parse(filters.to) - Date.parse(filters.from)) / 86400000 + 1;
+      return usage(filters.projectId ? 2 : days);
+    });
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -114,12 +117,12 @@ it('shares the header range and project filter between headline totals and chart
   fireEvent.pointerDown(option, { pointerType: 'mouse' });
   fireEvent.click(option);
   await waitFor(() => expect(cost).toHaveTextContent('≈ $2.00'));
-  expect(query.mock.calls.at(-1)?.[0].projectId).toBe(project.id);
+  expect(query.mock.calls.at(-1)?.[1].projectId).toBe(project.id);
   expect(screen.getAllByRole('combobox')).toHaveLength(1);
   fireEvent.click(within(range).getByRole('button', { name: 'All' }));
   await waitFor(() => expect(router.state.location.search.range).toBe(366));
   expect(screen.getByText('All = last 366 days')).toBeVisible();
-  const filters = query.mock.calls.at(-1)![0];
+  const filters = query.mock.calls.at(-1)![1];
   expect(
     (Date.parse(filters.to) - Date.parse(filters.from)) / 86400000 + 1,
   ).toBe(366);
@@ -241,7 +244,7 @@ it.each([project.id, 'unknown-project'])(
     const expectedProject = requestedProject === project.id ? project.id : '';
     expect(
       query.mock.calls.every(
-        ([filters]) => filters.projectId === expectedProject,
+        ([, filters]) => filters.projectId === expectedProject,
       ),
     ).toBe(true);
   },

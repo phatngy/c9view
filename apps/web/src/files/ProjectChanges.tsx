@@ -1,3 +1,5 @@
+import { queryKeys } from '../queryKeys.js';
+import { useMachineId } from '../machine.js';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api, fileQueryOptions } from '../api.js';
@@ -5,15 +7,17 @@ import { DiffView } from '../diff/DiffView.js';
 import { Empty, Loading } from '../ui.js';
 import { FileFailure } from './shared.js';
 export function ProjectChanges({ projectId }: { projectId: string }) {
+  const machineId = useMachineId();
   const [selected, setSelected] = useState('');
   const status = useQuery({
-    queryKey: ['git-status', projectId],
-    queryFn: ({ signal }) => api.gitStatus(projectId, signal),
+    queryKey: queryKeys.gitStatus(machineId, projectId),
+    queryFn: ({ signal }) => api.gitStatus(machineId, projectId, signal),
     ...fileQueryOptions,
   });
   const diff = useQuery({
-    queryKey: ['git-diff', projectId, selected],
-    queryFn: ({ signal }) => api.gitDiff(projectId, selected, signal),
+    queryKey: queryKeys.gitDiff(machineId, projectId, selected),
+    queryFn: ({ signal }) =>
+      api.gitDiff(machineId, projectId, selected, signal),
     enabled: !!selected,
     ...fileQueryOptions,
   });

@@ -1,3 +1,4 @@
+import '../session.js';
 import {
   cleanup,
   fireEvent,
@@ -110,7 +111,7 @@ function mockFetch(
   projectPending = false,
 ) {
   const fetcher = vi.fn(async (url: string) => {
-    if (projectPending && url === '/api/projects/project-1')
+    if (projectPending && url === '/api/m/local/projects/project-1')
       return new Promise(() => {});
     let body: unknown;
     if (url.includes('/status/history')) body = history;
@@ -197,7 +198,7 @@ it.each([10, 60])(
       expect(result.current.data?.pageParams).toEqual(pageParams),
     );
     expect(
-      clients[0]!.getQueryData(['session', 'project-1', 'session-0']),
+      clients[0]!.getQueryData(['local', 'session', 'project-1', 'session-0']),
     ).toMatchObject({ pageParams });
     unsubscribe();
     expect(cachedParams.length).toBeGreaterThan(0);
@@ -213,7 +214,7 @@ it.each([10, 60])(
     );
     await act(async () => {
       await clients[0]!.refetchQueries({
-        queryKey: ['session', 'project-1', 'session-0'],
+        queryKey: ['local', 'session', 'project-1', 'session-0'],
         exact: true,
       });
     });
@@ -239,7 +240,7 @@ function openSession() {
   const router = createRouter({
     routeTree,
     history: createMemoryHistory({
-      initialEntries: ['/projects/project-1/sessions/session-0'],
+      initialEntries: ['/m/local/projects/project-1/sessions/session-0'],
     }),
     defaultPendingMinMs: 0,
   });
@@ -837,7 +838,10 @@ describe('session navigation', () => {
     expect(screen.getByText('1 matches')).toBeInTheDocument();
     expect(
       screen.getByRole('link', { name: 'Search all conversations' }),
-    ).toHaveAttribute('href', '/search?q=example.ts&projectId=project-1');
+    ).toHaveAttribute(
+      'href',
+      '/m/local/search?q=example.ts&projectId=project-1',
+    );
   });
   it('reveals pasted text when Next match jumps to its hidden content', async () => {
     const pasted = Array.from({ length: 25 }, (_, index) =>
@@ -963,11 +967,14 @@ describe('session navigation', () => {
       });
       all.push(message('live'));
       act(() =>
-        clients[0]!.setQueryData(['session-poll', 'project-1', 'session-0'], {
-          status: sessionDetail.session.status,
-          totalMessages: 2,
-          lastAt: null,
-        }),
+        clients[0]!.setQueryData(
+          ['local', 'session-poll', 'project-1', 'session-0'],
+          {
+            status: sessionDetail.session.status,
+            totalMessages: 2,
+            lastAt: null,
+          },
+        ),
       );
       await waitFor(() =>
         expect(document.getElementById('m-live')).toBeInTheDocument(),
@@ -996,11 +1003,14 @@ describe('session navigation', () => {
     all.push(message('appended live row'));
     height = 2000;
     act(() =>
-      clients[0]!.setQueryData(['session-poll', 'project-1', 'session-0'], {
-        status: sessionDetail.session.status,
-        totalMessages: 2,
-        lastAt: null,
-      }),
+      clients[0]!.setQueryData(
+        ['local', 'session-poll', 'project-1', 'session-0'],
+        {
+          status: sessionDetail.session.status,
+          totalMessages: 2,
+          lastAt: null,
+        },
+      ),
     );
     expect(
       await screen.findByRole('button', { name: 'Jump to latest' }),
@@ -2418,7 +2428,7 @@ it('loads earlier history after a background refetch ends at the top edge withou
   let refetch: Promise<void> | undefined;
   act(() => {
     refetch = clients[0]!.refetchQueries({
-      queryKey: ['session', 'project-1', 'session-0'],
+      queryKey: ['local', 'session', 'project-1', 'session-0'],
       exact: true,
     });
   });

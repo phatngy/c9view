@@ -32,7 +32,7 @@ it('replaces the app with token instructions on an API 401', async () => {
     </LoginGate>,
   );
   await act(async () => {
-    await expect(api.projects()).rejects.toMatchObject({ status: 401 });
+    await expect(api.projects('local')).rejects.toMatchObject({ status: 401 });
   });
   expect(screen.getByLabelText('Token')).toBeInTheDocument();
   expect(screen.queryByText('Dashboard')).not.toBeInTheDocument();

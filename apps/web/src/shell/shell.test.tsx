@@ -1,3 +1,6 @@
+import '../overview.js';
+import '../project.js';
+import '../session.js';
 import {
   cleanup,
   fireEvent,
@@ -30,7 +33,7 @@ afterEach(() => {
   resetConnection();
 });
 function open(
-  path = '/',
+  path = '/m/local',
   pending = false,
   projects: ProjectSummary[] = [project],
   strictMode = false,
@@ -38,13 +41,14 @@ function open(
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string) => {
-      if (pending && url === '/api/projects') return new Promise(() => {});
+      if (pending && url === '/api/m/local/projects')
+        return new Promise(() => {});
       const data =
-        url === '/api/projects'
+        url === '/api/m/local/projects'
           ? { projects }
-          : url === '/api/overview'
+          : url === '/api/m/local/overview'
             ? overview
-            : url === '/api/projects/project-1'
+            : url === '/api/m/local/projects/project-1'
               ? projectDetail
               : { error: 'Unavailable' };
       return {
@@ -152,7 +156,7 @@ describe('app shell', () => {
   });
 
   it('keeps list headers and numeric columns aligned, with model badges unwrapped', async () => {
-    open('/projects/project-1?view=list');
+    open('/m/local/projects/project-1?view=list');
     const table = await screen.findByRole('region', { name: 'Sessions table' });
     for (const label of ['Messages', 'Tokens', '≈ Cost']) {
       const header = within(table).getByRole('button', {
@@ -206,7 +210,7 @@ describe('app shell', () => {
       id: 'project-2',
       path: '/personal/dashboard',
     };
-    open('/projects/project-1', false, [project, duplicate]);
+    open('/m/local/projects/project-1', false, [project, duplicate]);
     const projectNav = await screen.findByRole('navigation', {
       name: 'Projects',
     });
@@ -285,7 +289,7 @@ describe('app shell', () => {
       path: '/personal/dashboard',
     };
     open(
-      '/projects/project-1/sessions/session-0',
+      '/m/local/projects/project-1/sessions/session-0',
       false,
       [project, duplicate],
       true,
@@ -329,7 +333,7 @@ describe('app shell', () => {
   });
 
   it('does not show a folder hint for a unique project name', async () => {
-    open('/projects/project-1', false, [project]);
+    open('/m/local/projects/project-1', false, [project]);
     const projectNav = await screen.findByRole('navigation', {
       name: 'Projects',
     });
@@ -364,7 +368,10 @@ describe('app shell', () => {
       id: 'project-2',
       path: '/personal/dashboard',
     };
-    open('/projects/project-1/sessions/session-0', false, [project, duplicate]);
+    open('/m/local/projects/project-1/sessions/session-0', false, [
+      project,
+      duplicate,
+    ]);
     const breadcrumb = await screen.findByRole('navigation', {
       name: 'Breadcrumb',
     });
@@ -448,7 +455,7 @@ describe('app shell', () => {
     ).toBeInTheDocument();
   });
   it('shows current sessions by urgency and retains the API cost anchor', async () => {
-    open('/projects/project-1');
+    open('/m/local/projects/project-1');
     const nav = await screen.findByRole('navigation', { name: 'Projects' });
     await within(nav).findByRole('link', { name: 'All 4 sessions' });
     const links = within(nav).getAllByRole('link');
@@ -469,7 +476,7 @@ describe('app shell', () => {
     );
   });
   it('marks the current session row, rather than its project row, on session routes', async () => {
-    open('/projects/project-1/sessions/session-1');
+    open('/m/local/projects/project-1/sessions/session-1');
     await waitFor(() =>
       expect(document.documentElement).toHaveClass('session-route'),
     );
@@ -514,7 +521,7 @@ describe('app shell', () => {
       name: `Recent ${i}`,
       lastActivityAt: `2026-10-${String(i + 1).padStart(2, '0')}T00:00:00Z`,
     }));
-    open('/projects/project-1', false, [
+    open('/m/local/projects/project-1', false, [
       ...recent,
       { ...project, lastActivityAt: null },
     ]);

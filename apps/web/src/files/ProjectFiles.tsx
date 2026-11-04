@@ -1,3 +1,5 @@
+import { queryKeys } from '../queryKeys.js';
+import { useMachineId } from '../machine.js';
 import { useQuery } from '@tanstack/react-query';
 import { api, fileQueryOptions, HttpError } from '../api.js';
 import { FileTree } from './FileTree.js';
@@ -15,14 +17,15 @@ export function ProjectFiles({
   line: string;
   select: (path: string) => void;
 }) {
+  const machineId = useMachineId();
   const status = useQuery({
-    queryKey: ['git-status', projectId],
-    queryFn: ({ signal }) => api.gitStatus(projectId, signal),
+    queryKey: queryKeys.gitStatus(machineId, projectId),
+    queryFn: ({ signal }) => api.gitStatus(machineId, projectId, signal),
     ...fileQueryOptions,
   });
   const file = useQuery({
-    queryKey: ['file', projectId, path],
-    queryFn: ({ signal }) => api.file(projectId, path, signal),
+    queryKey: queryKeys.file(machineId, projectId, path),
+    queryFn: ({ signal }) => api.file(machineId, projectId, path, signal),
     enabled: !!path,
     ...fileQueryOptions,
   });

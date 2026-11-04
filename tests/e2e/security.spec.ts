@@ -7,7 +7,7 @@ import {
 } from './page-checks.js';
 
 test('Foreign Host requests are rejected', async ({ request }) => {
-  for (const path of ['/', '/api/health', '/api/projects']) {
+  for (const path of ['/m/local', '/api/health', '/api/m/local/projects']) {
     const response = await request.get(path, {
       headers: { Host: 'foreign.example' },
     });
