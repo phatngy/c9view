@@ -29,3 +29,26 @@ it('rejects invalid environment auth and short tokens before startup', () => {
     'C9VIEW_TOKEN must contain at least 32 characters',
   );
 });
+it('rejects invalid transport limits before the index starts', async () => {
+  const { mkdtemp, writeFile, mkdir, rm } = await import('node:fs/promises');
+  const { existsSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const dir = await mkdtemp(join(tmpdir(), 'c9view-limits-'));
+  try {
+    await mkdir(join(dir, 'claude'));
+    await writeFile(join(dir, 'index.html'), '<html></html>');
+    vi.stubEnv('C9VIEW_REQUEST_DEADLINE_MS', 'soon');
+    expect(() =>
+      startServer({
+        auth: 'none',
+        claudeDir: join(dir, 'claude'),
+        db: join(dir, 'index.sqlite'),
+        webDist: dir,
+      }),
+    ).toThrow('C9VIEW_REQUEST_DEADLINE_MS');
+    expect(existsSync(join(dir, 'index.sqlite'))).toBe(false);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
