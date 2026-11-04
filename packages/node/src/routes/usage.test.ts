@@ -2,7 +2,7 @@ import { cp, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterEach, beforeEach, expect, it } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { loadConfig } from '@c9view/core';
 import type {
   OverviewResponse,
@@ -18,6 +18,8 @@ let runtime: ReturnType<typeof startIndex> | undefined;
 let app: ReturnType<typeof createApp>;
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), 'c9view-usage-'));
+  vi.stubEnv('C9VIEW_STATE_DIR', join(dir, 'state'));
+  vi.stubEnv('C9VIEW_LEGACY_STATE_DIR', join(dir, 'legacy'));
   const claudeDir = join(dir, 'claude');
   await cp(
     fileURLToPath(new URL('../../test/fixtures/claude', import.meta.url)),
@@ -36,6 +38,7 @@ afterEach(async () => {
   await runtime?.close();
   runtime = undefined;
   store.hooks.close();
+  vi.unstubAllEnvs();
   await rm(dir, { recursive: true, force: true });
 });
 async function ready() {
