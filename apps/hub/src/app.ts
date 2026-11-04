@@ -19,6 +19,11 @@ import type { AuthMode } from './auth/index.js';
 import { transportResponse } from './relay.js';
 import { healthRoutes } from './routes/health.js';
 import { createLocalTransport } from './local-node.js';
+import {
+  guardControl,
+  isControlMutation,
+  type ControlNodeRequest,
+} from './control/guard.js';
 
 export function createApp(
   config: ServerConfig,
@@ -32,7 +37,7 @@ export function createApp(
     allowedHosts?: string[];
   } = {},
 ) {
-  const app = new Hono();
+  const app = new Hono<{ Variables: { authenticated: boolean } }>();
   const limits = options.limits ?? loadNodeLimits();
   const runtime =
     options.transport !== undefined
@@ -48,7 +53,7 @@ export function createApp(
     options.transport === undefined
       ? createLocalTransport(runtime!, limits)
       : options.transport;
-  const machines = new Machines(transport);
+  const machines = new Machines(transport, options.authMode ?? 'none');
   const allowed = new Set([
     'localhost',
     '127.0.0.1',
@@ -87,7 +92,25 @@ export function createApp(
     await next();
   });
   // Authentication applies before every route, including health enrichment and streams.
-  if (options.auth) app.use('*', options.auth);
+  if (options.auth)
+    app.use('*', async (c, next) => {
+      let continued = false;
+      const response = await options.auth!(c, async () => {
+        continued = true;
+        c.set(
+          'authenticated',
+          options.authMode !== undefined && options.authMode !== 'none',
+        );
+        await next();
+      });
+      if (
+        !continued &&
+        isControlMutation(c.req.method, c.req.path) &&
+        (response?.status ?? c.res.status) === 401
+      )
+        return c.json({ error: 'Forbidden' } satisfies ApiError, 403);
+      return response;
+    });
 
   app.use('/api/*', async (c, next) => {
     // The HTTP adapter normalizes encoded dot segments in Request.url. Check
@@ -134,6 +157,16 @@ export function createApp(
     }
     const machine = machines.get(machineId);
     if (!machine) return c.json({ error: 'Not found' } satisfies ApiError, 404);
+    let clientBootId: string | undefined;
+    if (isControlMutation(c.req.method, c.req.path)) {
+      const guarded = guardControl(
+        c.req.raw,
+        allowed,
+        c.get('authenticated') === true,
+      );
+      if (guarded instanceof Response) return guarded;
+      clientBootId = guarded;
+    }
     if (machine.summary.state === 'offline' || !machine.transport)
       return c.json({ error: 'Machine offline', reason: 'offline' }, 503);
     const method = c.req.method === 'HEAD' ? 'GET' : c.req.method;
@@ -152,7 +185,8 @@ export function createApp(
         path,
         query: c.req.query(),
         ...(body ? { body } : {}),
-      },
+        ...(clientBootId ? { clientBootId } : {}),
+      } satisfies ControlNodeRequest,
       c.req.raw.signal,
     );
     if (c.req.method === 'HEAD') {

@@ -15,6 +15,8 @@ import {
 } from './auth/index.js';
 
 export interface StartServerOptions {
+  control?: boolean;
+  bypass?: boolean;
   port?: number;
   host?: string;
   claudeDir?: string;
@@ -45,6 +47,13 @@ export function startServer(options: StartServerOptions = {}) {
     ...(options.allowedHosts ?? []),
   ];
   const mode = authMode(options.auth ?? process.env.C9VIEW_AUTH);
+  if (
+    mode === 'none' &&
+    (options.control ?? process.env.C9VIEW_CONTROL === '1')
+  )
+    throw new Error(
+      'Session control requires login on every host, including loopback. Set C9VIEW_AUTH=token or --auth password; C9VIEW_INSECURE_NO_AUTH cannot override this.',
+    );
   validateExposure(
     hostname,
     allowedHosts,
@@ -82,7 +91,24 @@ export function startServer(options: StartServerOptions = {}) {
   });
   // Validate limits before the index watcher starts, so a bad value leaks nothing.
   const limits = loadNodeLimits();
-  const runtime = createNode(config);
+  const nodeOptions: Parameters<typeof createNode>[1] & {
+    control?: boolean;
+    bypass?: boolean;
+  } = {
+    ...(options.control !== undefined ? { control: options.control } : {}),
+    ...(options.bypass !== undefined ? { bypass: options.bypass } : {}),
+  };
+  const runtime = createNode(config, nodeOptions);
+  if (mode === 'none' && runtime.hello.capabilities.control.state !== 'off') {
+    void runtime.close();
+    throw new Error(
+      'A node reporting control requires login. Set C9VIEW_AUTH=token or --auth password; C9VIEW_INSECURE_NO_AUTH cannot override this.',
+    );
+  }
+  if (runtime.hello.capabilities.bypass)
+    console.warn(
+      'WARNING: Session control bypass is on. Every c9view run skips tool permission approvals and cannot leave bypass mode.',
+    );
   const indexHandle = runtime.start();
   const transport = createLocalTransport(runtime, limits);
   const index = {
