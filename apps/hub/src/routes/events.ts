@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import type { DataStore } from '../data/store.js';
+import type { DataStore } from '@c9view/node';
 
 export function eventRoutes(store: DataStore) {
   const app = new Hono();

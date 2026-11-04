@@ -4,8 +4,7 @@ import { resolve } from 'node:path';
 import { serve } from '@hono/node-server';
 import { loadConfig } from '@c9view/core';
 import { createApp } from './app.js';
-import { startIndex } from './data/start-index.js';
-import { DataStore } from './data/store.js';
+import { DataStore, startIndex } from '@c9view/node';
 import {
   authMode,
   normalizeBindHost,

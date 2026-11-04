@@ -21,7 +21,7 @@ import type {
   SessionDetailResponse,
 } from '@c9view/api';
 import { createApp } from './app.js';
-import { DataStore } from './data/store.js';
+import { DataStore } from '@c9view/node';
 
 let dir: string;
 let claudeDir: string;
@@ -31,7 +31,9 @@ beforeAll(async () => {
   dir = await mkdtemp(join(tmpdir(), 'c9view-server-'));
   claudeDir = join(dir, 'claude');
   await cp(
-    fileURLToPath(new URL('../test/fixtures/claude', import.meta.url)),
+    fileURLToPath(
+      new URL('../../../packages/node/test/fixtures/claude', import.meta.url),
+    ),
     claudeDir,
     { recursive: true },
   );

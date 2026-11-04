@@ -14,7 +14,8 @@ import { loadConfig } from '@c9view/core';
 import type { SessionDetailResponse, SearchResponse } from '@c9view/api';
 import { DataStore } from './store.js';
 import { startIndex } from './start-index.js';
-import { createApp } from '../app.js';
+// Temporary until T014: the moved HTTP tests use the hub app; they switch to the node app.
+import { createApp } from '../../../../apps/hub/src/app.js';
 
 let dir: string;
 let store: DataStore;

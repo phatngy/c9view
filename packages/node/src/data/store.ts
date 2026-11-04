@@ -52,7 +52,7 @@ export function sumTokens(values: TokenTotals[]): TokenTotals {
       sum[key] += value[key];
   return sum;
 }
-interface SnapshotProject {
+export interface SnapshotProject {
   discovered: DiscoveredProject;
   project: ProjectSummary;
   sessions: SessionSummary[];

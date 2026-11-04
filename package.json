@@ -8,7 +8,7 @@
   },
   "scripts": {
     "build": "corepack pnpm --recursive build",
-    "dev": "corepack pnpm --parallel --filter @c9view/server --filter @c9view/web dev",
+    "dev": "corepack pnpm --parallel --filter @c9view/hub --filter @c9view/web dev",
     "lint": "corepack pnpm --recursive lint && eslint playwright.config.ts tests/e2e scripts",
     "typecheck": "corepack pnpm --recursive typecheck && tsc -p tests/e2e/tsconfig.json && tsc -p scripts/tsconfig.json",
     "test": "corepack pnpm --recursive test",
