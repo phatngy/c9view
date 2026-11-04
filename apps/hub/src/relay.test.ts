@@ -20,6 +20,8 @@ function setup(response: NodeResponse) {
     transport,
     app: createApp(loadConfig({ C9VIEW_CLAUDE_DIR: '/synthetic/claude' }), {
       transport,
+      authMode: 'token',
+      auth: async (_c, next) => next(),
     }),
   };
 }
@@ -37,6 +39,9 @@ it('relays only the method, node path, query and POST body, preserving response 
   const response = await app.request('/api/control?value=a%26b', {
     method: 'POST',
     headers: {
+      'content-type': 'application/json',
+      'x-c9view-control': '1',
+      'x-c9view-boot-id': '00000000-0000-4000-8000-000000000001',
       host: 'localhost',
       origin: 'http://localhost',
       cookie: 'secret=fixture',
@@ -52,6 +57,7 @@ it('relays only the method, node path, query and POST body, preserving response 
     {
       method: 'POST',
       path: '/control',
+      clientBootId: '00000000-0000-4000-8000-000000000001',
       query: { value: 'a&b' },
       body: encoder.encode('{"fixture":true}'),
     },
@@ -139,6 +145,12 @@ it('limits POST bodies before relaying, including chunked bodies', async () => {
     });
     const exactLimit = await app.request('/api/unknown', {
       method: 'POST',
+      headers: {
+        origin: 'http://localhost',
+        'content-type': 'application/json',
+        'x-c9view-control': '1',
+        'x-c9view-boot-id': '00000000-0000-4000-8000-000000000001',
+      },
       body: '1234',
     });
     expect(exactLimit.status).toBe(404);
@@ -148,6 +160,12 @@ it('limits POST bodies before relaying, including chunked bodies', async () => {
 
     const overLimit = await app.request('/api/unknown', {
       method: 'POST',
+      headers: {
+        origin: 'http://localhost',
+        'content-type': 'application/json',
+        'x-c9view-control': '1',
+        'x-c9view-boot-id': '00000000-0000-4000-8000-000000000001',
+      },
       body: '12345',
     });
     expect(overLimit.status).toBe(413);
@@ -169,6 +187,12 @@ it('limits POST bodies before relaying, including chunked bodies', async () => {
     });
     const chunkedResponse = await app.request('/api/unknown', {
       method: 'POST',
+      headers: {
+        origin: 'http://localhost',
+        'content-type': 'application/json',
+        'x-c9view-control': '1',
+        'x-c9view-boot-id': '00000000-0000-4000-8000-000000000001',
+      },
       body: chunked,
       duplex: 'half',
     } as RequestInit);

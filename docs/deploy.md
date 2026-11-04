@@ -1,6 +1,6 @@
 # Running c9view
 
-c9view reads Claude data and project files. The dashboard never writes them. Hooks install/uninstall are explicit host commands that change Claude settings.
+c9view reads Claude data and project files. With control off, dashboard access is read-only. With control on, Claude Code processes started by c9view write their own data. Hooks install/uninstall are explicit host commands that change Claude settings.
 
 ## Local CLI
 
@@ -24,6 +24,22 @@ C9VIEW_PASSWORD='choose-a-long-password' node packages/cli/dist/main.js --auth p
 Token mode generates a random token per start, or uses `C9VIEW_TOKEN` (at least 32 characters; shorter values fail startup). Open `/login` and paste the token into the form to receive an HttpOnly, SameSite=Strict cookie. Interactive terminals print the token separately. Redirected output and container logs print only the bare login URL: set `C9VIEW_TOKEN` before starting and use that value to log in. `--open` opens a bare URL and never passes the token in browser process arguments. Credentials are not stored on disk.
 
 Password failures use a per-client exponential backoff: 1, 2, 4 seconds, doubling to a 60-second cap. Password checks are blocked while a client is in backoff because passwords are guessable. Token checks verify the token first, so a correct token always logs in and clears that client's backoff; wrong tokens during backoff receive HTTP 429. A rolling global cap permits 60 failures/minute across all clients. HTTP 429 includes `Retry-After` in seconds. Backoff history expires after five idle minutes. Sessions expire after 24 hours and all sessions are invalidated on restart.
+
+## Session control
+
+Control is off by default. Enable it on the machine that runs sessions with `--control` or `C9VIEW_CONTROL=1`:
+
+```sh
+node packages/cli/dist/main.js --control --auth token
+```
+
+Login is always required with control, including on loopback. Set `C9VIEW_AUTH=token` (and `C9VIEW_TOKEN` when running without a terminal) or use `--auth password` with `C9VIEW_PASSWORD`. `C9VIEW_INSECURE_NO_AUTH=1` cannot override this requirement. The hub also refuses a node reporting control ready or unavailable when hub authentication is disabled.
+
+Sessions use the Claude login available to the OS user running the node, or that node process's `ANTHROPIC_API_KEY` environment value. Dashboard login authenticates access to c9view; it does not supply Claude credentials. Claude Code runs on the node and writes its own session and project data. The Claude data directory and projects must be writable; the default read-only Docker mounts are intended for reading data and cannot run control sessions.
+
+The node chooses `C9VIEW_CLAUDE_BIN` when set, otherwise `claude` on PATH, otherwise the Agent SDK's bundled binary. An invalid explicit binary or no available executable refuses startup; set `C9VIEW_CLAUDE_BIN` to an executable Claude Code binary. The node reports the binary/version it uses.
+
+`--bypass` or `C9VIEW_CONTROL_BYPASS=1` requires control. It applies to every c9view run on that node, including resumed and forked sessions, and runs cannot leave bypass mode. Every startup warns: **every c9view run skips tool permission approvals**. The browser cannot turn bypass on. Enable it only when you intend to allow those tools to run without approval.
 
 ## c9view state folder
 
@@ -110,7 +126,7 @@ Set `C9VIEW_TRUST_PROXY=1` only when a trusted proxy controls forwarded headers 
 
 Multiple machines and session control are specified in [001-multi-machine](../specs/001-multi-machine/spec.md) and [002-session-control](../specs/002-session-control/spec.md). The planned layout is the hub in Docker and a native node per machine, and with session control or a paired node login is always required.
 
-`C9VIEW_INSECURE_NO_AUTH=1` overrides the startup refusal when auth is `none` and prints a loud warning every start. It does not enable auth or protect data. It is unsafe behind tunnels, even when the listener is loopback. Avoid it for any remotely reachable deployment.
+`C9VIEW_INSECURE_NO_AUTH=1` overrides the read-only exposure startup refusal when auth is `none` and prints a loud warning every start. It does not enable auth or protect data. It is unsafe behind tunnels, even when the listener is loopback. Avoid it for any remotely reachable deployment.
 
 ## Image verification
 

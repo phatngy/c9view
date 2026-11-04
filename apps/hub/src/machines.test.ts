@@ -84,8 +84,24 @@ it('lists local using hello and keeps hub-owned routes ahead of the alias', asyn
 it.each(['GET', 'POST', 'HEAD'])(
   'relays %s identically through alias and scoped paths',
   async (method) => {
-    const { app, transport } = setup();
-    const init = { method, ...(method === 'POST' ? { body: 'fixture' } : {}) };
+    const { app, transport } = setup({
+      authMode: 'token',
+      auth: async (_c, next) => next(),
+    });
+    const init = {
+      method,
+      ...(method === 'POST'
+        ? {
+            body: 'fixture',
+            headers: {
+              origin: 'http://localhost',
+              'content-type': 'application/json',
+              'x-c9view-control': '1',
+              'x-c9view-boot-id': '00000000-0000-4000-8000-000000000001',
+            },
+          }
+        : {}),
+    };
     const alias = await app.request('/api/projects?q=a%26b', init);
     const scoped = await app.request('/api/m/local/projects?q=a%26b', init);
     expect(scoped.status).toBe(alias.status);
@@ -213,12 +229,20 @@ it('applies login, Host and Origin checks equally to scoped and alias requests',
 it('bounds scoped POST bodies before calling the node', async () => {
   const { app, transport } = setup({
     limits: { ...DEFAULT_NODE_LIMITS, requestBodyMaxBytes: 4 },
+    authMode: 'token',
+    auth: async (_c, next) => next(),
   });
   expect(
     (
       await app.request('/api/m/local/control', {
         method: 'POST',
         body: '12345',
+        headers: {
+          origin: 'http://localhost',
+          'content-type': 'application/json',
+          'x-c9view-control': '1',
+          'x-c9view-boot-id': '00000000-0000-4000-8000-000000000001',
+        },
       })
     ).status,
   ).toBe(413);
@@ -249,3 +273,18 @@ it('returns the offline response for a known machine without calling a transport
     lookup.mockRestore();
   }
 });
+
+it.each(['ready', 'unavailable'] as const)(
+  'preserves control %s, its reason and bypass in machine listings',
+  async (state) => {
+    const hello = createNodeHello();
+    hello.capabilities = {
+      control: { state, reason: 'synthetic capability reason' },
+      bypass: true,
+    };
+    const transport = { hello: () => hello } as NodeTransport;
+    const app = createApp(config, { transport, authMode: 'token' });
+    const machines = await (await app.request('/api/machines')).json();
+    expect(machines[0].capabilities).toEqual(hello.capabilities);
+  },
+);

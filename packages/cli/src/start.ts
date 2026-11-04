@@ -2,6 +2,8 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 export interface StartOptions {
+  control?: boolean;
+  bypass?: boolean;
   port?: string;
   host?: string;
   'claude-dir'?: string;
@@ -15,12 +17,21 @@ export async function runStart(options: StartOptions) {
     throw new Error('--port must be an integer from 1 to 65535');
   if (options.auth && !['none', 'token', 'password'].includes(options.auth))
     throw new Error('--auth must be none, token or password');
+  if (
+    (options.bypass ?? process.env.C9VIEW_CONTROL_BYPASS === '1') &&
+    !(options.control ?? process.env.C9VIEW_CONTROL === '1')
+  )
+    throw new Error(
+      '--bypass requires control. Add --control or set C9VIEW_CONTROL=1.',
+    );
   const hubPackage = hubPackageUrl();
   const entry = new URL('./dist/main.js', hubPackage);
   const { startServer } = (await import(entry.href)) as {
     startServer: (options: Record<string, unknown>) => unknown;
   };
   return startServer({
+    ...(options.control !== undefined ? { control: options.control } : {}),
+    ...(options.bypass !== undefined ? { bypass: options.bypass } : {}),
     ...(options.port !== undefined ? { port: Number(options.port) } : {}),
     ...(options.host ? { host: options.host } : {}),
     ...(options['claude-dir'] ? { claudeDir: options['claude-dir'] } : {}),

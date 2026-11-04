@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import type { MachineSummary } from '@c9view/api';
+import type { AuthMode } from './auth/index.js';
 import type { NodeTransport } from '@c9view/node';
 
 export interface HubMachine {
@@ -11,11 +12,16 @@ export interface HubMachine {
 export class Machines {
   private readonly entries = new Map<string, HubMachine>();
 
-  constructor(local: NodeTransport | null) {
+  constructor(local: NodeTransport | null, authMode: AuthMode = 'none') {
     if (local) {
+      const hello = local.hello();
+      if (authMode === 'none' && hello.capabilities.control.state !== 'off')
+        throw new Error(
+          'A node reporting control requires login. Set C9VIEW_AUTH=token or --auth password; C9VIEW_INSECURE_NO_AUTH cannot override this.',
+        );
       this.entries.set('local', {
         summary: {
-          ...local.hello(),
+          ...hello,
           machineId: 'local',
           state: 'online',
           lastSeenAt: null,
