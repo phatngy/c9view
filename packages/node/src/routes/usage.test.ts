@@ -11,8 +11,7 @@ import type {
 } from '@c9view/api';
 import { DataStore } from '../data/store.js';
 import { startIndex } from '../data/start-index.js';
-// Temporary until T014: the moved HTTP tests use the hub app; they switch to the node app.
-import { createApp } from '../../../../apps/hub/src/app.js';
+import { createApp } from '../test-app.js';
 let dir: string;
 let store: DataStore;
 let runtime: ReturnType<typeof startIndex> | undefined;
