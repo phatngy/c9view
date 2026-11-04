@@ -96,20 +96,21 @@ it('parses control and bypass flags', async () => {
 });
 
 it('forwards control options to startServer without overriding absent environment options', async () => {
-  const { fileURLToPath } = await import('node:url');
-  const entry = fileURLToPath(new URL('./dist/main.js', hubPackageUrl()));
   const startServer = vi.fn();
-  vi.doMock(entry, () => ({ startServer }));
+  vi.doMock('./hub-loader.js', () => ({
+    loadHub: async () => ({ startServer }),
+  }));
+  const { runStart: start } = await import('./start.js');
   try {
-    await runStart({ control: true, bypass: true, auth: 'token' });
+    await start({ control: true, bypass: true, auth: 'token' });
     expect(startServer).toHaveBeenLastCalledWith(
       expect.objectContaining({ control: true, bypass: true, auth: 'token' }),
     );
-    await runStart({});
+    await start({});
     const forwarded = startServer.mock.calls[1]![0];
     expect(forwarded).not.toHaveProperty('control');
     expect(forwarded).not.toHaveProperty('bypass');
   } finally {
-    vi.doUnmock(entry);
+    vi.doUnmock('./hub-loader.js');
   }
 });

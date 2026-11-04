@@ -1,8 +1,16 @@
-import { createRequire } from 'node:module';
-import type * as Sqlite from 'node:sqlite';
+import Database from 'better-sqlite3';
+import { drizzle } from 'drizzle-orm/better-sqlite3';
+import { and, eq } from 'drizzle-orm';
+import { sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { constants, closeSync, lstatSync, mkdirSync, openSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { checkStateDirSync } from '@c9view/core';
+
+const trustedFolders = sqliteTable('trusted_folders', {
+  path: text().primaryKey(),
+  fingerprint: text().notNull(),
+  trustedAt: text('trusted_at').notNull(),
+});
 
 export interface TrustState {
   trusted(path: string, fingerprint: string): boolean;
@@ -48,23 +56,31 @@ export function openControlState(stateDir: string): TrustState {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
     }
   }
-  const { DatabaseSync } = createRequire(import.meta.url)(
-    'node:sqlite',
-  ) as typeof Sqlite;
-  const db = new DatabaseSync(path);
-  db.exec(
+  const sqlite = new Database(path);
+  // Idempotent initial migration; preserves existing trust records.
+  sqlite.exec(
     'CREATE TABLE IF NOT EXISTS trusted_folders (path TEXT PRIMARY KEY, fingerprint TEXT NOT NULL, trusted_at TEXT NOT NULL)',
   );
+  const db = drizzle(sqlite);
   return {
     trusted: (path, fingerprint) =>
       !!db
-        .prepare('SELECT 1 FROM trusted_folders WHERE path=? AND fingerprint=?')
-        .get(path, fingerprint),
+        .select()
+        .from(trustedFolders)
+        .where(
+          and(
+            eq(trustedFolders.path, path),
+            eq(trustedFolders.fingerprint, fingerprint),
+          ),
+        )
+        .get(),
     trust: (path, fingerprint) => {
-      db.prepare(
-        'INSERT INTO trusted_folders VALUES (?, ?, ?) ON CONFLICT(path) DO UPDATE SET fingerprint=excluded.fingerprint, trusted_at=excluded.trusted_at',
-      ).run(path, fingerprint, new Date().toISOString());
+      const values = { path, fingerprint, trustedAt: new Date().toISOString() };
+      db.insert(trustedFolders)
+        .values(values)
+        .onConflictDoUpdate({ target: trustedFolders.path, set: values })
+        .run();
     },
-    close: () => db.close(),
+    close: () => sqlite.close(),
   };
 }

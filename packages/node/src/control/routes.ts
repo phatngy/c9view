@@ -14,7 +14,9 @@ export function controlRoutes(
   const app = new Hono();
   const text = z.string().min(1).max(textMaxChars);
   const schemas = {
-    reply: z.object({ ...command, text, fork: z.boolean().optional() }),
+    reply: z
+      .object({ ...command, text, fork: z.boolean().optional() })
+      .strict(),
     start: z
       .object({
         ...command,
@@ -22,34 +24,38 @@ export function controlRoutes(
         name: z.string().min(1).max(80).optional(),
         permissionMode: mode.optional(),
       })
-      .passthrough(),
+      .strict(),
     decision: z.union([
-      z.object({ ...command, decision: z.literal('allow') }).passthrough(),
+      z.object({ ...command, decision: z.literal('allow') }).strict(),
       z
         .object({
           ...command,
           decision: z.literal('deny'),
           message: z.string().max(2000).optional(),
         })
-        .passthrough(),
-      z.object({
-        ...command,
-        answers: z.record(
-          z.string(),
-          z.union([
-            z.string().min(1).max(2000),
-            z.array(z.string().min(1).max(2000)).min(1),
-          ]),
-        ),
-      }),
+        .strict(),
+      z
+        .object({
+          ...command,
+          answers: z.record(
+            z.string(),
+            z.union([
+              z.string().min(1).max(2000),
+              z.array(z.string().min(1).max(2000)).min(1),
+            ]),
+          ),
+        })
+        .strict(),
     ]),
-    action: z.object(command).passthrough(),
-    mode: z.object({ ...command, mode }).passthrough(),
-    trust: z.object({
-      ...command,
-      path: z.string().min(1),
-      fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
-    }),
+    action: z.object(command).strict(),
+    mode: z.object({ ...command, mode }).strict(),
+    trust: z
+      .object({
+        ...command,
+        path: z.string().min(1),
+        fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+      })
+      .strict(),
   };
   app.onError((error, c) =>
     error instanceof ControlError
@@ -124,7 +130,7 @@ export function controlRoutes(
           'Browser cannot request bypass',
           'bypass-not-allowed',
         );
-      // Unknown fields are tolerated, but ambiguous decision shapes are refused.
+      // All bodies reject unknown fields, including ambiguous decision shapes.
       if (
         path === '/control/requests/:requestId' &&
         value &&
@@ -136,14 +142,7 @@ export function controlRoutes(
       const parsed = schema.safeParse(value);
       if (!parsed.success)
         throw new ControlError(400, 'Invalid control request');
-      return c.json(
-        await action(
-          c.req.param(),
-          { ...(value as Record<string, unknown>), ...parsed.data },
-          boot,
-        ),
-        status,
-      );
+      return c.json(await action(c.req.param(), parsed.data, boot), status);
     });
   }
   post(

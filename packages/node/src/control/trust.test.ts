@@ -87,3 +87,33 @@ it('T031 reads Claude trust without modifying the file', async () => {
   expect(t.sdk.runs).toHaveLength(1);
   expect(await readFile(path)).toEqual(before);
 });
+
+it('accepts a known project symlink by realpath and ignores timestamp-only changes', async () => {
+  const { symlink, utimes } = await import('node:fs/promises');
+  const { FolderTrust } = await import('./trust.js');
+  const t = await setupControl({}, { trusted: false });
+  cleanups.push(t.close);
+  const file = join(t.folder, 'CLAUDE.md');
+  await writeFile(file, 'synthetic instructions');
+  const records = new Map<string, string>();
+  const trust = new FolderTrust(t.claudeDir, {
+    trusted: (path, fingerprint) => records.get(path) === fingerprint,
+    trust: (path, fingerprint) => {
+      records.set(path, fingerprint);
+    },
+    close: () => {},
+  });
+  const summary = await trust.summary(t.folder);
+  await utimes(file, new Date(0), new Date(0));
+  expect((await trust.summary(t.folder)).fingerprint).toBe(summary.fingerprint);
+  const link = join(t.root, 'project-link');
+  await symlink(t.folder, link);
+  await trust.accept(link, summary.fingerprint, [t.folder]);
+  await expect(trust.check(link)).resolves.toMatchObject({ path: t.folder });
+  await expect(
+    trust.accept(join(t.root, 'missing'), summary.fingerprint, [t.folder]),
+  ).rejects.toMatchObject({ status: 404 });
+  await expect(
+    trust.accept(t.root, summary.fingerprint, [t.folder]),
+  ).rejects.toMatchObject({ status: 404 });
+});

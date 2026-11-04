@@ -1,14 +1,16 @@
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import { mkdtemp, rm, mkdir, stat, symlink, chmod } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { openControlState } from './state.js';
 const roots: string[] = [];
 afterEach(async () => {
+  vi.restoreAllMocks();
   for (const root of roots.splice(0))
     await rm(root, { recursive: true, force: true });
 });
-it('T010 persists trust in a separate protected state db', async () => {
+it('T010 persists trust in a separate protected state db without experimental SQLite warnings', async () => {
+  const warning = vi.spyOn(process, 'emitWarning');
   const root = await mkdtemp(join(tmpdir(), 'c9view-state-'));
   roots.push(root);
   const folder = join(root, 'state');
@@ -20,6 +22,7 @@ it('T010 persists trust in a separate protected state db', async () => {
   expect(state.trusted('/synthetic/project', 'abc')).toBe(true);
   expect(state.trusted('/synthetic/project', 'changed')).toBe(false);
   state.close();
+  expect(warning).not.toHaveBeenCalled();
   expect((await stat(folder)).mode & 0o777).toBe(0o700);
   expect((await stat(join(folder, 'node/state.db'))).mode & 0o777).toBe(0o600);
 });

@@ -112,3 +112,33 @@ it('T012 T021 T029 T037 routes validate boot, body sizes and modes and recover a
     404,
   );
 });
+
+it.each([
+  ['reply', { permissionMode: 'auto' }],
+  ['reply', { permissionMode: 'dontAsk' }],
+  ['reply', { permissionMode: 'bypassPermissions' }],
+  ['reply', { permissionMode: 42 }],
+  ['reply', { name: 42 }],
+  ['start', { permissionMode: 'auto' }],
+  ['start', { name: 42 }],
+  ['start', { unexpected: true }],
+] as const)(
+  'rejects unvalidated %s fields %j before the SDK',
+  async (kind, extra) => {
+    const t = await setupControl();
+    cleanups.push(t.close);
+    const app = controlRoutes(t.service);
+    const path =
+      kind === 'reply'
+        ? '/projects/project/sessions/session/messages'
+        : '/projects/project/sessions';
+    const response = await app.request(path, {
+      method: 'POST',
+      headers: { 'x-c9view-boot-id': t.bootId },
+      body: JSON.stringify({ ...t.body(), ...extra }),
+    });
+    expect(response.status).toBe(400);
+    expect(t.service.snapshot().runs).toEqual([]);
+    expect(t.sdk.runs).toEqual([]);
+  },
+);

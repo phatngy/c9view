@@ -38,3 +38,22 @@ it('T020 T023 refuses live PID or foreign namespace, accepts missing entries', a
     reason: 'liveness-unknown',
   });
 });
+
+it('skips unrelated malformed entries but fails closed for target filename or partial content', async () => {
+  const t = await setupControl();
+  cleanup.push(t.close);
+  const directory = join(t.claudeDir, 'sessions');
+  await mkdir(directory);
+  const check = createLiveness(t.claudeDir);
+  await writeFile(join(directory, 'unrelated.json'), '{broken');
+  await expect(check('session')).resolves.toBeUndefined();
+  await writeFile(join(directory, 'unrelated.json'), '{"sessionId":"session",');
+  await expect(check('session')).rejects.toMatchObject({
+    reason: 'liveness-unknown',
+  });
+  await writeFile(join(directory, 'unrelated.json'), '{broken');
+  await writeFile(join(directory, 'session.json'), '{broken');
+  await expect(check('session')).rejects.toMatchObject({
+    reason: 'liveness-unknown',
+  });
+});
