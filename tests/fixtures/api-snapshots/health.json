@@ -1,0 +1,19 @@
+{
+  "path": "/api/health",
+  "status": 200,
+  "contentType": "application/json",
+  "body": {
+    "ok": true,
+    "version": "0.0.0",
+    "claudeDir": "<claudeDir>",
+    "index": {
+      "state": "ready",
+      "lastFullScanAt": "<timestamp>"
+    },
+    "hooks": {
+      "installed": false,
+      "eventsFile": "<stateDir>/events.jsonl",
+      "lastEventAt": null
+    }
+  }
+}

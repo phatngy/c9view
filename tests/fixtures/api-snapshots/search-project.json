@@ -1,0 +1,27 @@
+{
+  "path": "/api/search?q=sample&projectId=-synthetic-alpha&limit=1",
+  "status": 200,
+  "contentType": "application/json",
+  "body": {
+    "results": [
+      {
+        "projectId": "-synthetic-alpha",
+        "sessionId": "session-one",
+        "messageUuid": "user-one",
+        "timestamp": "2026-01-01T10:00:00Z",
+        "role": "user",
+        "model": null,
+        "snippet": "Build a sample widget",
+        "cutStart": false,
+        "cutEnd": false,
+        "highlights": [
+          [
+            8,
+            14
+          ]
+        ]
+      }
+    ],
+    "nextCursor": "1"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "path": "/api/search",
+  "status": 400,
+  "contentType": "application/json",
+  "body": {
+    "error": "Invalid search parameters"
+  }
+}

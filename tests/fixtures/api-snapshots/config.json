@@ -1,0 +1,31 @@
+{
+  "path": "/api/config",
+  "status": 200,
+  "contentType": "application/json",
+  "body": {
+    "settings": {
+      "env": {
+        "ANTHROPIC_API_KEY": "«redacted:key»"
+      },
+      "permissions": {
+        "allow": [
+          "Read"
+        ]
+      }
+    },
+    "provenance": {
+      "/env/ANTHROPIC_API_KEY": "user",
+      "/env": "user",
+      "/permissions/allow": "user",
+      "/permissions/allow/0": "user",
+      "/permissions": "user"
+    },
+    "hooks": [],
+    "skills": [],
+    "agents": [],
+    "commands": [],
+    "plugins": [],
+    "mcpServers": [],
+    "instructions": []
+  }
+}

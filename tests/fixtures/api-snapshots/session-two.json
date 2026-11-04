@@ -1,0 +1,109 @@
+{
+  "path": "/api/projects/-synthetic-alpha/sessions/session-two",
+  "status": 200,
+  "contentType": "application/json",
+  "body": {
+    "session": {
+      "id": "session-two",
+      "projectId": "-synthetic-alpha",
+      "title": "Find sample text «redacted:anthropic»",
+      "firstAt": "2026-01-01T10:00:00.000Z",
+      "lastAt": "2026-01-01T10:01:00.000Z",
+      "gitBranch": null,
+      "models": [
+        "synthetic-unknown-model"
+      ],
+      "messageCount": 2,
+      "lastMessagePreview": "Synthetic response",
+      "subagentCount": 0,
+      "ownTokens": {
+        "input": 10,
+        "output": 20,
+        "cacheRead": 5,
+        "cacheCreation": 4,
+        "thinking": 0
+      },
+      "ownCostUsd": 0,
+      "subagentCostUsd": 0,
+      "tokens": {
+        "input": 10,
+        "output": 20,
+        "cacheRead": 5,
+        "cacheCreation": 4,
+        "thinking": 0
+      },
+      "costUsd": 0,
+      "status": {
+        "column": "inactive",
+        "reason": "no running process",
+        "source": "none",
+        "observedAt": null,
+        "stale": false,
+        "confidence": "low",
+        "evidence": []
+      },
+      "liveName": null
+    },
+    "cwd": "/synthetic/alpha",
+    "version": "2.1.0",
+    "permissionModes": [],
+    "toolUseCounts": {},
+    "errorCount": 0,
+    "byModel": [
+      {
+        "model": "synthetic-unknown-model",
+        "tokens": {
+          "input": 10,
+          "output": 20,
+          "cacheRead": 5,
+          "cacheCreation": 4,
+          "thinking": 0
+        },
+        "costUsd": 0
+      }
+    ],
+    "subagents": [],
+    "messages": [
+      {
+        "uuid": "user-two",
+        "role": "user",
+        "timestamp": "2026-01-01T10:00:00.000Z",
+        "model": null,
+        "isMeta": false,
+        "isSidechain": false,
+        "blocks": [
+          {
+            "type": "text",
+            "text": "Find sample text «redacted:anthropic»"
+          }
+        ],
+        "usage": null
+      },
+      {
+        "uuid": "assistant-two",
+        "role": "assistant",
+        "timestamp": "2026-01-01T10:01:00.000Z",
+        "model": "synthetic-unknown-model",
+        "isMeta": false,
+        "isSidechain": false,
+        "blocks": [
+          {
+            "type": "text",
+            "text": "Synthetic response"
+          }
+        ],
+        "usage": {
+          "input": 10,
+          "output": 20,
+          "cacheRead": 5,
+          "cacheCreation": 4,
+          "thinking": 0
+        }
+      }
+    ],
+    "cursor": 0,
+    "prevCursor": null,
+    "nextCursor": null,
+    "totalMessages": 2
+  }
+}

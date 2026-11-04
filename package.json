@@ -9,11 +9,12 @@
   "scripts": {
     "build": "corepack pnpm --recursive build",
     "dev": "corepack pnpm --parallel --filter @c9view/server --filter @c9view/web dev",
-    "lint": "corepack pnpm --recursive lint && eslint playwright.config.ts tests/e2e",
-    "typecheck": "corepack pnpm --recursive typecheck && tsc -p tests/e2e/tsconfig.json",
+    "lint": "corepack pnpm --recursive lint && eslint playwright.config.ts tests/e2e scripts",
+    "typecheck": "corepack pnpm --recursive typecheck && tsc -p tests/e2e/tsconfig.json && tsc -p scripts/tsconfig.json",
     "test": "corepack pnpm --recursive test",
     "format": "corepack pnpm --recursive format",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "snapshots:api": "node --experimental-strip-types scripts/record-api-snapshots.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

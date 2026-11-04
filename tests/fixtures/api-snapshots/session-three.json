@@ -1,0 +1,109 @@
+{
+  "path": "/api/projects/-synthetic-beta/sessions/session-three",
+  "status": 200,
+  "contentType": "application/json",
+  "body": {
+    "session": {
+      "id": "session-three",
+      "projectId": "-synthetic-beta",
+      "title": "Explain this example",
+      "firstAt": "2026-01-01T10:00:00.000Z",
+      "lastAt": "2026-01-01T10:01:00.000Z",
+      "gitBranch": null,
+      "models": [
+        "claude-sonnet-4-5"
+      ],
+      "messageCount": 2,
+      "lastMessagePreview": "Synthetic response",
+      "subagentCount": 0,
+      "ownTokens": {
+        "input": 10,
+        "output": 20,
+        "cacheRead": 5,
+        "cacheCreation": 4,
+        "thinking": 0
+      },
+      "ownCostUsd": 0.0003465,
+      "subagentCostUsd": 0,
+      "tokens": {
+        "input": 10,
+        "output": 20,
+        "cacheRead": 5,
+        "cacheCreation": 4,
+        "thinking": 0
+      },
+      "costUsd": 0.0003465,
+      "status": {
+        "column": "inactive",
+        "reason": "no running process",
+        "source": "none",
+        "observedAt": null,
+        "stale": false,
+        "confidence": "low",
+        "evidence": []
+      },
+      "liveName": null
+    },
+    "cwd": "/synthetic/beta",
+    "version": "2.1.0",
+    "permissionModes": [],
+    "toolUseCounts": {},
+    "errorCount": 0,
+    "byModel": [
+      {
+        "model": "claude-sonnet-4-5",
+        "tokens": {
+          "input": 10,
+          "output": 20,
+          "cacheRead": 5,
+          "cacheCreation": 4,
+          "thinking": 0
+        },
+        "costUsd": 0.0003465
+      }
+    ],
+    "subagents": [],
+    "messages": [
+      {
+        "uuid": "user-three",
+        "role": "user",
+        "timestamp": "2026-01-01T10:00:00.000Z",
+        "model": null,
+        "isMeta": false,
+        "isSidechain": false,
+        "blocks": [
+          {
+            "type": "text",
+            "text": "Explain this example"
+          }
+        ],
+        "usage": null
+      },
+      {
+        "uuid": "assistant-three",
+        "role": "assistant",
+        "timestamp": "2026-01-01T10:01:00.000Z",
+        "model": "claude-sonnet-4-5",
+        "isMeta": false,
+        "isSidechain": false,
+        "blocks": [
+          {
+            "type": "text",
+            "text": "Synthetic response"
+          }
+        ],
+        "usage": {
+          "input": 10,
+          "output": 20,
+          "cacheRead": 5,
+          "cacheCreation": 4,
+          "thinking": 0
+        }
+      }
+    ],
+    "cursor": 0,
+    "prevCursor": null,
+    "nextCursor": null,
+    "totalMessages": 2
+  }
+}

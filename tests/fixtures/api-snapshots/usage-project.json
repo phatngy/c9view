@@ -1,0 +1,581 @@
+{
+  "path": "/api/usage?from=2026-01-01&to=2026-01-31&projectId=-synthetic-alpha",
+  "status": 200,
+  "contentType": "application/json",
+  "body": {
+    "tz": "UTC",
+    "from": "2026-01-01",
+    "to": "2026-01-31",
+    "days": [
+      {
+        "date": "2026-01-01",
+        "costUsd": 0.000693,
+        "tokens": {
+          "input": 30,
+          "output": 60,
+          "cacheRead": 15,
+          "cacheCreation": 12,
+          "thinking": 0
+        },
+        "byModel": [
+          {
+            "model": "claude-sonnet-4-5",
+            "costUsd": 0.000693,
+            "tokens": {
+              "input": 20,
+              "output": 40,
+              "cacheRead": 10,
+              "cacheCreation": 8,
+              "thinking": 0
+            }
+          },
+          {
+            "model": "synthetic-unknown-model",
+            "costUsd": 0,
+            "tokens": {
+              "input": 10,
+              "output": 20,
+              "cacheRead": 5,
+              "cacheCreation": 4,
+              "thinking": 0
+            }
+          }
+        ]
+      },
+      {
+        "date": "2026-01-02",
+        "costUsd": 0,
+        "tokens": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheCreation": 0,
+          "thinking": 0
+        },
+        "byModel": []
+      },
+      {
+        "date": "2026-01-03",
+        "costUsd": 0,
+        "tokens": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheCreation": 0,
+          "thinking": 0
+        },
+        "byModel": []
+      },
+      {
+        "date": "2026-01-04",
+        "costUsd": 0,
+        "tokens": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheCreation": 0,
+          "thinking": 0
+        },
+        "byModel": []
+      },
+      {
+        "date": "2026-01-05",
+        "costUsd": 0,
+        "tokens": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheCreation": 0,
+          "thinking": 0
+        },
+        "byModel": []
+      },
+      {
+        "date": "2026-01-06",
+        "costUsd": 0,
+        "tokens": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheCreation": 0,
+          "thinking": 0
+        },
+        "byModel": []
+      },
+      {
+        "date": "2026-01-07",
+        "costUsd": 0,
+        "tokens": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheCreation": 0,
+          "thinking": 0
+        },
+        "byModel": []
+      },
+      {
+        "date": "2026-01-08",
+        "costUsd": 0,
+        "tokens": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheCreation": 0,
+          "thinking": 0
+        },
+        "byModel": []
+      },
+      {
+        "date": "2026-01-09",
+        "costUsd": 0,
+        "tokens": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheCreation": 0,
+          "thinking": 0
+        },
+        "byModel": []
+      },
+      {
+        "date": "2026-01-10",
+        "costUsd": 0,
+        "tokens": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheCreation": 0,
+          "thinking": 0
+        },
+        "byModel": []
+      },
+      {
+        "date": "2026-01-11",
+        "costUsd": 0,
+        "tokens": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheCreation": 0,
+          "thinking": 0
+        },
+        "byModel": []
+      },
+      {
+        "date": "2026-01-12",
+        "costUsd": 0,
+        "tokens": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheCreation": 0,
+          "thinking": 0
+        },
+        "byModel": []
+      },
+      {
+        "date": "2026-01-13",
+        "costUsd": 0,
+        "tokens": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheCreation": 0,
+          "thinking": 0
+        },
+        "byModel": []
+      },
+      {
+        "date": "2026-01-14",
+        "costUsd": 0,
+        "tokens": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheCreation": 0,
+          "thinking": 0
+        },
+        "byModel": []
+      },
+      {
+        "date": "2026-01-15",
+        "costUsd": 0,
+        "tokens": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheCreation": 0,
+          "thinking": 0
+        },
+        "byModel": []
+      },
+      {
+        "date": "2026-01-16",
+        "costUsd": 0,
+        "tokens": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheCreation": 0,
+          "thinking": 0
+        },
+        "byModel": []
+      },
+      {
+        "date": "2026-01-17",
+        "costUsd": 0,
+        "tokens": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheCreation": 0,
+          "thinking": 0
+        },
+        "byModel": []
+      },
+      {
+        "date": "2026-01-18",
+        "costUsd": 0,
+        "tokens": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheCreation": 0,
+          "thinking": 0
+        },
+        "byModel": []
+      },
+      {
+        "date": "2026-01-19",
+        "costUsd": 0,
+        "tokens": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheCreation": 0,
+          "thinking": 0
+        },
+        "byModel": []
+      },
+      {
+        "date": "2026-01-20",
+        "costUsd": 0,
+        "tokens": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheCreation": 0,
+          "thinking": 0
+        },
+        "byModel": []
+      },
+      {
+        "date": "2026-01-21",
+        "costUsd": 0,
+        "tokens": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheCreation": 0,
+          "thinking": 0
+        },
+        "byModel": []
+      },
+      {
+        "date": "2026-01-22",
+        "costUsd": 0,
+        "tokens": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheCreation": 0,
+          "thinking": 0
+        },
+        "byModel": []
+      },
+      {
+        "date": "2026-01-23",
+        "costUsd": 0,
+        "tokens": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheCreation": 0,
+          "thinking": 0
+        },
+        "byModel": []
+      },
+      {
+        "date": "2026-01-24",
+        "costUsd": 0,
+        "tokens": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheCreation": 0,
+          "thinking": 0
+        },
+        "byModel": []
+      },
+      {
+        "date": "2026-01-25",
+        "costUsd": 0,
+        "tokens": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheCreation": 0,
+          "thinking": 0
+        },
+        "byModel": []
+      },
+      {
+        "date": "2026-01-26",
+        "costUsd": 0,
+        "tokens": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheCreation": 0,
+          "thinking": 0
+        },
+        "byModel": []
+      },
+      {
+        "date": "2026-01-27",
+        "costUsd": 0,
+        "tokens": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheCreation": 0,
+          "thinking": 0
+        },
+        "byModel": []
+      },
+      {
+        "date": "2026-01-28",
+        "costUsd": 0,
+        "tokens": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheCreation": 0,
+          "thinking": 0
+        },
+        "byModel": []
+      },
+      {
+        "date": "2026-01-29",
+        "costUsd": 0,
+        "tokens": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheCreation": 0,
+          "thinking": 0
+        },
+        "byModel": []
+      },
+      {
+        "date": "2026-01-30",
+        "costUsd": 0,
+        "tokens": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheCreation": 0,
+          "thinking": 0
+        },
+        "byModel": []
+      },
+      {
+        "date": "2026-01-31",
+        "costUsd": 0,
+        "tokens": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheCreation": 0,
+          "thinking": 0
+        },
+        "byModel": []
+      }
+    ],
+    "byProject": [
+      {
+        "projectId": "-synthetic-alpha",
+        "name": "alpha",
+        "costUsd": 0.000693,
+        "tokens": {
+          "input": 30,
+          "output": 60,
+          "cacheRead": 15,
+          "cacheCreation": 12,
+          "thinking": 0
+        }
+      }
+    ],
+    "byModel": [
+      {
+        "model": "claude-sonnet-4-5",
+        "costUsd": 0.000693,
+        "tokens": {
+          "input": 20,
+          "output": 40,
+          "cacheRead": 10,
+          "cacheCreation": 8,
+          "thinking": 0
+        }
+      },
+      {
+        "model": "synthetic-unknown-model",
+        "costUsd": 0,
+        "tokens": {
+          "input": 10,
+          "output": 20,
+          "cacheRead": 5,
+          "cacheCreation": 4,
+          "thinking": 0
+        }
+      }
+    ],
+    "totals": {
+      "costUsd": 0.000693,
+      "tokens": {
+        "input": 30,
+        "output": 60,
+        "cacheRead": 15,
+        "cacheCreation": 12,
+        "thinking": 0
+      }
+    },
+    "cacheHit": [
+      {
+        "date": "2026-01-01",
+        "ratio": 0.2631578947368421
+      },
+      {
+        "date": "2026-01-02",
+        "ratio": null
+      },
+      {
+        "date": "2026-01-03",
+        "ratio": null
+      },
+      {
+        "date": "2026-01-04",
+        "ratio": null
+      },
+      {
+        "date": "2026-01-05",
+        "ratio": null
+      },
+      {
+        "date": "2026-01-06",
+        "ratio": null
+      },
+      {
+        "date": "2026-01-07",
+        "ratio": null
+      },
+      {
+        "date": "2026-01-08",
+        "ratio": null
+      },
+      {
+        "date": "2026-01-09",
+        "ratio": null
+      },
+      {
+        "date": "2026-01-10",
+        "ratio": null
+      },
+      {
+        "date": "2026-01-11",
+        "ratio": null
+      },
+      {
+        "date": "2026-01-12",
+        "ratio": null
+      },
+      {
+        "date": "2026-01-13",
+        "ratio": null
+      },
+      {
+        "date": "2026-01-14",
+        "ratio": null
+      },
+      {
+        "date": "2026-01-15",
+        "ratio": null
+      },
+      {
+        "date": "2026-01-16",
+        "ratio": null
+      },
+      {
+        "date": "2026-01-17",
+        "ratio": null
+      },
+      {
+        "date": "2026-01-18",
+        "ratio": null
+      },
+      {
+        "date": "2026-01-19",
+        "ratio": null
+      },
+      {
+        "date": "2026-01-20",
+        "ratio": null
+      },
+      {
+        "date": "2026-01-21",
+        "ratio": null
+      },
+      {
+        "date": "2026-01-22",
+        "ratio": null
+      },
+      {
+        "date": "2026-01-23",
+        "ratio": null
+      },
+      {
+        "date": "2026-01-24",
+        "ratio": null
+      },
+      {
+        "date": "2026-01-25",
+        "ratio": null
+      },
+      {
+        "date": "2026-01-26",
+        "ratio": null
+      },
+      {
+        "date": "2026-01-27",
+        "ratio": null
+      },
+      {
+        "date": "2026-01-28",
+        "ratio": null
+      },
+      {
+        "date": "2026-01-29",
+        "ratio": null
+      },
+      {
+        "date": "2026-01-30",
+        "ratio": null
+      },
+      {
+        "date": "2026-01-31",
+        "ratio": null
+      }
+    ]
+  }
+}
