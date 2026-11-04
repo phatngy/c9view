@@ -219,3 +219,27 @@ it('T024 fork is permitted when the original is held by a terminal process', asy
     forkSession: true,
   });
 });
+
+it.each(['live-elsewhere', 'liveness-unknown'] as const)(
+  'T020 returns %s before accepting a resume',
+  async (reason) => {
+    const { ControlError } = await import('./errors.js');
+    const { controlRoutes } = await import('./routes.js');
+    const liveness = vi.fn(async () => {
+      throw new ControlError(409, 'Resume refused', reason);
+    });
+    const t = await setup({}, { liveness });
+    const response = await controlRoutes(t.service).request(
+      '/projects/project/sessions/session/messages',
+      {
+        method: 'POST',
+        headers: { 'x-c9view-boot-id': t.bootId },
+        body: JSON.stringify(t.body()),
+      },
+    );
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ reason });
+    expect(t.service.snapshot().runs).toEqual([]);
+    expect(t.sdk.runs).toEqual([]);
+  },
+);

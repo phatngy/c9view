@@ -172,23 +172,10 @@ export function createControlService(
     const folder = await project(projectId);
     if (source && !(await store.findSession(projectId, source)))
       throw new ControlError(404, 'Session not found');
-    const existing =
-      source && !('fork' in body && body.fork)
-        ? runs.bySession(projectId, source)
-        : undefined;
-    if (existing) {
-      runs.enqueue(existing, body.text, (patch) =>
-        receipts.update(operation, body.clientRequestId, patch),
-      );
-      return {
-        status: 'accepted' as const,
-        runId: existing.summary.runId,
-        sessionId: existing.summary.sessionId,
-        projectId,
-      };
-    }
     await folders.check(folder);
-    const sourceOwned = source ? runs.bySession(projectId, source) : undefined;
+    const fork = 'fork' in body && body.fork === true;
+    if (source && !fork && !runs.bySession(projectId, source))
+      await liveness(source);
     const settings = mergeSettings(
       await readSettings(store.config.claudeDir, folder),
     ).effective;
@@ -196,14 +183,19 @@ export function createControlService(
       Record<string, unknown> | undefined;
     const defaultMode = permissions?.defaultMode;
     const requested =
-      'permissionMode' in body ? body.permissionMode : undefined;
+      !source &&
+      'permissionMode' in body &&
+      (body.permissionMode === 'default' ||
+        body.permissionMode === 'plan' ||
+        body.permissionMode === 'acceptEdits')
+        ? body.permissionMode
+        : undefined;
     const mode = config.bypass
       ? 'bypassPermissions'
       : (requested ??
         (defaultMode === 'acceptEdits' || defaultMode === 'plan'
           ? defaultMode
           : 'default'));
-    const fork = 'fork' in body && body.fork === true;
     const sessionId = source && !fork ? source : randomUUID();
     const concurrent =
       source && !('fork' in body && body.fork)
@@ -228,12 +220,9 @@ export function createControlService(
     runs.launch(
       run,
       async () => {
-        if (source && !fork && (!sourceOwned || sourceOwned.closed))
-          await liveness(source);
         await folders.check(folder);
         assertWritableDirectory(folder, 'project directory');
-        if (source && !fork && (!sourceOwned || sourceOwned.closed))
-          await liveness(source);
+        if (source && !fork) await liveness(source);
         const childEnv = childEnvironment(env, stateDir);
         if (store.config.claudeDir !== join(env.HOME ?? homedir(), '.claude'))
           childEnv.CLAUDE_CONFIG_DIR = store.config.claudeDir;
@@ -249,7 +238,10 @@ export function createControlService(
           ...(config.maxBudgetUsd !== undefined
             ? { maxBudgetUsd: config.maxBudgetUsd }
             : {}),
-          ...('name' in body && body.name
+          ...(!source &&
+          'name' in body &&
+          typeof body.name === 'string' &&
+          body.name
             ? { extraArgs: { name: body.name } }
             : {}),
           abortController: run.abort,
@@ -319,7 +311,7 @@ export function createControlService(
           const run = runs.get(id);
           await run.ready;
           runs.get(id);
-          await run.runner?.interrupt();
+          await runs.interrupt(run);
           return { runId: id };
         },
         { runId: id },

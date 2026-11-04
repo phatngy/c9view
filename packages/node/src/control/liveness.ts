@@ -36,13 +36,17 @@ export function createLiveness(claudeDir: string): Liveness {
     // processes for the same session must not hide each other. Never read keys.
     const entries: LiveEntry[] = [];
     for (const name of names.filter((name) => name.endsWith('.json'))) {
+      let content = '';
       try {
-        const parsed = liveSchema.parse(
-          JSON.parse(await readFile(join(directory, name), 'utf8')),
-        );
+        content = await readFile(join(directory, name), 'utf8');
+        const parsed = liveSchema.parse(JSON.parse(content));
         if (parsed.sessionId === sessionId) entries.push(parsed);
       } catch {
-        throw unknown();
+        if (
+          name.slice(0, -5) === sessionId ||
+          content.includes(JSON.stringify(sessionId))
+        )
+          throw unknown();
       }
     }
     const newest = (await readLiveEntries(claudeDir)).get(sessionId);

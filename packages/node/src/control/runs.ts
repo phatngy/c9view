@@ -28,6 +28,8 @@ export interface ManagedRun {
   ready: Promise<void>;
   idle?: ReturnType<typeof setTimeout>;
   closed: boolean;
+  interrupted: boolean;
+  startTimer?: ReturnType<typeof setTimeout>;
   pending: number;
   updates: CommandUpdate[];
 }
@@ -111,6 +113,7 @@ export class Runs {
       abort: new AbortController(),
       ready: Promise.resolve(),
       closed: false,
+      interrupted: false,
       pending: 0,
       updates: [],
     };
@@ -127,6 +130,15 @@ export class Runs {
       error?: string;
     }) => void,
   ) {
+    // C9VIEW_CONTROL_IDLE_MIN also bounds startup before the SDK emits init.
+    run.startTimer = setTimeout(() => {
+      this.fail(
+        run,
+        new Error('Claude Code did not start before the timeout'),
+        update,
+      );
+    }, this.idleMs);
+    run.startTimer.unref();
     run.ready = (async () => {
       await new Promise<void>((resolve) => setTimeout(resolve, 0));
       if (run.closed) return;
@@ -151,6 +163,7 @@ export class Runs {
                 message.subtype === 'init' &&
                 message.session_id
               ) {
+                clearTimeout(run.startTimer);
                 run.summary.sessionId = message.session_id;
                 run.summary.state = 'running';
                 update({ sessionId: message.session_id, status: 'running' });
@@ -166,10 +179,11 @@ export class Runs {
                   run.summary.costUsd = message.total_cost_usd;
                 run.pending = Math.max(0, run.pending - 1);
                 run.summary.queued = Math.max(0, run.pending - 1);
-                if (message.is_error) {
+                if (message.is_error && !run.interrupted) {
                   this.fail(run, 'Claude Code turn failed', update);
                   break;
                 }
+                run.interrupted = false;
                 run.summary.state = run.pending ? 'running' : 'idle';
                 update({ status: 'done' });
                 run.updates.shift()?.({ status: 'done' });
@@ -199,6 +213,15 @@ export class Runs {
       }
     })();
   }
+  async interrupt(run: ManagedRun) {
+    run.interrupted = run.pending > 0;
+    try {
+      await run.runner?.interrupt();
+    } catch (error) {
+      run.interrupted = false;
+      throw error;
+    }
+  }
   private fail(
     run: ManagedRun,
     error: unknown,
@@ -221,10 +244,15 @@ export class Runs {
     if (run.closed) return;
     run.closed = true;
     clearTimeout(run.idle);
+    clearTimeout(run.startTimer);
     run.abort.abort();
     run.queue.close();
     run.runner?.close();
-    for (const notify of run.updates) notify({ status: 'done' });
+    for (const notify of run.updates)
+      notify({
+        status: 'failed',
+        error: 'Run stopped before the message was delivered',
+      });
     run.updates = [];
     run.summary.state = 'ended';
     run.summary.queued = 0;

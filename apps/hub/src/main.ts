@@ -91,10 +91,7 @@ export function startServer(options: StartServerOptions = {}) {
   });
   // Validate limits before the index watcher starts, so a bad value leaks nothing.
   const limits = loadNodeLimits();
-  const nodeOptions: Parameters<typeof createNode>[1] & {
-    control?: boolean;
-    bypass?: boolean;
-  } = {
+  const nodeOptions: Parameters<typeof createNode>[1] = {
     ...(options.control !== undefined ? { control: options.control } : {}),
     ...(options.bypass !== undefined ? { bypass: options.bypass } : {}),
   };

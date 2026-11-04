@@ -1,10 +1,4 @@
-import type { NodeRequest } from '@c9view/node';
 import { z } from 'zod';
-
-/** The transport carries only this validated identity, never browser headers. */
-export interface ControlNodeRequest extends NodeRequest {
-  clientBootId?: string;
-}
 
 export function isControlMutation(method: string, path: string): boolean {
   return (

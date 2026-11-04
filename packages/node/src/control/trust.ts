@@ -63,7 +63,7 @@ export class FolderTrust {
       try {
         const [info, bytes] = await Promise.all([stat(file), readFile(file)]);
         hash
-          .update(`${info.size}:${info.mtimeMs}:`)
+          .update(`${info.size}:`)
           .update(createHash('sha256').update(bytes).digest());
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== 'ENOENT')
@@ -147,6 +147,13 @@ export class FolderTrust {
   }
   async accept(folder: string, fingerprint: string, knownFolders: string[]) {
     // The path from the browser is an identifier for a known project, not a new working directory.
+    try {
+      folder = await realpath(folder);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT')
+        throw new ControlError(404, 'Not found');
+      throw error;
+    }
     const known = await Promise.all(knownFolders.map((path) => realpath(path)));
     if (!known.includes(folder)) throw new ControlError(404, 'Not found');
     const summary = await this.summary(folder);

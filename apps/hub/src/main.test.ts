@@ -1,6 +1,9 @@
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { EventEmitter } from 'node:events';
 import { fileURLToPath } from 'node:url';
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, expect, it, vi } from 'vitest';
 import {
   createNode,
   createNodeHello,
@@ -60,11 +63,14 @@ function runtime(state: 'off' | 'ready' | 'unavailable', bypass = false) {
   vi.mocked(createNode).mockReturnValue(fake as unknown as NodeRuntime);
   return fake;
 }
+const webDist = mkdtempSync(join(tmpdir(), 'c9view-hub-web-'));
+writeFileSync(join(webDist, 'index.html'), '<html></html>');
+afterAll(() => rmSync(webDist, { recursive: true, force: true }));
 const options = {
   claudeDir: fileURLToPath(
     new URL('../../../tests/fixtures/claude', import.meta.url),
   ),
-  webDist: fileURLToPath(new URL('../../web/dist', import.meta.url)),
+  webDist,
 };
 it.each(['ready', 'unavailable'] as const)(
   'refuses a node reporting control %s before indexing or listening',

@@ -19,11 +19,7 @@ import type { AuthMode } from './auth/index.js';
 import { transportResponse } from './relay.js';
 import { healthRoutes } from './routes/health.js';
 import { createLocalTransport } from './local-node.js';
-import {
-  guardControl,
-  isControlMutation,
-  type ControlNodeRequest,
-} from './control/guard.js';
+import { guardControl, isControlMutation } from './control/guard.js';
 
 export function createApp(
   config: ServerConfig,
@@ -186,7 +182,7 @@ export function createApp(
         query: c.req.query(),
         ...(body ? { body } : {}),
         ...(clientBootId ? { clientBootId } : {}),
-      } satisfies ControlNodeRequest,
+      } satisfies import('@c9view/node').NodeRequest,
       c.req.raw.signal,
     );
     if (c.req.method === 'HEAD') {

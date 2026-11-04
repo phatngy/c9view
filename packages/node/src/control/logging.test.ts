@@ -6,9 +6,12 @@ it('T036 never logs prompts/tool inputs/answers and redacts SDK errors', async (
   const t = await setupControl(
     {},
     {
-      liveness: async () => {
-        throw new Error('sk-ant-api03-abcdefghijklmnopqrstuvwxyz123456789');
-      },
+      liveness: vi
+        .fn()
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(
+          new Error('sk-ant-api03-abcdefghijklmnopqrstuvwxyz123456789'),
+        ),
     },
   );
   try {

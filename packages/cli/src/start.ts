@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { loadHub } from './hub-loader.js';
 
 export interface StartOptions {
   control?: boolean;
@@ -26,9 +27,7 @@ export async function runStart(options: StartOptions) {
     );
   const hubPackage = hubPackageUrl();
   const entry = new URL('./dist/main.js', hubPackage);
-  const { startServer } = (await import(entry.href)) as {
-    startServer: (options: Record<string, unknown>) => unknown;
-  };
+  const { startServer } = await loadHub(entry);
   return startServer({
     ...(options.control !== undefined ? { control: options.control } : {}),
     ...(options.bypass !== undefined ? { bypass: options.bypass } : {}),
