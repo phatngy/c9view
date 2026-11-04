@@ -5,6 +5,8 @@ services:
     ports: ['127.0.0.1:7777:7777']
     environment:
       C9VIEW_AUTH: token
+      # Remove this and the read-only legacy mount together after old events expire.
+      C9VIEW_LEGACY_STATE_DIR: /data/c9view-state
       C9VIEW_TOKEN: ${C9VIEW_TOKEN:?Set C9VIEW_TOKEN to at least 32 characters}
       # C9VIEW_ALLOWED_HOSTS: dashboard.example.com
       # C9VIEW_TRUST_PROXY: "1" # Required behind a trusted HTTPS tunnel.
@@ -18,6 +20,10 @@ services:
         source: ${C9VIEW_WORKSPACE:-${HOME}/workspace}
         target: ${C9VIEW_WORKSPACE:-${HOME}/workspace}
         read_only: true
+        bind: { create_host_path: false }
+      - type: bind
+        source: ${HOME}/.claude/c9view
+        target: /data/claude/c9view
         bind: { create_host_path: false }
       - type: bind
         source: ${HOME}/.local/state/c9view

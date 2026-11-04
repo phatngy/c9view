@@ -15,3 +15,4 @@ export * from './git/index.js';
 export * from './changes/index.js';
 export * from './hooks/index.js';
 export * from './status/index.js';
+export * from './state/ignore.js';

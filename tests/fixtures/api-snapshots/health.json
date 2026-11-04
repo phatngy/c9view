@@ -13,6 +13,7 @@
     "hooks": {
       "installed": false,
       "eventsFile": "<stateDir>/events.jsonl",
+      "legacyEventsFile": null,
       "lastEventAt": null
     }
   }

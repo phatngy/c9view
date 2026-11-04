@@ -16,7 +16,7 @@ RUN groupadd --gid 10001 c9view && useradd --uid 10001 --gid 10001 --create-home
     && mkdir -p /var/lib/c9view && chown 10001:10001 /var/lib/c9view
 WORKDIR /app
 COPY --from=build --chown=10001:10001 /out/ ./
-ENV HOME=/tmp HOST=0.0.0.0 C9VIEW_AUTH=token C9VIEW_CLAUDE_DIR=/data/claude C9VIEW_DB=/var/lib/c9view/index.sqlite C9VIEW_STATE_DIR=/data/c9view-state C9VIEW_WEB_DIST=/app/web-dist
+ENV HOME=/tmp HOST=0.0.0.0 C9VIEW_AUTH=token C9VIEW_CLAUDE_DIR=/data/claude C9VIEW_DB=/var/lib/c9view/index.sqlite C9VIEW_STATE_DIR=/data/claude/c9view C9VIEW_WEB_DIST=/app/web-dist
 USER 10001:10001
 EXPOSE 7777
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s CMD ["node", "--input-type=module", "-e", "const r = await fetch('http://127.0.0.1:7777/api/health'); if (!r.ok || !(await r.json()).ok) process.exit(1)"]

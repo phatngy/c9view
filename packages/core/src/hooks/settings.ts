@@ -131,10 +131,14 @@ export async function hooksInstalled(claudeDir: string): Promise<boolean> {
     return false;
   }
 }
-export function hookCommand(execPath: string, entryPath: string): string {
+export function hookCommand(
+  execPath: string,
+  entryPath: string,
+  stateDir?: string,
+): string {
   // POSIX shell quoting protects spaces, quotes, substitutions and backticks.
   const quote = (value: string) => "'" + value.replaceAll("'", "'\\''") + "'";
-  return `${quote(execPath)} ${quote(entryPath)} ${HOOK_MARKER}`;
+  return `${quote(execPath)} ${quote(entryPath)} ${HOOK_MARKER}${stateDir === undefined ? '' : ` --c9view-state-dir ${quote(stateDir)}`}`;
 }
 export async function planHookSettings(
   claudeDir: string,
