@@ -1,0 +1,31 @@
+{
+  "name": "@c9view/cli",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "bin": {
+    "c9view": "./dist/main.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "format": "prettier --write ."
+  },
+  "dependencies": {
+    "@c9view/core": "workspace:*",
+    "@c9view/server": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "typescript": "^6.0.3",
+    "vitest": "^5.0.5"
+  },
+  "description": "Command line tools to start c9view, scan data and manage hooks.",
+  "license": "MIT"
+}

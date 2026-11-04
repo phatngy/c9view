@@ -1,0 +1,4 @@
+{"type":"user","sessionId":"session-1","uuid":"user-1","message":{"role":"user","content":"Hello 🌍"},"timestamp":"2026-01-01T00:00:00Z"}
+not valid json
+{"type":"future-record","extra":{"kept":true}}
+{"type":"assistant","uuid":"assistant-1","message":{"id":"message-1","model":"model-a","content":[{"type":"text","text":"Hello"}],"usage":{"input_tokens":10,"output_tokens":2}}}

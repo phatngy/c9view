@@ -1,0 +1,35 @@
+services:
+  c9view:
+    build: .
+    user: '${C9VIEW_UID:-1000}:${C9VIEW_GID:-1000}'
+    ports: ['127.0.0.1:7777:7777']
+    environment:
+      C9VIEW_AUTH: token
+      C9VIEW_TOKEN: ${C9VIEW_TOKEN:?Set C9VIEW_TOKEN to at least 32 characters}
+      # C9VIEW_ALLOWED_HOSTS: dashboard.example.com
+      # C9VIEW_TRUST_PROXY: "1" # Required behind a trusted HTTPS tunnel.
+    volumes:
+      - type: bind
+        source: ${HOME}/.claude
+        target: /data/claude
+        read_only: true
+        bind: { create_host_path: false }
+      - type: bind
+        source: ${C9VIEW_WORKSPACE:-${HOME}/workspace}
+        target: ${C9VIEW_WORKSPACE:-${HOME}/workspace}
+        read_only: true
+        bind: { create_host_path: false }
+      - type: bind
+        source: ${HOME}/.local/state/c9view
+        target: /data/c9view-state
+        read_only: true
+        bind: { create_host_path: false }
+      - type: bind
+        source: ${C9VIEW_DATA:-${HOME}/.local/share/c9view}
+        target: /var/lib/c9view
+        bind: { create_host_path: false }
+    # pid: host # Optional on Linux: enables host process checks; hooks also work without it.
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]

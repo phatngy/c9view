@@ -1,0 +1,26 @@
+{
+  "env": {
+    "FAKE_SECRET": "sk-ant-fixture-super-secret-value-123456789",
+    "PLAIN_SECRET": "arbitrary-fixture-value-123"
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo fixture"
+          }
+        ]
+      }
+    ]
+  },
+  "mcpServers": {
+    "fixture": {
+      "command": "node",
+      "env": {
+        "SECRET": "sk-ant-fixture-super-secret-value-123456789"
+      }
+    }
+  }
+}

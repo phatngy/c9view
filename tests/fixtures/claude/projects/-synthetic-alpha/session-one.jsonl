@@ -1,0 +1,5 @@
+{"type": "user", "uuid": "user-one", "timestamp": "2026-01-01T10:00:00Z", "cwd": "/synthetic/alpha", "version": "2.1.0", "message": {"role": "user", "content": "Build a sample widget"}}
+{"type": "assistant", "uuid": "assistant-one", "timestamp": "2026-01-01T10:01:00Z", "message": {"role": "assistant", "id": "message-one", "model": "claude-sonnet-4-5", "content": [{"type": "tool_use", "id": "tool-one", "name": "Task", "input": {"description": "Inspect sample"}}], "usage": {"input_tokens": 10, "output_tokens": 20, "cache_read_input_tokens": 5, "cache_creation_input_tokens": 4}}}
+{"type": "user", "uuid": "result-one", "timestamp": "2026-01-01T10:00:00Z", "cwd": "/synthetic/alpha", "version": "2.1.0", "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "tool-one", "content": "Sample inspected"}]}, "toolUseResult": {"agentId": "child-one"}}
+{"type": "ai-title", "aiTitle": "Sample widget"}
+{"type": "permission-mode", "permissionMode": "default"}

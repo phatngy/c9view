@@ -1,0 +1,12 @@
+**/node_modules
+**/dist
+.git
+.worktrees
+**/coverage
+**/*.sqlite
+**/*.sqlite-*
+tests/fixtures
+**/test/fixtures
+
+.env*
+**/.env*

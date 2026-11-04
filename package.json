@@ -1,0 +1,42 @@
+{
+  "name": "c9view",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.15.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "corepack pnpm --recursive build",
+    "dev": "corepack pnpm --parallel --filter @c9view/server --filter @c9view/web dev",
+    "lint": "corepack pnpm --recursive lint && eslint playwright.config.ts tests/e2e",
+    "typecheck": "corepack pnpm --recursive typecheck && tsc -p tests/e2e/tsconfig.json",
+    "test": "corepack pnpm --recursive test",
+    "format": "corepack pnpm --recursive format",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.64.1",
+    "@types/node": "^26.6.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "eslint": "^10.13.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "prettier": "^3.9.10",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.72.0",
+    "vitest": "^5.0.5"
+  },
+  "description": "A web dashboard for Claude Code projects, sessions, configuration and token usage.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/phatngy/c9view.git"
+  },
+  "homepage": "https://github.com/phatngy/c9view#readme",
+  "bugs": {
+    "url": "https://github.com/phatngy/c9view/issues"
+  }
+}

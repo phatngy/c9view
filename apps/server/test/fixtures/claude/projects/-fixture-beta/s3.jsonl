@@ -1,0 +1,2 @@
+{"type": "user", "uuid": "u5", "sessionId": "s3", "timestamp": "2026-10-25T00:00:00Z", "cwd": "__BETA_CWD__", "message": {"content": "Busy fixture"}}
+{"type": "assistant", "uuid": "a5", "timestamp": "2026-10-25T00:01:00Z", "message": {"id": "a5", "model": "claude-sonnet-4-6", "content": [{"type": "text", "text": "Working"}], "usage": {"input_tokens": 100, "output_tokens": 20, "cache_read_input_tokens": 10, "cache_creation_input_tokens": 5, "output_tokens_details": {"thinking_tokens": 3}}}}

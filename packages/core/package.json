@@ -1,0 +1,42 @@
+{
+  "name": "@c9view/core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "development": "./src/index.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "db:generate": "drizzle-kit generate && node --experimental-strip-types src/index-db/build-migration.ts",
+    "dev": "tsc -p tsconfig.json --watch",
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "drizzle-kit": "^0.31.11",
+    "typescript": "^6.0.3",
+    "vitest": "^5.0.5"
+  },
+  "dependencies": {
+    "better-sqlite3": "^13.0.3",
+    "chokidar": "^6.0.0",
+    "diff": "^9.0.0",
+    "drizzle-orm": "^0.45.4",
+    "yaml": "^2.9.1",
+    "zod": "^4.6.7"
+  },
+  "description": "Readers for Claude and project data, session status, pricing and the SQLite index.",
+  "license": "MIT"
+}

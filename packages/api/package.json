@@ -1,0 +1,22 @@
+{
+  "name": "@c9view/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "exports": "./src/index.ts",
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "echo 'no tests'",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3"
+  },
+  "description": "Shared HTTP API contract types for c9view.",
+  "license": "MIT"
+}

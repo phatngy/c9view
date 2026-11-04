@@ -1,0 +1,2 @@
+{"type": "user", "uuid": "child-u", "sessionId": "s1", "timestamp": "2026-10-25T00:00:00Z", "cwd": "__ALPHA_CWD__", "message": {"content": "Child only"}}
+{"type": "assistant", "uuid": "child-a", "timestamp": "2026-10-25T00:01:00Z", "message": {"id": "child-a", "model": "claude-sonnet-4-6", "content": [{"type": "text", "text": "Child response"}], "usage": {"input_tokens": 100, "output_tokens": 20, "cache_read_input_tokens": 10, "cache_creation_input_tokens": 5, "output_tokens_details": {"thinking_tokens": 3}}}}

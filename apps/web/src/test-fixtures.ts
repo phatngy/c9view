@@ -1,0 +1,150 @@
+import type {
+  GlobalConfigResponse,
+  Message,
+  OverviewResponse,
+  ProjectDetailResponse,
+  ProjectSummary,
+  SessionDetailResponse,
+  SessionSummary,
+  TokenTotals,
+} from '@c9view/api';
+export const tokens: TokenTotals = {
+  input: 100,
+  output: 40,
+  cacheRead: 20,
+  cacheCreation: 10,
+  thinking: 5,
+};
+export const project: ProjectSummary = {
+  id: 'project-1',
+  name: 'Dashboard',
+  path: '/workspace/dashboard',
+  pathExists: true,
+  sessionCount: 4,
+  lastActivityAt: '2026-10-25T10:00:00Z',
+  columns: { inactive: 1, need_input: 1, in_progress: 1, in_review: 1 },
+  tokens,
+  costUsd: 0.25,
+};
+export const sessions: SessionSummary[] = (
+  ['inactive', 'need_input', 'in_progress', 'in_review'] as const
+).map((column, index) => ({
+  id: `session-${index}`,
+  projectId: project.id,
+  title: `Task ${column}`,
+  firstAt: null,
+  lastAt: project.lastActivityAt,
+  gitBranch: 'main',
+  models: ['claude-sonnet'],
+  messageCount: 3,
+  lastMessagePreview: null,
+  subagentCount: 0,
+  tokens,
+  costUsd: 0.1,
+  status: {
+    column,
+    reason: 'Transcript signal',
+    source: 'transcript',
+    observedAt: null,
+    stale: index === 0,
+  },
+  liveName: index === 2 ? 'claude' : null,
+}));
+export const overview: OverviewResponse = {
+  projectCount: 1,
+  sessionCount: 4,
+  liveSessionCount: 1,
+  columns: project.columns,
+  tokens,
+  costUsd: 0.25,
+  daily: [{ date: '2026-10-25', messages: 12, sessions: 4, toolCalls: 2 }],
+  byModel: [{ model: 'claude-sonnet', tokens, costUsd: 0.25 }],
+};
+export const projectDetail: ProjectDetailResponse = {
+  project,
+  sessions,
+  config: {
+    skills: [],
+    agents: [],
+    commands: [],
+    hooks: [],
+    mcpServers: [],
+    instructions: [],
+    memory: [],
+    settings: {},
+  },
+};
+export const globalConfig: GlobalConfigResponse = {
+  settings: {},
+  provenance: {},
+  hooks: [],
+  skills: [],
+  agents: [],
+  commands: [],
+  plugins: [],
+  mcpServers: [],
+  instructions: [],
+};
+export const messages: Message[] = [
+  {
+    uuid: 'meta',
+    role: 'system',
+    timestamp: null,
+    model: null,
+    isMeta: true,
+    isSidechain: false,
+    blocks: [{ type: 'text', text: 'Private system message' }],
+    usage: null,
+  },
+  {
+    uuid: 'assistant',
+    role: 'assistant',
+    timestamp: null,
+    model: 'claude-sonnet',
+    isMeta: false,
+    isSidechain: false,
+    blocks: [
+      { type: 'text', text: 'Checking **files**.' },
+      { type: 'thinking', text: 'Hidden reasoning' },
+      {
+        type: 'tool_use',
+        id: 'tool-1',
+        name: 'Bash',
+        input: { command: 'ls src' },
+      },
+    ],
+    usage: tokens,
+  },
+  {
+    uuid: 'result',
+    role: 'user',
+    timestamp: null,
+    model: null,
+    isMeta: false,
+    isSidechain: false,
+    blocks: [
+      {
+        type: 'tool_result',
+        toolUseId: 'tool-1',
+        isError: true,
+        text: 'Example tool output',
+      },
+    ],
+    usage: null,
+  },
+];
+export const sessionDetail: SessionDetailResponse = {
+  session: sessions[0]!,
+  cwd: project.path,
+  version: '1.0',
+  permissionModes: ['default'],
+  toolUseCounts: { Bash: 1 },
+  errorCount: 1,
+  byModel: [],
+  subagents: [],
+  messages,
+  cursor: 0,
+  prevCursor: null,
+  nextCursor: null,
+  totalMessages: 3,
+};

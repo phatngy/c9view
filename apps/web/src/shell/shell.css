@@ -1,0 +1,87 @@
+/* Dynamic status colors and collapsed descendant rules complement Tailwind layout. */
+.shell-status-dot,
+.shell-live-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--inactive);
+}
+.shell-status-dot[data-column='inactive'] {
+  background: transparent;
+  border: 1px solid var(--inactive);
+}
+.shell-status-dot[data-column='need_input'] {
+  background: var(--need-input);
+}
+.shell-status-dot[data-column='in_progress'] {
+  background: var(--in-progress);
+}
+.shell-status-dot[data-column='in_review'] {
+  background: var(--in-review);
+}
+.shell-project-count {
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+}
+.shell-project-count[data-column='need_input'] {
+  color: var(--need-input);
+}
+.shell-project-count[data-column='in_progress'] {
+  color: var(--in-progress);
+}
+.shell-project-count[data-column='in_review'] {
+  color: var(--in-review);
+}
+.shell-nav-link[data-current] .shell-project-count {
+  color: var(--ink);
+}
+.shell-session-link .shell-status-dot {
+  width: 5px;
+  height: 5px;
+}
+.shell-live-dot.live {
+  background: var(--success);
+}
+.shell-live-dot.connecting {
+  background: var(--need-input);
+}
+.shell-section-label span + span {
+  font-weight: 400;
+  letter-spacing: 0;
+}
+.shell-drawer .shell-brand-row {
+  padding-right: 40px;
+}
+.shell-project-error button {
+  min-height: 44px;
+}
+@media (min-width: 640px) {
+  .shell-project-error button {
+    min-height: 36px;
+  }
+}
+@media (min-width: 1024px) {
+  [data-sidebar-collapsed] .shell-desktop-sidebar {
+    width: 64px;
+  }
+  button.shell-mobile-trigger {
+    display: none;
+  }
+  .shell-sidebar-content[data-collapsed] {
+    align-items: center;
+    padding-inline: 8px;
+  }
+  [data-collapsed] .shell-brand-row {
+    padding: 0;
+  }
+  [data-collapsed] .shell-nav-link {
+    justify-content: center;
+    width: 40px;
+    padding: 10px;
+  }
+  [data-collapsed] .shell-sidebar-footer {
+    padding-inline: 8px;
+  }
+}
