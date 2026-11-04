@@ -9,6 +9,7 @@ export interface NodeRequest {
   path: string;
   query: Record<string, string>;
   body?: Uint8Array;
+  clientBootId?: string;
 }
 export interface NodeResponse {
   status: number;
@@ -52,7 +53,8 @@ export class InProcessTransport implements NodeTransport {
   private closed = false;
   private subscriptions = new Set<() => void>();
   constructor(
-    private readonly runtime: Pick<NodeRuntime, 'store' | 'events' | 'hello'>,
+    private readonly runtime: Pick<NodeRuntime, 'store' | 'events' | 'hello'> &
+      Partial<Pick<NodeRuntime, 'control'>>,
     private readonly app: NodeRequestApp,
     private readonly limits: NodeLimits = loadNodeLimits(),
   ) {}
@@ -106,10 +108,15 @@ export class InProcessTransport implements NodeTransport {
       const request = new Request(url, {
         method: req.method,
         signal: controller.signal,
+        headers: {
+          ...(req.body ? { 'content-type': 'application/json' } : {}),
+          ...(req.clientBootId !== undefined
+            ? { 'x-c9view-boot-id': req.clientBootId }
+            : {}),
+        },
         ...(req.body
           ? {
               body: new Uint8Array(req.body),
-              headers: { 'content-type': 'application/json' },
             }
           : {}),
       });
@@ -194,7 +201,7 @@ export class InProcessTransport implements NodeTransport {
     return redactStrings({
       projects: projects.map((p) => p.project),
       sessions: projects.flatMap((p) => p.sessions),
-      control: [],
+      control: this.runtime.control?.snapshot().runs ?? [],
     });
   }
   close(): void {

@@ -1,3 +1,8 @@
+import { loadControlConfig, type ControlOverrides } from './control/config.js';
+import {
+  createControlService,
+  type ControlDependencies,
+} from './control/service.js';
 import { DataStore, type ServerConfig } from './data/store.js';
 import { startIndex } from './data/start-index.js';
 import { createNodeHello } from './hello.js';
@@ -5,9 +10,26 @@ import { createNodeHello } from './hello.js';
 export type NodeRuntime = ReturnType<typeof createNode>;
 export function createNode(
   config: ServerConfig,
-  options: ConstructorParameters<typeof DataStore>[1] = {},
+  options: ConstructorParameters<typeof DataStore>[1] &
+    ControlOverrides & { controlDependencies?: ControlDependencies } = {},
 ) {
+  const controlConfig = loadControlConfig(process.env, options);
   const store = new DataStore(config, options);
+  const hello = createNodeHello();
+  let control: ReturnType<typeof createControlService> | undefined;
+  try {
+    control = controlConfig.control
+      ? createControlService(
+          store,
+          controlConfig,
+          hello.bootId,
+          options.controlDependencies,
+        )
+      : undefined;
+  } catch (error) {
+    store.hooks.close();
+    throw error;
+  }
   let index: ReturnType<typeof startIndex> | undefined;
   let closeFlight: Promise<void> | undefined;
   let warm: Promise<void> | undefined;
@@ -15,7 +37,9 @@ export function createNode(
     config,
     store,
     events: store.events,
-    hello: createNodeHello(),
+    hello: createNodeHello(control),
+    control,
+    controlConfig,
     start() {
       if (closeFlight) throw new Error('Node runtime is closed');
       if (!index) {
@@ -31,6 +55,7 @@ export function createNode(
     },
     close(): Promise<void> {
       return (closeFlight ??= Promise.resolve().then(async () => {
+        await control?.close();
         if (index) await index.close();
         else store.hooks.close();
         await warm;

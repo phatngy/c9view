@@ -27,3 +27,14 @@ export {
   type NodeEvent,
   type NodeRequestApp,
 } from './transport.js';
+
+export {
+  loadControlConfig,
+  ControlConfigError,
+  type ControlConfig,
+  type ControlOverrides,
+} from './control/config.js';
+export {
+  type ControlService,
+  type ControlDependencies,
+} from './control/service.js';

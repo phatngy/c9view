@@ -1,3 +1,5 @@
+import { controlRoutes } from './control/routes.js';
+import { loadNodeLimits } from './limits.js';
 import { Hono } from 'hono';
 import { redactText } from '@c9view/core';
 import type { ApiError } from '@c9view/api';
@@ -13,7 +15,10 @@ import { configRoutes } from './routes/config.js';
 import { fileRoutes } from './routes/files.js';
 import { changeRoutes } from './routes/changes.js';
 
-export function createNodeApp(runtime: Pick<NodeRuntime, 'store'>) {
+export function createNodeApp(
+  runtime: Pick<NodeRuntime, 'store'> &
+    Partial<Pick<NodeRuntime, 'control' | 'controlConfig'>>,
+) {
   const app = new Hono();
   const { store } = runtime;
   app.onError((error, c) => {
@@ -54,6 +59,15 @@ export function createNodeApp(runtime: Pick<NodeRuntime, 'store'>) {
     changeRoutes,
   ])
     app.route('/', routes(store));
+  if (runtime.control)
+    app.route(
+      '/',
+      controlRoutes(
+        runtime.control,
+        runtime.controlConfig?.textMaxChars ?? 20000,
+        loadNodeLimits().requestBodyMaxBytes,
+      ),
+    );
   app.notFound((c) => c.json({ error: 'Not found' } satisfies ApiError, 404));
   return app;
 }
