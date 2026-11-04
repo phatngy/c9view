@@ -62,7 +62,9 @@ Records link to each other through `uuid` / `parentUuid`; `isSidechain` marks su
 }
 ```
 
-`status` seen as `busy` and `idle`. `pidDomain` tells whether the PID belongs to the same PID namespace (matters inside Docker).
+`status` seen as `busy` and `idle`. `pidDomain` tells whether the PID belongs to the same PID namespace (matters inside Docker). Sessions started through the Agent SDK write the same file with `entrypoint: "sdk-cli"`.
+
+The same folder also holds `<pid>.<hash>.key` files with a `peerToken` for cross-session messaging. They are secrets: c9view reads only `sessions/*.json` and never lists, reads or logs `*.key` files.
 
 ## `stats-cache.json`
 
@@ -152,6 +154,23 @@ The node tails active and rotated files incrementally in both the new state fold
 Agent IDs are retained as metadata, without inferring subagent scope: the common agent fields can describe a session agent too. Only `SubagentStart`/`SubagentStop` prove lifecycle scope here; they keep a live parent in progress. `PostToolBatch` also means in progress; `PermissionDenied`/`StopFailure` end a turn in review. See the linked current hooks reference, especially common input fields and subagent events.
 
 Fresh hook/live disagreement lowers confidence from high to medium and appears in evidence. Stale means deciding active/waiting evidence is older than ten minutes, or a recent active hook has no live process (30-second grace window); disagreement alone is normal hook lead time.
+
+## Sessions started through the Agent SDK
+
+Checked on 2026-11-04 with `@anthropic-ai/claude-agent-sdk` 0.3.317 and 0.3.318 (Claude Code 2.1.318) on Linux, in a scratch project (002 spike, [research R9](../specs/002-session-control/research.md#r9-spike-items-pr-6a-first-tasks)). Session control relies on these answers.
+
+| Question                | Answer                                                                                                                                                                                                                            |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Resume                  | `resume: <id>` keeps the same `session_id` (in the `init` and `result` messages) and appends to the same `<id>.jsonl`. Only `forkSession: true` makes a new ID, so c9view always takes the ID from `init`.                        |
+| Live status file        | Written as for terminal sessions, with `entrypoint: "sdk-cli"`, `kind: "interactive"`, `pid`, `sessionId`, `name` and `status`.                                                                                                   |
+| Hooks                   | Hooks from the settings the session loads fire for SDK sessions (`SessionStart`, `UserPromptSubmit`, `Stop` seen), so c9view's hook events cover them.                                                                            |
+| Default permission mode | With `permissionMode` omitted the SDK starts in `auto` (a classifier approves tool calls) where available. c9view always passes `permissionMode`, or approvals would never reach the dashboard.                                   |
+| Bypass                  | The types say `bypassPermissions` needs `allowDangerouslySkipPermissions: true`, but the SDK started in bypass without it. c9view sets the flag itself and gates bypass on its own setting; it never relies on the SDK to refuse. |
+| Questions under bypass  | `AskUserQuestion` still reaches `canUseTool` in `bypassPermissions` mode (the SDK warns that `canUseTool` won't be called; it is, for questions). No other tool does.                                                             |
+| Session name            | `extraArgs: { name }` and the typed `title` option both set the name: transcript `custom-title` (plus `agent-name` for `extraArgs.name`) and the live file's `name`.                                                              |
+| Rename                  | `renameSession(id, title)` writes a `custom-title` entry into the transcript from the calling process, which would make c9view write Claude data, so c9view does not rename sessions.                                             |
+| Project folder          | `~/.claude/projects/<cwd with each "/" replaced by "-">`. c9view keeps using its existing project resolution.                                                                                                                     |
+| Child PID               | Not exposed by the SDK's `Query`; it is in the live status file, matched by `sessionId`.                                                                                                                                          |
 
 ## How c9view counts tokens and cost
 
