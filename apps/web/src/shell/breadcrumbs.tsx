@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from 'react';
 import { useLocation, useParams } from '@tanstack/react-router';
+import { useMachineId } from '../machine.js';
 import { useProjects } from '../api.js';
 import { formatProjectNameHint, projectNameHints } from '../projectNames.js';
 import { ProjectName } from './ProjectName.js';
@@ -31,6 +32,8 @@ export function BreadcrumbProvider({ children }: { children: ReactNode }) {
   );
 }
 export function useBreadcrumbs(items: Breadcrumb[]) {
+  const machineId = useMachineId();
+  const machineRoot = `/m/${encodeURIComponent(machineId)}`;
   const setItems = useContext(BreadcrumbContext)?.setItems;
   const itemsKey = items
     .map(
@@ -52,14 +55,25 @@ export function useBreadcrumbs(items: Breadcrumb[]) {
   const resolved = useMemo(() => {
     // These workspace routes have Overview as their parent, regardless of labels.
     const trail =
-      items.length === 1 && ['/search', '/config'].includes(pathname)
-        ? [{ label: 'Overview', to: '/' }, ...items]
+      items.length === 1 &&
+      [`${machineRoot}/search`, `${machineRoot}/config`].includes(pathname)
+        ? [{ label: 'Overview', to: '/m/$machineId' }, ...items]
         : items;
-    if (!projectId || trail.length < 2) return trail;
+    const scoped = trail.map((item) => ({
+      ...item,
+      ...(item.to
+        ? {
+            to: item.to.startsWith('/m/')
+              ? item.to.replace('/m/$machineId', machineRoot)
+              : `${machineRoot}${item.to === '/' ? '' : item.to}`,
+          }
+        : {}),
+    }));
+    if (!projectId || scoped.length < 2) return scoped;
     const nameHint = projectNameHints(projects.data?.projects ?? []).get(
       projectId,
     );
-    return trail.map((item, index) =>
+    return scoped.map((item, index) =>
       index === 1
         ? {
             ...item,
@@ -70,7 +84,7 @@ export function useBreadcrumbs(items: Breadcrumb[]) {
           }
         : item,
     );
-  }, [items, pathname, projectId, projects.data?.projects]);
+  }, [items, pathname, projectId, projects.data?.projects, machineRoot]);
   const registrationKey = `${itemsKey}\u0002${pathname}\u0002${projectId ?? ''}\u0002${hint ?? ''}`;
   const resolvedRef = useRef(resolved);
   useEffect(() => {

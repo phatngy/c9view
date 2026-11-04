@@ -1,3 +1,4 @@
+import { useMachineId } from '../machine.js';
 import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import type { SessionSummary } from '@c9view/api';
@@ -13,6 +14,7 @@ export function Kanban({
   sessions: SessionSummary[];
   projectId: string;
 }) {
+  const machineId = useMachineId();
   const [inactiveLimit, setInactiveLimit] = useState(30);
   return (
     <div className="project-board">
@@ -36,8 +38,8 @@ export function Kanban({
             {visible.map((session) => (
               <Link
                 className={`project-session${column === 'inactive' ? ' project-session-compact' : ''}`}
-                to="/projects/$projectId/sessions/$sessionId"
-                params={{ projectId, sessionId: session.id }}
+                to="/m/$machineId/projects/$projectId/sessions/$sessionId"
+                params={{ machineId, projectId, sessionId: session.id }}
                 key={session.id}
               >
                 <div className="flex items-start justify-between gap-2">

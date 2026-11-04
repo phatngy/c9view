@@ -1,3 +1,4 @@
+import { useMachineId } from '../machine.js';
 import { ChevronRight } from 'lucide-react';
 import { Button, Skeleton, Tooltip } from '../kit/index.js';
 import { Link, useParams } from '@tanstack/react-router';
@@ -32,6 +33,7 @@ export function ProjectNav({
   collapsed?: boolean;
   onNavigate?: () => void;
 }) {
+  const machineId = useMachineId();
   const query = useProjects();
   const params = useParams({ strict: false });
   if (query.isPending)
@@ -77,8 +79,8 @@ export function ProjectNav({
           : undefined;
         const row = (
           <Link
-            to="/projects/$projectId"
-            params={{ projectId: project.id }}
+            to="/m/$machineId/projects/$projectId"
+            params={{ machineId, projectId: project.id }}
             search={{ tab: 'sessions', path: '', line: '' }}
             activeOptions={{ exact: true }}
             className={navLinkClass}
@@ -124,7 +126,8 @@ export function ProjectNav({
       })}
       {!collapsed && (
         <Link
-          to="/"
+          to="/m/$machineId"
+          params={{ machineId }}
           className="shell-all-sessions flex min-h-11 items-center px-2 py-1.5 text-caption text-muted sm:min-h-9"
           onClick={onNavigate}
         >

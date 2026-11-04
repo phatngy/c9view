@@ -24,7 +24,7 @@ afterEach(() => {
 });
 
 function Registration({ label }: { label: string }) {
-  useBreadcrumbs([{ label: 'Projects', to: '/projects' }, { label }]);
+  useBreadcrumbs([{ label: 'Projects', to: '/m/local/projects' }, { label }]);
   return null;
 }
 function Harness() {
@@ -43,7 +43,7 @@ function Harness() {
 it('registers ordered breadcrumbs, updates their labels, and cleans up on unmount', async () => {
   const router = createRouter({
     routeTree: createRootRoute({ component: Harness }),
-    history: createMemoryHistory({ initialEntries: ['/'] }),
+    history: createMemoryHistory({ initialEntries: ['/m/local'] }),
   });
   render(<RouterProvider router={router} />);
   await screen.findByText('Project alpha');
@@ -54,7 +54,7 @@ it('registers ordered breadcrumbs, updates their labels, and cleans up on unmoun
   expect(items).toHaveLength(2);
   expect(
     within(items[0]!).getByRole('link', { name: 'Projects' }),
-  ).toHaveAttribute('href', '/projects');
+  ).toHaveAttribute('href', '/m/local/projects');
   expect(within(items[1]!).getByText('Project alpha')).toHaveAttribute(
     'aria-current',
     'page',
@@ -87,7 +87,9 @@ it('marks only the last breadcrumb current when an ancestor link matches the rou
         </BreadcrumbProvider>
       ),
     }),
-    history: createMemoryHistory({ initialEntries: ['/projects/alpha'] }),
+    history: createMemoryHistory({
+      initialEntries: ['/m/local/projects/alpha'],
+    }),
   });
   render(<RouterProvider router={router} />);
   const nav = await screen.findByRole('navigation', { name: 'Breadcrumb' });
@@ -103,13 +105,13 @@ it('renders no fallback breadcrumb outside the exact overview route', () => {
     routeTree: createRootRoute({
       component: () => <TopBar menuButton={null} />,
     }),
-    history: createMemoryHistory({ initialEntries: ['/config'] }),
+    history: createMemoryHistory({ initialEntries: ['/m/local/config'] }),
   });
   render(<RouterProvider router={router} />);
   expect(screen.queryByRole('navigation', { name: 'Breadcrumb' })).toBeNull();
 });
 
-it.each(['/search', '/config'])(
+it.each(['/m/local/search', '/m/local/config'])(
   'uses the route parent for %s without depending on the page label',
   async (path) => {
     function Page() {
@@ -130,11 +132,11 @@ it.each(['/search', '/config'])(
     });
     render(<RouterProvider router={router} />);
     const back = await screen.findByRole('link', { name: 'Back to Overview' });
-    expect(back).toHaveAttribute('href', '/');
+    expect(back).toHaveAttribute('href', '/m/local');
     expect(back).not.toHaveAttribute('aria-current');
     fireEvent.click(back);
     await screen.findByText('Overview', { selector: '[aria-current="page"]' });
-    expect(router.state.location.pathname).toBe('/');
+    expect(router.state.location.pathname).toBe('/m/local');
   },
 );
 
@@ -143,8 +145,8 @@ it.each(['…', ''])(
   async (label) => {
     function Page() {
       useBreadcrumbs([
-        { label: 'Overview', to: '/' },
-        { label, textLabel: label, to: '/projects/alpha' },
+        { label: 'Overview', to: '/m/local' },
+        { label, textLabel: label, to: '/m/local/projects/alpha' },
         { label: 'Session' },
       ]);
       return null;
@@ -159,19 +161,22 @@ it.each(['…', ''])(
         ),
       }),
       history: createMemoryHistory({
-        initialEntries: ['/projects/alpha/sessions/one'],
+        initialEntries: ['/m/local/projects/alpha/sessions/one'],
       }),
     });
     render(<RouterProvider router={router} />);
     expect(
       await screen.findByRole('link', { name: 'Back to project' }),
-    ).toHaveAttribute('href', '/projects/alpha');
+    ).toHaveAttribute('href', '/m/local/projects/alpha');
   },
 );
 
 it('hides a stale back link once its destination is the current URL', async () => {
   function Page() {
-    useBreadcrumbs([{ label: 'Overview', to: '/' }, { label: 'Project' }]);
+    useBreadcrumbs([
+      { label: 'Overview', to: '/m/local' },
+      { label: 'Project' },
+    ]);
     return null;
   }
   const router = createRouter({
@@ -183,7 +188,7 @@ it('hides a stale back link once its destination is the current URL', async () =
         </BreadcrumbProvider>
       ),
     }),
-    history: createMemoryHistory({ initialEntries: ['/'] }),
+    history: createMemoryHistory({ initialEntries: ['/m/local'] }),
   });
   render(<RouterProvider router={router} />);
   await screen.findByText('Project');

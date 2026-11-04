@@ -1,3 +1,4 @@
+import { useMachineId } from '../machine.js';
 import { useEffect, useRef, useState } from 'react';
 import { Download } from 'lucide-react';
 import { Button } from '../kit/Button.js';
@@ -11,6 +12,7 @@ export function ExportMenu({
   projectId: string;
   sessionId: string;
 }) {
+  const machineId = useMachineId();
   const controller = useRef<AbortController | null>(null);
   const [running, setRunning] = useState(false);
   const [count, setCount] = useState(0);
@@ -24,7 +26,8 @@ export function ExportMenu({
     setStatus('');
     try {
       const data = await collectExport(
-        (cursor, signal) => api.session(projectId, sessionId, cursor, signal),
+        (cursor, signal) =>
+          api.session(machineId, projectId, sessionId, cursor, signal),
         active.signal,
         setCount,
       );

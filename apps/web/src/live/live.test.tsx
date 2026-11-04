@@ -2,24 +2,23 @@ import { act, cleanup, render, screen } from '@testing-library/react';
 import {
   QueryClient,
   QueryClientProvider,
-  type InfiniteData,
+  QueryObserver,
 } from '@tanstack/react-query';
 import { afterEach, expect, it, vi } from 'vitest';
-import type { LiveEvent, SessionDetailResponse } from '@c9view/api';
+import type { MachineEvent } from '@c9view/api';
+import { queryKeys } from '../queryKeys.js';
 import {
   LiveProvider,
   invalidateLiveEvent,
-  refreshNewestPage,
+  refreshMachine,
   useLiveConnection,
 } from './index.js';
 import {
   api,
-  type SessionPageParam,
   HttpError,
   useGlobalSearch,
   useOverview,
   useProject,
-  useSession,
   useSessionPoll,
 } from '../api.js';
 import { overview, projectDetail, sessionDetail } from '../test-fixtures.js';
@@ -49,7 +48,15 @@ class MockSource extends EventTarget {
     this.onerror?.();
   }
   emit(type: string, data: unknown) {
-    this.dispatchEvent(new MessageEvent(type, { data: JSON.stringify(data) }));
+    this.dispatchEvent(
+      new MessageEvent(type, {
+        data: JSON.stringify(
+          type === 'machine'
+            ? data
+            : { machineId: 'local', event: { type, ...(data as object) } },
+        ),
+      }),
+    );
   }
 }
 const clients: QueryClient[] = [];
@@ -70,109 +77,107 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-it.each([
-  [
-    { event: 'project', data: { projectId: 'p' } },
-    [['usage'], ['overview'], ['projects'], ['project', 'p']],
-  ],
-  [
-    { event: 'session', data: { projectId: 'p', sessionId: 's' } },
-    [
-      ['project', 'p'],
-      ['session-poll', 'p', 's'],
-      ['session', 'p', 's'],
-    ],
-  ],
-  [
-    {
-      event: 'status',
-      data: { projectId: 'p', sessionId: 's', column: 'inactive' },
-    },
-    [
-      ['project', 'p'],
-      ['session-poll', 'p', 's'],
-    ],
-  ],
-  [
-    { event: 'config', data: {} },
-    [['config'], ['project', 'p'], ['project', 'other']],
-  ],
-  [
-    { event: 'index', data: { state: 'ready' } },
-    [['health'], ['usage'], ['overview'], ['search', { q: 'hello' }]],
-  ],
-] as [LiveEvent, string[][]][])(
-  'invalidates only the relevant caches for $event',
-  async (event, expected) => {
+it.each(['project', 'session', 'status', 'config', 'index'])(
+  'isolates %s hints to their machine',
+  async (type) => {
     const value = client();
     const keys = [
-      ['overview'],
-      ['projects'],
-      ['project', 'p'],
-      ['project', 'other'],
-      ['session-poll', 'p', 's'],
-      ['session-poll', 'other', 's'],
-      ['session', 'p', 's'],
-      ['config'],
-      ['health'],
-      ['usage'],
-      ['search', { q: 'hello' }],
-      ['files', 'p', ''],
+      queryKeys.overview('local'),
+      queryKeys.project('local', 'p'),
+      queryKeys.config('local'),
+      queryKeys.health('local'),
     ];
-    for (const key of keys)
-      value.setQueryData(key, key[0] === 'session' ? undefined : {});
-    // A session event also marks an existing unloaded conversation query stale.
-    if (event.event === 'session')
-      value.setQueryData(['session', 'p', 's'], { pages: [], pageParams: [] });
-    await invalidateLiveEvent(value, event);
+    for (const key of keys) {
+      value.setQueryData(key, {});
+      value.setQueryData(['remote', ...key.slice(1)], {});
+    }
+    await invalidateLiveEvent(value, {
+      machineId: 'local',
+      event: { type, projectId: 'p', sessionId: 's' },
+    });
+    const expected = {
+      project: [queryKeys.overview('local'), queryKeys.project('local', 'p')],
+      session: [queryKeys.project('local', 'p')],
+      status: [queryKeys.project('local', 'p')],
+      config: [queryKeys.project('local', 'p'), queryKeys.config('local')],
+      index: [queryKeys.overview('local'), queryKeys.health('local')],
+    }[type];
     const invalidated = value
       .getQueryCache()
       .getAll()
       .filter((query) => query.state.isInvalidated)
       .map((query) => query.queryKey);
-    if (event.event === 'index') {
-      expect(invalidated).toEqual(
-        expect.arrayContaining([
-          ['health'],
-          ['overview'],
-          ['search', { q: 'hello' }],
-        ]),
-      );
-      expect(invalidated).toHaveLength(4);
-    } else {
-      expect(invalidated).toEqual(expect.arrayContaining(expected));
-      expect(invalidated).toHaveLength(expected.length);
-      if (event.event === 'session')
-        expect(invalidated).not.toContainEqual(['usage']);
-    }
+    expect(invalidated).toEqual(expected);
+    expect(
+      value
+        .getQueryCache()
+        .getAll()
+        .filter((query) => query.queryKey[0] === 'remote')
+        .every((query) => !query.state.isInvalidated),
+    ).toBe(true);
   },
 );
 
-it('refreshes just the newest loaded message page', async () => {
+it('coalesces overlapping session hints and leaves the newer response in cache', async () => {
   const value = client();
-  const head = { ...sessionDetail, nextCursor: 50 };
-  value.setQueryData(['session', 'p', 's'], {
-    pages: [head, { ...sessionDetail, cursor: 50 }],
-    pageParams: [{ cursor: 0, limit: 50 }, 'end'],
-  });
+  const key = queryKeys.session('local', 'p', 's');
+  let resolve!: (data: number) => void;
   const request = vi
-    .spyOn(api, 'session')
-    .mockResolvedValue({ ...sessionDetail, totalMessages: 60 });
-  await invalidateLiveEvent(value, {
-    event: 'session',
-    data: { projectId: 'p', sessionId: 's' },
+    .fn()
+    .mockImplementationOnce(
+      () =>
+        new Promise<number>((done) => {
+          resolve = done;
+        }),
+    )
+    .mockResolvedValue(2);
+  value.setQueryData(key, 0);
+  const observer = new QueryObserver(value, {
+    queryKey: key,
+    queryFn: request,
+    staleTime: Infinity,
   });
-  expect(request).toHaveBeenCalledExactlyOnceWith('p', 's', {
-    cursor: 50,
-    limit: 50,
+  const unsubscribe = observer.subscribe(() => {});
+  const event: MachineEvent = {
+    machineId: 'local',
+    event: { type: 'session', projectId: 'p', sessionId: 's' },
+  };
+  const first = invalidateLiveEvent(value, event);
+  const second = invalidateLiveEvent(value, event);
+  const third = invalidateLiveEvent(value, event);
+  expect(request).toHaveBeenCalledTimes(1);
+  resolve(1);
+  await Promise.all([first, second, third]);
+  expect(request).toHaveBeenCalledTimes(2);
+  expect(value.getQueryData(key)).toBe(2);
+  unsubscribe();
+});
+
+it('waits for an existing read before refreshing without cancelling or overwriting newer data', async () => {
+  const value = client();
+  const key = queryKeys.file('remote', 'p', 'a.ts');
+  let resolve!: (data: number) => void;
+  const request = vi
+    .fn()
+    .mockImplementationOnce(
+      () =>
+        new Promise<number>((done) => {
+          resolve = done;
+        }),
+    )
+    .mockResolvedValue(2);
+  const observer = new QueryObserver(value, {
+    queryKey: key,
+    queryFn: request,
   });
-  const data = value.getQueryData<InfiniteData<SessionDetailResponse>>([
-    'session',
-    'p',
-    's',
-  ]);
-  expect(data?.pages[0]).toBe(head);
-  expect(data?.pages[1]?.totalMessages).toBe(60);
+  const unsubscribe = observer.subscribe(() => {});
+  const pending = refreshMachine(value, 'remote');
+  expect(request).toHaveBeenCalledTimes(1);
+  resolve(1);
+  await pending;
+  expect(request).toHaveBeenCalledTimes(2);
+  expect(value.getQueryData(key)).toBe(2);
+  unsubscribe();
 });
 
 function Connection() {
@@ -207,10 +212,6 @@ function SearchQuery() {
     </output>
   );
 }
-function ActiveSession() {
-  useSession('active-project', 'active-session');
-  return null;
-}
 function mount(value: QueryClient, queries = false) {
   return render(
     <QueryClientProvider client={value}>
@@ -242,7 +243,7 @@ it('refetches failed search queries after an index event', async () => {
 it('shares a source, handles named events and restores polling after prolonged offline errors', async () => {
   vi.useFakeTimers();
   vi.stubGlobal('EventSource', MockSource);
-  vi.spyOn(api, 'health').mockResolvedValue({
+  vi.spyOn(api, 'hubHealth').mockResolvedValue({
     ok: true,
     version: 'test',
     claudeDir: '',
@@ -306,7 +307,7 @@ it('shares a source, handles named events and restores polling after prolonged o
 it('starts polling ten seconds into an outage across exponential retries', async () => {
   vi.useFakeTimers();
   vi.stubGlobal('EventSource', MockSource);
-  vi.spyOn(api, 'health').mockResolvedValue({
+  vi.spyOn(api, 'hubHealth').mockResolvedValue({
     ok: true,
     version: 'test',
     claudeDir: '',
@@ -359,7 +360,7 @@ it('closes on a 401 and dispatches the existing login event', async () => {
 it('reopens a closed EventSource with one second backoff after a non-401 probe', async () => {
   vi.useFakeTimers();
   vi.stubGlobal('EventSource', MockSource);
-  vi.spyOn(api, 'health').mockResolvedValue({
+  vi.spyOn(api, 'hubHealth').mockResolvedValue({
     ok: true,
     version: 'test',
     claudeDir: '',
@@ -381,105 +382,51 @@ it('reopens a closed EventSource with one second backoff after a non-401 probe',
   expect(MockSource.instances).toHaveLength(2);
   expect(MockSource.instances[1]!.url).toBe('/api/events');
 });
-it('skips first-open catch-up and refreshes only observed session tails on reconnect', async () => {
-  vi.useFakeTimers();
+it('refetches active files, git status and changes after reopen and machine online, only for that machine', async () => {
   vi.stubGlobal('EventSource', MockSource);
-  vi.spyOn(api, 'health').mockResolvedValue({
-    ok: true,
-    version: 'test',
-    claudeDir: '',
-  });
-  const sessionRequest = vi
-    .spyOn(api, 'session')
-    .mockResolvedValue({ ...sessionDetail, totalMessages: 10 });
   const value = client();
-  value.setQueryDefaults(['session'], { staleTime: Infinity });
-  const cached = {
-    pages: [sessionDetail, { ...sessionDetail, cursor: 50 }],
-    pageParams: [{ cursor: 0, limit: 50 }, 'end'],
-  } satisfies InfiniteData<SessionDetailResponse, SessionPageParam>;
-  value.setQueryData(['session', 'active-project', 'active-session'], cached);
-  value.setQueryData(
-    ['session', 'inactive-project', 'inactive-session'],
-    cached,
-  );
-  render(
-    <QueryClientProvider client={value}>
-      <LiveProvider>
-        <ActiveSession />
-      </LiveProvider>
-    </QueryClientProvider>,
-  );
-  const first = MockSource.instances[0]!;
+  const requests = [];
+  const stops = [];
+  for (const machine of ['local', 'remote']) {
+    for (const key of [
+      queryKeys.files(machine, 'p', ''),
+      queryKeys.file(machine, 'p', 'a'),
+      queryKeys.gitStatus(machine, 'p'),
+      queryKeys.gitDiff(machine, 'p', 'a'),
+      queryKeys.changes(machine, 'p', 's'),
+      queryKeys.change(machine, 'p', 's', 'f'),
+    ]) {
+      value.setQueryData(key, {});
+      const request = vi.fn(async () => ({}));
+      const observer = new QueryObserver(value, {
+        queryKey: key,
+        queryFn: request,
+        staleTime: Infinity,
+      });
+      stops.push(observer.subscribe(() => {}));
+      requests.push({ machine, request });
+    }
+  }
+  mount(value);
+  const source = MockSource.instances[0]!;
   await act(async () => {
-    first.open();
-    await vi.advanceTimersByTimeAsync(0);
+    source.open();
   });
-  expect(sessionRequest).not.toHaveBeenCalled();
+  requests.forEach(({ request }) => expect(request).not.toHaveBeenCalled());
   await act(async () => {
-    first.failClosed();
-    await vi.advanceTimersByTimeAsync(1_000);
+    source.fail();
+    source.open();
   });
-  const reconnected = MockSource.instances[1]!;
+  requests.forEach(({ request }) => expect(request).toHaveBeenCalledTimes(1));
   await act(async () => {
-    reconnected.open();
-    await vi.advanceTimersByTimeAsync(0);
+    source.emit('machine', {
+      type: 'machine',
+      machineId: 'remote',
+      state: 'online',
+    });
   });
-  expect(sessionRequest).toHaveBeenCalledExactlyOnceWith(
-    'active-project',
-    'active-session',
-    { cursor: 50, limit: 50 },
+  requests.forEach(({ machine, request }) =>
+    expect(request).toHaveBeenCalledTimes(machine === 'remote' ? 2 : 1),
   );
-  expect(
-    value.getQueryData(['session', 'inactive-project', 'inactive-session']),
-  ).toEqual(cached);
-});
-
-it('refreshes a single end page by its absolute offset', async () => {
-  const value = client();
-  value.setQueryData(['session', 'p', 's'], {
-    pages: [{ ...sessionDetail, cursor: 1538, prevCursor: 1488 }],
-    pageParams: ['end'],
-  });
-  const request = vi.spyOn(api, 'session').mockResolvedValue(sessionDetail);
-  await refreshNewestPage(value, 'p', 's');
-  expect(request).toHaveBeenCalledExactlyOnceWith('p', 's', {
-    cursor: 1538,
-    limit: 50,
-  });
-});
-
-it('preserves concurrent pagination while refreshing the newest page', async () => {
-  const value = client();
-  const cached = { pages: [sessionDetail], pageParams: ['end'] };
-  value.setQueryData(['session', 'p', 's'], cached);
-  let resolve!: (page: SessionDetailResponse) => void;
-  vi.spyOn(api, 'session').mockReturnValue(
-    new Promise((done) => {
-      resolve = done;
-    }),
-  );
-  const pending = refreshNewestPage(value, 'p', 's');
-  const changed = {
-    ...cached,
-    pages: [sessionDetail, { ...sessionDetail, cursor: 3 }],
-  };
-  value.setQueryData(['session', 'p', 's'], changed);
-  resolve({ ...sessionDetail, totalMessages: 60 });
-  await pending;
-  expect(value.getQueryData(['session', 'p', 's'])).toEqual(changed);
-});
-
-it('keeps a newest page custom limit during a live refresh', async () => {
-  const value = client();
-  value.setQueryData(['session', 'p', 's'], {
-    pages: [{ ...sessionDetail, cursor: 2 }],
-    pageParams: [{ cursor: 2, limit: 38 }],
-  });
-  const request = vi.spyOn(api, 'session').mockResolvedValue(sessionDetail);
-  await refreshNewestPage(value, 'p', 's');
-  expect(request).toHaveBeenCalledExactlyOnceWith('p', 's', {
-    cursor: 2,
-    limit: 38,
-  });
+  stops.forEach((stop) => stop());
 });

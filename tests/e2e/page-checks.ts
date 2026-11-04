@@ -26,11 +26,11 @@ export const secrets = [
 
 // Keep the session last so phone panel navigation starts on that page.
 export const fixturePages = [
-  ['/', 'Your Claude Code activity, in one place.'],
+  ['/m/local', 'Your Claude Code activity, in one place.'],
   [projectPath, 'Sample widget'],
   [secretSessionPath, 'Synthetic response'],
-  ['/config', 'Filter configuration'],
-  ['/search?q=sample', 'Search conversations'],
+  ['/m/local/config', 'Filter configuration'],
+  ['/m/local/search?q=sample', 'Search conversations'],
   [sessionPath, 'Build a sample widget'],
 ] as const;
 
@@ -38,7 +38,7 @@ export async function expectPageReady(page: Page, path: string, text: string) {
   await expect(
     page.getByText(text, { exact: true }).filter({ visible: true }).first(),
   ).toBeVisible();
-  if (path.startsWith('/search')) {
+  if (path.startsWith('/m/local/search')) {
     await expect(
       page.getByRole('link', { name: /Find sample text/ }),
     ).toBeVisible();

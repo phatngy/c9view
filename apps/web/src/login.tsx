@@ -10,7 +10,7 @@ export function LoginGate({ children }: { children: ReactNode }) {
     window.addEventListener('c9view:login', listener);
     // The login route serves the same shell; discover its mode through a protected API.
     if (window.location.pathname === '/login') {
-      void fetch('/api/projects')
+      void fetch('/api/health')
         .then(async (response) => {
           if (response.status === 401) {
             const body = (await response.json()) as { auth?: string };

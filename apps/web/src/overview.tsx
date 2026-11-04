@@ -1,3 +1,4 @@
+import { useMachineId } from './machine.js';
 import { ProjectName } from './shell/ProjectName.js';
 import { useBreadcrumbs } from './shell/breadcrumbs.js';
 import { lazy, Suspense, useState } from 'react';
@@ -24,13 +25,14 @@ const UsageSection = lazy(() =>
 
 export function OverviewPage() {
   const projects = useProjects();
-  const { project } = useSearch({ from: '/' });
+  const { project } = useSearch({ from: '/m/$machineId' });
   // Resolve deep-link scope before mounting usage queries.
   if (project && projects.isPending) return <Loading />;
   return <OverviewContent />;
 }
 
 function OverviewContent() {
+  const machineId = useMachineId();
   useBreadcrumbs([{ label: 'Overview' }]);
   const overview = useOverview();
   const projects = useProjects();
@@ -38,8 +40,8 @@ function OverviewContent() {
     range = 30,
     status,
     project: requestedProject,
-  } = useSearch({ from: '/' });
-  const navigate = useNavigate({ from: '/' });
+  } = useSearch({ from: '/m/$machineId' });
+  const navigate = useNavigate({ from: '/m/$machineId' });
   const selectedProject = projects.data?.projects.find(
     (p) => p.id === requestedProject,
   );
@@ -268,8 +270,8 @@ function OverviewContent() {
                   <tr key={p.id}>
                     <td>
                       <Link
-                        to="/projects/$projectId"
-                        params={{ projectId: p.id }}
+                        to="/m/$machineId/projects/$projectId"
+                        params={{ machineId, projectId: p.id }}
                       >
                         <h3 className="font-semibold">
                           <ProjectName

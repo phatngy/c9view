@@ -19,14 +19,18 @@ import { SessionHeader } from './session/header/SessionHeader.js';
 import { SessionSearch } from './session/header/SessionSearch.js';
 import { contextUsage } from './session/context.js';
 import { useQueryClient } from '@tanstack/react-query';
-import { refreshNewestPage } from './live/index.js';
+import { useMachineId } from './machine.js';
+import { refreshSession } from './live/index.js';
 import { scrollConversationToBottom } from './session/WindowedMessages.js';
 import { buildSearchIndex, searchableText } from './session/model.js';
 export { Conversation } from './session/Conversation.js';
 
 export function SessionPage(props: { projectId: string; sessionId: string }) {
   return (
-    <SessionView key={`${props.projectId}/${props.sessionId}`} {...props} />
+    <SessionView
+      key={`${useMachineId()}/${props.projectId}/${props.sessionId}`}
+      {...props}
+    />
   );
 }
 
@@ -37,6 +41,7 @@ function SessionView({
   projectId: string;
   sessionId: string;
 }) {
+  const machineId = useMachineId();
   const query = useSession(projectId, sessionId);
   const client = useQueryClient();
   const loadingOlder = useRef(false);
@@ -46,7 +51,7 @@ function SessionView({
   const projectLabel =
     project.data?.project.name ?? (project.isPending ? '…' : projectId);
   useBreadcrumbs([
-    { label: 'Overview', to: '/' },
+    { label: 'Overview', to: '/m/$machineId' },
     {
       label: projectLabel,
       to: `/projects/${encodeURIComponent(projectId)}`,
@@ -244,7 +249,7 @@ function SessionView({
       !target
     ) {
       refreshedTotal.current = total;
-      void refreshNewestPage(client, projectId, sessionId);
+      void refreshSession(client, machineId, projectId, sessionId);
     }
   }, [
     pages,
@@ -254,6 +259,7 @@ function SessionView({
     client,
     projectId,
     sessionId,
+    machineId,
   ]);
   async function navigateMatch(direction: 1 | -1) {
     const generation = searchGeneration.current;

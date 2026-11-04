@@ -9,7 +9,7 @@ export function TopBar({ menuButton }: { menuButton: ReactNode }) {
   const pathname = useLocation({ select: (location) => location.pathname });
   const breadcrumbs: Breadcrumb[] = items.length
     ? items
-    : pathname === '/'
+    : /^\/m\/[^/]+\/?$/.test(pathname)
       ? [{ label: 'Overview' }]
       : [];
   const parent = breadcrumbs.findLast((item) => item.to);

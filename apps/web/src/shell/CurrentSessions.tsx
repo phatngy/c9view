@@ -1,3 +1,4 @@
+import { useMachineId } from '../machine.js';
 import { Link, useParams } from '@tanstack/react-router';
 import { Button } from '../kit/index.js';
 import { useProject } from '../api.js';
@@ -13,6 +14,7 @@ export function CurrentSessions({
   projectId: string;
   onNavigate?: () => void;
 }) {
+  const machineId = useMachineId();
   const query = useProject(projectId);
   const params = useParams({ strict: false });
   if (query.isPending)
@@ -44,8 +46,8 @@ export function CurrentSessions({
       {sessions.map((session) => (
         <Link
           key={session.id}
-          to="/projects/$projectId/sessions/$sessionId"
-          params={{ projectId, sessionId: session.id }}
+          to="/m/$machineId/projects/$projectId/sessions/$sessionId"
+          params={{ machineId, projectId, sessionId: session.id }}
           className="shell-session-link flex min-h-11 items-center gap-2 rounded-md px-2 py-1.5 text-caption text-muted hover:bg-surface hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent data-[current]:bg-accent-soft data-[current]:text-ink sm:min-h-9"
           data-current={params.sessionId === session.id || undefined}
           aria-current={params.sessionId === session.id ? 'page' : undefined}
@@ -59,8 +61,8 @@ export function CurrentSessions({
         </Link>
       ))}
       <Link
-        to="/projects/$projectId"
-        params={{ projectId }}
+        to="/m/$machineId/projects/$projectId"
+        params={{ machineId, projectId }}
         search={{ tab: 'sessions', path: '', line: '' }}
         className="shell-all-sessions flex min-h-11 items-center px-2 py-1.5 text-caption text-muted sm:min-h-9"
         onClick={onNavigate}
