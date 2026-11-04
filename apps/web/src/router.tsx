@@ -148,6 +148,11 @@ const legacyPath = createRoute({
   getParentRoute: () => root,
   path: '$',
   beforeLoad: ({ location }) => {
+    if (location.pathname === '/m' || location.pathname === '/m/')
+      throw redirect({
+        href: `/m/local${location.searchStr}${location.hash ? `#${location.hash}` : ''}`,
+        replace: true,
+      });
     if (!location.pathname.startsWith('/m/'))
       throw redirect({
         href: `/m/local${location.pathname}${location.searchStr}${location.hash ? `#${location.hash}` : ''}`,

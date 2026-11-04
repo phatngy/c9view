@@ -3,14 +3,16 @@ import {
   QueryClient,
   QueryClientProvider,
   QueryObserver,
+  type InfiniteData,
 } from '@tanstack/react-query';
 import { afterEach, expect, it, vi } from 'vitest';
-import type { MachineEvent } from '@c9view/api';
+import type { MachineEvent, SessionDetailResponse } from '@c9view/api';
 import { queryKeys } from '../queryKeys.js';
 import {
   LiveProvider,
   invalidateLiveEvent,
   refreshMachine,
+  refreshNewestPage,
   useLiveConnection,
 } from './index.js';
 import {
@@ -411,11 +413,23 @@ it('refetches active files, git status and changes after reopen and machine onli
   const source = MockSource.instances[0]!;
   await act(async () => {
     source.open();
+    source.emit('machine', {
+      type: 'machine',
+      machineId: 'remote',
+      state: 'online',
+      bootId: 'first',
+    });
   });
   requests.forEach(({ request }) => expect(request).not.toHaveBeenCalled());
   await act(async () => {
     source.fail();
     source.open();
+    source.emit('machine', {
+      type: 'machine',
+      machineId: 'remote',
+      state: 'online',
+      bootId: 'first',
+    });
   });
   requests.forEach(({ request }) => expect(request).toHaveBeenCalledTimes(1));
   await act(async () => {
@@ -423,10 +437,197 @@ it('refetches active files, git status and changes after reopen and machine onli
       type: 'machine',
       machineId: 'remote',
       state: 'online',
+      bootId: 'second',
     });
   });
   requests.forEach(({ machine, request }) =>
     expect(request).toHaveBeenCalledTimes(machine === 'remote' ? 2 : 1),
   );
   stops.forEach((stop) => stop());
+});
+
+it('refreshes just the newest loaded message page', async () => {
+  const value = client();
+  const head = { ...sessionDetail, nextCursor: 50 };
+  value.setQueryData(queryKeys.session('local', 'p', 's'), {
+    pages: [head, { ...sessionDetail, cursor: 50 }],
+    pageParams: [{ cursor: 0, limit: 50 }, 'end'],
+  });
+  const request = vi
+    .spyOn(api, 'session')
+    .mockResolvedValue({ ...sessionDetail, totalMessages: 60 });
+  await invalidateLiveEvent(value, {
+    machineId: 'local',
+    event: { type: 'session', projectId: 'p', sessionId: 's' },
+  });
+  expect(request).toHaveBeenCalledExactlyOnceWith('local', 'p', 's', {
+    cursor: 50,
+    limit: 50,
+  });
+  const data = value.getQueryData<InfiniteData<SessionDetailResponse>>([
+    'local',
+    'session',
+    'p',
+    's',
+  ]);
+  expect(data?.pages[0]).toBe(head);
+  expect(data?.pages[1]?.totalMessages).toBe(60);
+});
+
+it('refreshes a single end page by its absolute offset', async () => {
+  const value = client();
+  value.setQueryData(queryKeys.session('local', 'p', 's'), {
+    pages: [{ ...sessionDetail, cursor: 1538, prevCursor: 1488 }],
+    pageParams: ['end'],
+  });
+  const request = vi.spyOn(api, 'session').mockResolvedValue(sessionDetail);
+  await refreshNewestPage(value, 'local', 'p', 's');
+  expect(request).toHaveBeenCalledExactlyOnceWith('local', 'p', 's', {
+    cursor: 1538,
+    limit: 50,
+  });
+});
+
+it('preserves concurrent pagination while refreshing the newest page', async () => {
+  const value = client();
+  const cached = { pages: [sessionDetail], pageParams: ['end'] };
+  value.setQueryData(queryKeys.session('local', 'p', 's'), cached);
+  let resolve!: (page: SessionDetailResponse) => void;
+  vi.spyOn(api, 'session').mockReturnValue(
+    new Promise((done) => {
+      resolve = done;
+    }),
+  );
+  const pending = refreshNewestPage(value, 'local', 'p', 's');
+  const changed = {
+    ...cached,
+    pages: [sessionDetail, { ...sessionDetail, cursor: 3 }],
+  };
+  value.setQueryData(queryKeys.session('local', 'p', 's'), changed);
+  resolve({ ...sessionDetail, totalMessages: 60 });
+  await pending;
+  expect(value.getQueryData(queryKeys.session('local', 'p', 's'))).toEqual(
+    changed,
+  );
+});
+
+it('keeps a newest page custom limit during a live refresh', async () => {
+  const value = client();
+  value.setQueryData(queryKeys.session('local', 'p', 's'), {
+    pages: [{ ...sessionDetail, cursor: 2 }],
+    pageParams: [{ cursor: 2, limit: 38 }],
+  });
+  const request = vi.spyOn(api, 'session').mockResolvedValue(sessionDetail);
+  await refreshNewestPage(value, 'local', 'p', 's');
+  expect(request).toHaveBeenCalledExactlyOnceWith('local', 'p', 's', {
+    cursor: 2,
+    limit: 38,
+  });
+});
+
+it.each(['same boot', 'new boot', 'offline then online'])(
+  'refreshes once for %s after recording the first machine announcement',
+  async (transition) => {
+    vi.stubGlobal('EventSource', MockSource);
+    const value = client();
+    const request = vi.fn(async () => ({}));
+    const key = queryKeys.overview('remote');
+    const observer = new QueryObserver(value, {
+      queryKey: key,
+      queryFn: request,
+      staleTime: Infinity,
+    });
+    const stop = observer.subscribe(() => {});
+    mount(value);
+    const source = MockSource.instances[0]!;
+    const announce = (state: 'online' | 'offline', bootId = 'one') =>
+      source.emit('machine', {
+        type: 'machine',
+        machineId: 'remote',
+        state,
+        bootId,
+      });
+    const machines = vi.spyOn(value, 'invalidateQueries');
+    await act(async () => {
+      source.open();
+      announce('online');
+    });
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(machines).toHaveBeenCalledWith(
+      { queryKey: queryKeys.machines(), exact: true },
+      { cancelRefetch: false },
+    );
+    machines.mockClear();
+    await act(async () => {
+      if (transition === 'same boot') source.open();
+      if (transition === 'offline then online') announce('offline');
+      announce('online', transition === 'new boot' ? 'two' : 'one');
+    });
+    expect(request).toHaveBeenCalledTimes(2);
+    const machineInvalidations = machines.mock.calls.filter(
+      ([filters]) => filters?.queryKey?.[0] === 'machines',
+    );
+    expect(machineInvalidations).toHaveLength(
+      transition === 'same boot' ? 0 : transition === 'new boot' ? 1 : 2,
+    );
+    stop();
+  },
+);
+
+it('serializes newest-page reads and coalesces hints into one trailing refresh', async () => {
+  const value = client();
+  const key = queryKeys.session('remote', 'p', 's');
+  value.setQueryData(key, { pages: [sessionDetail], pageParams: ['end'] });
+  let resolve!: (page: SessionDetailResponse) => void;
+  const request = vi
+    .spyOn(api, 'session')
+    .mockImplementationOnce(
+      () =>
+        new Promise((done) => {
+          resolve = done;
+        }),
+    )
+    .mockResolvedValue({ ...sessionDetail, totalMessages: 70 });
+  const first = refreshNewestPage(value, 'remote', 'p', 's');
+  const second = refreshNewestPage(value, 'remote', 'p', 's');
+  const third = refreshNewestPage(value, 'remote', 'p', 's');
+  expect(request).toHaveBeenCalledTimes(1);
+  resolve({ ...sessionDetail, totalMessages: 60 });
+  await Promise.all([first, second, third]);
+  expect(request).toHaveBeenCalledTimes(2);
+  expect(
+    value.getQueryData<InfiniteData<SessionDetailResponse>>(key)?.pages[0]
+      ?.totalMessages,
+  ).toBe(70);
+});
+
+it('silently drops malformed envelopes and mismatched hint types', async () => {
+  vi.stubGlobal('EventSource', MockSource);
+  const value = client();
+  value.setQueryData(queryKeys.overview('local'), {});
+  mount(value);
+  const invalidate = vi.spyOn(value, 'invalidateQueries');
+  const source = MockSource.instances[0]!;
+  await act(async () => {
+    for (const [type, data] of [
+      [
+        'machine',
+        { type: 'machine', machineId: 'local', state: 'online', bootId: 42 },
+      ],
+      ['machine', { type: 'machine', machineId: 'local', state: 'broken' }],
+      [
+        'project',
+        { machineId: 'local', event: { type: 'project', projectId: 42 } },
+      ],
+      ['project', { machineId: 'local', event: { type: 'index' } }],
+      ['index', { machineId: 42, event: { type: 'index' } }],
+      ['index', null],
+    ] as const) {
+      source.dispatchEvent(
+        new MessageEvent(type, { data: JSON.stringify(data) }),
+      );
+    }
+    source.dispatchEvent(new MessageEvent('index', { data: '{' }));
+  });
+  expect(invalidate).not.toHaveBeenCalled();
 });
