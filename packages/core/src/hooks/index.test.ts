@@ -345,11 +345,38 @@ it('keeps the standalone entry import graph within hooks and node built-ins', as
   expect(visited.size).toBe(3);
 });
 
+// Compiles the hook entry and the local files it imports from source, so the
+// test runs before (and without) `corepack pnpm build`, as CI does.
+async function compileHookEntry(): Promise<string> {
+  const { readFile: read, writeFile: write } = await import('node:fs/promises');
+  const { fileURLToPath } = await import('node:url');
+  const { transpileModule, ModuleKind, ScriptTarget } = (
+    await import('typescript')
+  ).default;
+  const out = await temp();
+  for (const name of ['hook-entry', 'state-dir', 'fields']) {
+    const source = await read(
+      fileURLToPath(new URL(`./${name}.ts`, import.meta.url)),
+      'utf8',
+    );
+    const { outputText } = transpileModule(source, {
+      compilerOptions: {
+        module: ModuleKind.ESNext,
+        target: ScriptTarget.ES2023,
+        verbatimModuleSyntax: true,
+      },
+    });
+    await write(join(out, `${name}.js`), outputText);
+  }
+  await write(join(out, 'package.json'), '{"type":"module"}');
+  return join(out, 'hook-entry.js');
+}
+
 it.each(['default', 'argument', 'override', 'empty'])(
   'fires the standalone hook silently with %s state resolution',
   async (mode) => {
     const { spawn } = await import('node:child_process');
-    const { fileURLToPath } = await import('node:url');
+    const entry = await compileHookEntry();
     const home = await temp();
     const argument = join(home, "state folder's");
     const env: NodeJS.ProcessEnv = {
@@ -363,9 +390,7 @@ it.each(['default', 'argument', 'override', 'empty'])(
     const child = spawn(
       process.execPath,
       [
-        fileURLToPath(
-          new URL('../../dist/hooks/hook-entry.js', import.meta.url),
-        ),
+        entry,
         '--c9view-hook',
         ...(mode === 'default'
           ? []
