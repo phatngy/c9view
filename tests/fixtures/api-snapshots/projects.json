@@ -1,0 +1,53 @@
+{
+  "path": "/api/projects",
+  "status": 200,
+  "contentType": "application/json",
+  "body": {
+    "projects": [
+      {
+        "id": "-synthetic-alpha",
+        "name": "alpha",
+        "path": "/synthetic/alpha",
+        "pathExists": false,
+        "sessionCount": 2,
+        "lastActivityAt": "2026-01-01T10:01:00.000Z",
+        "columns": {
+          "inactive": 2,
+          "in_progress": 0,
+          "need_input": 0,
+          "in_review": 0
+        },
+        "tokens": {
+          "input": 30,
+          "output": 60,
+          "cacheRead": 15,
+          "cacheCreation": 12,
+          "thinking": 0
+        },
+        "costUsd": 0.000693
+      },
+      {
+        "id": "-synthetic-beta",
+        "name": "beta",
+        "path": "/synthetic/beta",
+        "pathExists": false,
+        "sessionCount": 1,
+        "lastActivityAt": "2026-01-01T10:01:00.000Z",
+        "columns": {
+          "inactive": 1,
+          "in_progress": 0,
+          "need_input": 0,
+          "in_review": 0
+        },
+        "tokens": {
+          "input": 10,
+          "output": 20,
+          "cacheRead": 5,
+          "cacheCreation": 4,
+          "thinking": 0
+        },
+        "costUsd": 0.0003465
+      }
+    ]
+  }
+}

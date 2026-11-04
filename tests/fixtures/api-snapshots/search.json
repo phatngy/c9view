@@ -1,0 +1,44 @@
+{
+  "path": "/api/search?q=widget",
+  "status": 200,
+  "contentType": "application/json",
+  "body": {
+    "results": [
+      {
+        "projectId": "-synthetic-alpha",
+        "sessionId": "session-one/agent-child-one",
+        "messageUuid": "child-user",
+        "timestamp": "2026-01-01T10:00:00Z",
+        "role": "user",
+        "model": null,
+        "snippet": "Inspect this synthetic widget",
+        "cutStart": false,
+        "cutEnd": false,
+        "highlights": [
+          [
+            23,
+            29
+          ]
+        ]
+      },
+      {
+        "projectId": "-synthetic-alpha",
+        "sessionId": "session-one",
+        "messageUuid": "user-one",
+        "timestamp": "2026-01-01T10:00:00Z",
+        "role": "user",
+        "model": null,
+        "snippet": "Build a sample widget",
+        "cutStart": false,
+        "cutEnd": false,
+        "highlights": [
+          [
+            15,
+            21
+          ]
+        ]
+      }
+    ],
+    "nextCursor": null
+  }
+}

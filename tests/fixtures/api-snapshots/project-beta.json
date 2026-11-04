@@ -1,0 +1,91 @@
+{
+  "path": "/api/projects/-synthetic-beta",
+  "status": 200,
+  "contentType": "application/json",
+  "body": {
+    "project": {
+      "id": "-synthetic-beta",
+      "name": "beta",
+      "path": "/synthetic/beta",
+      "pathExists": false,
+      "sessionCount": 1,
+      "lastActivityAt": "2026-01-01T10:01:00.000Z",
+      "columns": {
+        "inactive": 1,
+        "in_progress": 0,
+        "need_input": 0,
+        "in_review": 0
+      },
+      "tokens": {
+        "input": 10,
+        "output": 20,
+        "cacheRead": 5,
+        "cacheCreation": 4,
+        "thinking": 0
+      },
+      "costUsd": 0.0003465
+    },
+    "sessions": [
+      {
+        "id": "session-three",
+        "projectId": "-synthetic-beta",
+        "title": "Explain this example",
+        "firstAt": "2026-01-01T10:00:00.000Z",
+        "lastAt": "2026-01-01T10:01:00.000Z",
+        "gitBranch": null,
+        "models": [
+          "claude-sonnet-4-5"
+        ],
+        "messageCount": 2,
+        "lastMessagePreview": "Synthetic response",
+        "subagentCount": 0,
+        "ownTokens": {
+          "input": 10,
+          "output": 20,
+          "cacheRead": 5,
+          "cacheCreation": 4,
+          "thinking": 0
+        },
+        "ownCostUsd": 0.0003465,
+        "subagentCostUsd": 0,
+        "tokens": {
+          "input": 10,
+          "output": 20,
+          "cacheRead": 5,
+          "cacheCreation": 4,
+          "thinking": 0
+        },
+        "costUsd": 0.0003465,
+        "status": {
+          "column": "inactive",
+          "reason": "no running process",
+          "source": "none",
+          "observedAt": null,
+          "stale": false,
+          "confidence": "low",
+          "evidence": []
+        },
+        "liveName": null
+      }
+    ],
+    "config": {
+      "skills": [],
+      "agents": [],
+      "commands": [],
+      "hooks": [],
+      "mcpServers": [],
+      "instructions": [],
+      "settings": {
+        "env": {
+          "ANTHROPIC_API_KEY": "«redacted:key»"
+        },
+        "permissions": {
+          "allow": [
+            "Read"
+          ]
+        }
+      },
+      "memory": []
+    }
+  }
+}

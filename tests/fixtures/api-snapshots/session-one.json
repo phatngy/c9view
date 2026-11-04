@@ -1,0 +1,146 @@
+{
+  "path": "/api/projects/-synthetic-alpha/sessions/session-one",
+  "status": 200,
+  "contentType": "application/json",
+  "body": {
+    "session": {
+      "id": "session-one",
+      "projectId": "-synthetic-alpha",
+      "title": "Sample widget",
+      "firstAt": "2026-01-01T10:00:00.000Z",
+      "lastAt": "2026-01-01T10:01:00.000Z",
+      "gitBranch": null,
+      "models": [
+        "claude-sonnet-4-5"
+      ],
+      "messageCount": 3,
+      "lastMessagePreview": "Build a sample widget",
+      "subagentCount": 1,
+      "ownTokens": {
+        "input": 10,
+        "output": 20,
+        "cacheRead": 5,
+        "cacheCreation": 4,
+        "thinking": 0
+      },
+      "ownCostUsd": 0.0003465,
+      "subagentCostUsd": 0.0003465,
+      "tokens": {
+        "input": 20,
+        "output": 40,
+        "cacheRead": 10,
+        "cacheCreation": 8,
+        "thinking": 0
+      },
+      "costUsd": 0.000693,
+      "status": {
+        "column": "inactive",
+        "reason": "no running process",
+        "source": "live-status",
+        "observedAt": null,
+        "stale": false,
+        "confidence": "medium",
+        "evidence": [
+          {
+            "source": "live-status",
+            "at": "2026-01-01T10:00:00.000Z",
+            "detail": "live status: idle"
+          }
+        ]
+      },
+      "liveName": null
+    },
+    "cwd": "/synthetic/alpha",
+    "version": "2.1.0",
+    "permissionModes": [
+      "default"
+    ],
+    "toolUseCounts": {
+      "Task": 1
+    },
+    "errorCount": 0,
+    "byModel": [
+      {
+        "model": "claude-sonnet-4-5",
+        "tokens": {
+          "input": 20,
+          "output": 40,
+          "cacheRead": 10,
+          "cacheCreation": 8,
+          "thinking": 0
+        },
+        "costUsd": 0.000693
+      }
+    ],
+    "subagents": [
+      {
+        "agentId": "child-one",
+        "description": "Inspect sample",
+        "parentToolUseId": "tool-one"
+      }
+    ],
+    "messages": [
+      {
+        "uuid": "user-one",
+        "role": "user",
+        "timestamp": "2026-01-01T10:00:00.000Z",
+        "model": null,
+        "isMeta": false,
+        "isSidechain": false,
+        "blocks": [
+          {
+            "type": "text",
+            "text": "Build a sample widget"
+          }
+        ],
+        "usage": null
+      },
+      {
+        "uuid": "assistant-one",
+        "role": "assistant",
+        "timestamp": "2026-01-01T10:01:00.000Z",
+        "model": "claude-sonnet-4-5",
+        "isMeta": false,
+        "isSidechain": false,
+        "blocks": [
+          {
+            "type": "tool_use",
+            "id": "tool-one",
+            "name": "Task",
+            "input": {
+              "description": "Inspect sample"
+            }
+          }
+        ],
+        "usage": {
+          "input": 10,
+          "output": 20,
+          "cacheRead": 5,
+          "cacheCreation": 4,
+          "thinking": 0
+        }
+      },
+      {
+        "uuid": "result-one",
+        "role": "user",
+        "timestamp": "2026-01-01T10:00:00.000Z",
+        "model": null,
+        "isMeta": false,
+        "isSidechain": false,
+        "blocks": [
+          {
+            "type": "tool_result",
+            "toolUseId": "tool-one",
+            "isError": false,
+            "text": "Sample inspected"
+          }
+        ],
+        "usage": null
+      }
+    ],
+    "cursor": 0,
+    "prevCursor": null,
+    "nextCursor": null,
+    "totalMessages": 3
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "path": "/api/projects/-synthetic-alpha/sessions/session-one%2Fagent-child-one",
+  "status": 404,
+  "contentType": "application/json",
+  "body": {
+    "error": "Session not found"
+  }
+}

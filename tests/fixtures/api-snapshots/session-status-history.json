@@ -1,0 +1,15 @@
+{
+  "path": "/api/projects/-synthetic-alpha/sessions/session-one/status/history",
+  "status": 200,
+  "contentType": "application/json",
+  "body": {
+    "changes": [
+      {
+        "at": "<timestamp>",
+        "column": "inactive",
+        "reason": "no running process",
+        "source": "live-status"
+      }
+    ]
+  }
+}

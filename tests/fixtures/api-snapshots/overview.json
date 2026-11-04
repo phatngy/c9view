@@ -1,0 +1,56 @@
+{
+  "path": "/api/overview",
+  "status": 200,
+  "contentType": "application/json",
+  "body": {
+    "projectCount": 2,
+    "sessionCount": 3,
+    "liveSessionCount": 0,
+    "columns": {
+      "inactive": 3,
+      "in_progress": 0,
+      "need_input": 0,
+      "in_review": 0
+    },
+    "tokens": {
+      "input": 40,
+      "output": 80,
+      "cacheRead": 20,
+      "cacheCreation": 16,
+      "thinking": 0
+    },
+    "costUsd": 0.0010395,
+    "daily": [
+      {
+        "date": "2026-01-01",
+        "messages": 8,
+        "sessions": 3,
+        "toolCalls": 1
+      }
+    ],
+    "byModel": [
+      {
+        "model": "claude-sonnet-4-5",
+        "tokens": {
+          "input": 30,
+          "output": 60,
+          "cacheRead": 15,
+          "cacheCreation": 12,
+          "thinking": 0
+        },
+        "costUsd": 0.0010395
+      },
+      {
+        "model": "synthetic-unknown-model",
+        "tokens": {
+          "input": 10,
+          "output": 20,
+          "cacheRead": 5,
+          "cacheCreation": 4,
+          "thinking": 0
+        },
+        "costUsd": 0
+      }
+    ]
+  }
+}

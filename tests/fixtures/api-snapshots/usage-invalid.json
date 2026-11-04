@@ -1,0 +1,8 @@
+{
+  "path": "/api/usage?from=2026-13-01",
+  "status": 400,
+  "contentType": "application/json",
+  "body": {
+    "error": "Invalid usage parameters"
+  }
+}

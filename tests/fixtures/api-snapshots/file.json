@@ -1,0 +1,8 @@
+{
+  "path": "/api/projects/-synthetic-alpha/file?path=README.md",
+  "status": 404,
+  "contentType": "application/json",
+  "body": {
+    "error": "Project not found"
+  }
+}
