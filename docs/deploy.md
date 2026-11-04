@@ -134,4 +134,4 @@ rm -rf "$C9VIEW_VERIFY_DIR"
 
 Wait for health before HTTP checks. Expect minimal unauthenticated health (`ok`, `version`, `auth: "required"`), 401 before login, and 200 with an empty projects list after login. Logs must contain no token. Check that the DB was created under the host-owned DB directory. For Compose, export the UID/GID, token and existing workspace as above, then run `docker compose config` and `docker compose up -d --build`; deliberately missing bind sources should fail.
 
-Deployment packages use `files: ["dist", "README.md"]`; the core migration SQL is embedded in `dist/index-db/migration.js`. The API package contains TypeScript contracts only, with no runtime imports; the web dist is copied separately into the image.
+Deployment packages use `files: ["dist", "README.md"]`; the core migration SQL is embedded in `dist/index-db/migration.js`. The hub (`apps/hub`) depends on the node package (`packages/node`) for data reads and routes. The API package contains TypeScript contracts only, with no runtime imports; the web dist is copied separately into the image.

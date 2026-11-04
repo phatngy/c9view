@@ -9,10 +9,11 @@ c9view is a local web dashboard for Claude Code projects, sessions, config and t
 - `packages/core/`: core library (Claude and project data, status detection, the SQLite index, safe file and git access).
 - `packages/api/`: shared HTTP contract types.
 - `packages/cli/`: the `c9view` command (`start`, `scan`, `hooks`).
-- `apps/server/`: Hono server; `src/main.ts` starts it and `src/app.ts` defines the app.
+- `apps/hub/`: browser-facing hub for login, Host/Origin checks, the web build and relay to nodes.
+- `packages/node/`: node data layer, read routes, runtime and transport.
 - `apps/web/`: React application, styles and tests.
 - `tests/fixtures/`: synthetic Claude Code data for core and CLI tests.
-- `apps/server/test/fixtures/`: synthetic Claude Code data for server tests.
+- `packages/node/test/fixtures/`: synthetic Claude Code data for node tests.
 - `tests/e2e/`: Playwright end-to-end tests.
 - `docs/`: data sources, deployment, research and the AI workflow.
 - `specs/NNN-feature/`: Spec Kit spec, plan, tasks and design artifacts per feature.

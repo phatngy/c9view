@@ -1,4 +1,4 @@
-// HTTP API contract shared by @c9view/server and @c9view/web.
+// HTTP API contract shared by @c9view/hub and @c9view/web.
 // All routes are GET, JSON, under /api. Times are ISO-8601 strings. Token counts are integers.
 // Costs are API-equivalent USD estimates, not actual billing.
 

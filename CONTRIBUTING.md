@@ -15,7 +15,7 @@ Requires Node 22 or newer. Use pnpm through Corepack:
 ```sh
 corepack enable
 corepack pnpm install
-corepack pnpm dev        # server and web dev servers in parallel
+corepack pnpm dev        # hub and web dev servers in parallel
 ```
 
 To try a production build against your own `~/.claude`:
