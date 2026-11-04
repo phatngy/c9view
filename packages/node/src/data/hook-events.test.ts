@@ -5,8 +5,7 @@ import { expect, it } from 'vitest';
 import { appendHookEvent, loadConfig } from '@c9view/core';
 import { HookEvents } from './hook-events.js';
 import { DataStore } from './store.js';
-// Temporary until T014: the moved HTTP tests use the hub app; they switch to the node app.
-import { createApp } from '../../../../apps/hub/src/app.js';
+import { createApp } from '../test-app.js';
 it('serves hook-derived status, bounded history and health from a temporary state dir', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'c9view-status-server-'));
   const claudeDir = join(dir, 'claude');
