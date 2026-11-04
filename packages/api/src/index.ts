@@ -300,3 +300,4 @@ export interface UsageResponse {
   totals: UsageTotal;
   cacheHit: { date: string; ratio: number | null }[];
 }
+export * from './machines.js';
