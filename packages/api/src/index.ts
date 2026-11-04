@@ -301,3 +301,4 @@ export interface UsageResponse {
   cacheHit: { date: string; ratio: number | null }[];
 }
 export * from './machines.js';
+export * from './control.js';
