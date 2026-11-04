@@ -7,14 +7,14 @@ import type { ApiError } from '@c9view/api';
 import {
   DataStore,
   createNode,
-  createNodeApp,
   createNodeHello,
-  InProcessTransport,
+  loadNodeLimits,
   type NodeTransport,
   type ServerConfig,
 } from '@c9view/node';
 import { transportResponse } from './relay.js';
 import { healthRoutes } from './routes/health.js';
+import { createLocalTransport } from './local-node.js';
 
 export function createApp(
   config: ServerConfig,
@@ -27,6 +27,7 @@ export function createApp(
   } = {},
 ) {
   const app = new Hono();
+  const limits = loadNodeLimits();
   const runtime = options.transport
     ? undefined
     : options.store
@@ -36,15 +37,7 @@ export function createApp(
           hello: createNodeHello(),
         }
       : createNode(config);
-  const transport =
-    options.transport ??
-    new InProcessTransport(
-      runtime!,
-      createNodeApp(runtime!).onError((error) => {
-        // Let the hub log the browser-facing path and sanitize the response.
-        throw error;
-      }),
-    );
+  const transport = options.transport ?? createLocalTransport(runtime!, limits);
   const allowed = new Set([
     'localhost',
     '127.0.0.1',
@@ -101,19 +94,45 @@ export function createApp(
   app.route('/api', healthRoutes(transport));
   app.route('/api', eventRoutes(transport));
   const relay: MiddlewareHandler = async (c) => {
-    if (c.req.method !== 'GET' && c.req.method !== 'POST')
+    if (
+      c.req.method !== 'GET' &&
+      c.req.method !== 'POST' &&
+      c.req.method !== 'HEAD'
+    )
       return c.json({ error: 'Not found' } satisfies ApiError, 404);
+    const method = c.req.method === 'HEAD' ? 'GET' : c.req.method;
+    let body: Uint8Array | undefined;
+    if (method === 'POST') {
+      const result = await readLimitedBody(
+        c.req.raw,
+        limits.requestBodyMaxBytes,
+      );
+      if (result instanceof Response) return result;
+      body = result;
+    }
     const response = await transport.request(
       {
-        method: c.req.method,
+        method,
         path: c.req.path.slice(4) || '/',
         query: c.req.query(),
-        ...(c.req.method === 'POST'
-          ? { body: new Uint8Array(await c.req.raw.arrayBuffer()) }
-          : {}),
+        ...(body ? { body } : {}),
       },
       c.req.raw.signal,
     );
+    if (c.req.method === 'HEAD') {
+      const iterator = response.body[Symbol.asyncIterator]();
+      if (iterator.return) await iterator.return();
+      else {
+        for (;;) {
+          const chunk = await iterator.next();
+          if (chunk.done) break;
+        }
+      }
+      return new Response(null, {
+        status: response.status,
+        headers: { 'Content-Type': response.contentType },
+      });
+    }
     return transportResponse(response);
   };
   app.all('/api', relay);
@@ -124,6 +143,40 @@ export function createApp(
   }
   app.notFound((c) => c.json({ error: 'Not found' } satisfies ApiError, 404));
   return app;
+}
+
+async function readLimitedBody(
+  request: Request,
+  maxBytes: number,
+): Promise<Uint8Array | Response> {
+  const tooLarge = () =>
+    Response.json({ error: 'Request body too large' }, { status: 413 });
+  const contentLength = request.headers.get('content-length');
+  if (contentLength !== null && Number(contentLength) > maxBytes) {
+    await request.body?.cancel();
+    return tooLarge();
+  }
+  if (!request.body) return new Uint8Array();
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel();
+      return tooLarge();
+    }
+    chunks.push(value);
+  }
+  const body = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return body;
 }
 
 function normalizeHostname(value: string): string {

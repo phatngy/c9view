@@ -94,3 +94,92 @@ it('preserves node health failures without adding success fields', async () => {
   expect(response.status).toBe(504);
   expect(await response.json()).toEqual({ error: 'Gateway timeout' });
 });
+
+it('relays HEAD as GET and returns the node status and content type without a body', async () => {
+  const { app, transport } = setup({
+    status: 200,
+    contentType: 'application/json',
+    body: (async function* () {
+      yield new TextEncoder().encode('{"projects":[]}');
+    })(),
+  });
+  const get = await app.request('/api/projects');
+  const head = await app.request('/api/projects', { method: 'HEAD' });
+  expect(head.status).toBe(200);
+  expect(head.headers.get('content-type')).toBe(
+    get.headers.get('content-type'),
+  );
+  expect(await head.text()).toBe('');
+  expect(transport.request).toHaveBeenLastCalledWith(
+    { method: 'GET', path: '/projects', query: {} },
+    expect.any(AbortSignal),
+  );
+
+  const unknownApp = setup({
+    status: 404,
+    contentType: 'application/json',
+    body: (async function* () {
+      yield new TextEncoder().encode('{"error":"Not found"}');
+    })(),
+  }).app;
+  const unknown = await unknownApp.request('/api/unknown', { method: 'HEAD' });
+  expect(unknown.status).toBe(404);
+  expect(await unknown.text()).toBe('');
+});
+
+it('limits POST bodies before relaying, including chunked bodies', async () => {
+  vi.stubEnv('C9VIEW_REQUEST_BODY_MAX_BYTES', '4');
+  try {
+    const { app, transport } = setup({
+      status: 404,
+      contentType: 'application/json',
+      body: (async function* () {
+        yield new TextEncoder().encode('{"error":"Not found"}');
+      })(),
+    });
+    const exactLimit = await app.request('/api/unknown', {
+      method: 'POST',
+      body: '1234',
+    });
+    expect(exactLimit.status).toBe(404);
+    expect(vi.mocked(transport.request).mock.calls[0]?.[0].body).toEqual(
+      new TextEncoder().encode('1234'),
+    );
+
+    const overLimit = await app.request('/api/unknown', {
+      method: 'POST',
+      body: '12345',
+    });
+    expect(overLimit.status).toBe(413);
+    expect(await overLimit.json()).toEqual({
+      error: 'Request body too large',
+    });
+    expect(transport.request).toHaveBeenCalledTimes(1);
+
+    let cancelled = false;
+    let pulls = 0;
+    const chunked = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulls++;
+        controller.enqueue(new Uint8Array(3));
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    const chunkedResponse = await app.request('/api/unknown', {
+      method: 'POST',
+      body: chunked,
+      duplex: 'half',
+    } as RequestInit);
+    expect(chunkedResponse.status).toBe(413);
+    expect(await chunkedResponse.json()).toEqual({
+      error: 'Request body too large',
+    });
+    expect(cancelled).toBe(true);
+    expect(pulls).toBeLessThan(3);
+    expect(transport.request).toHaveBeenCalledTimes(1);
+  } finally {
+    vi.unstubAllEnvs();
+  }
+});
