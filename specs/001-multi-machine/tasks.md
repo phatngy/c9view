@@ -82,26 +82,26 @@ description: 'Task list for Components and Multiple Machines'
 
 ### Tests
 
-- [ ] T021 [P] [US2] `apps/hub/src/machines.test.ts`: `/api/m/local/…` equals `/api/…`; unknown `machineId` → 404; `--no-local` alias → 404; hub routes match before the alias; login and Host/Origin apply through the alias as through `/api/m/local/*`
-- [ ] T022 [P] [US2] `apps/hub/src/routes/events.test.ts`: SSE events arrive as `{ machineId: 'local', event }`; a fake transport's own `machineId` in a payload is overwritten
-- [ ] T023 [P] [US2] `apps/web/src/queryKeys.test.ts`: same `projectId` on two machines → different cache entries; global keys have no `machineId`
-- [ ] T024 [P] [US2] `apps/web/src/router.test.tsx`: each old path redirects to `/m/local/…` keeping path and query
-- [ ] T025 [P] [US2] `apps/web/src/live/live.test.tsx`: after SSE reopen, files, git status and changes queries refetch; two overlapping refreshes of one session end with the newer data; an event during a refresh causes exactly one more refresh
-- [ ] T026 [P] [US2] `packages/node/src/data/store.test.ts`: a snapshot invalidated during its build is rebuilt before it is returned
+- [x] T021 [P] [US2] `apps/hub/src/machines.test.ts`: `/api/m/local/…` equals `/api/…`; unknown `machineId` → 404; `--no-local` alias → 404; hub routes match before the alias; login and Host/Origin apply through the alias as through `/api/m/local/*`
+- [x] T022 [P] [US2] `apps/hub/src/routes/events.test.ts`: SSE events arrive as `{ machineId: 'local', event }`; a fake transport's own `machineId` in a payload is overwritten
+- [x] T023 [P] [US2] `apps/web/src/queryKeys.test.ts`: same `projectId` on two machines → different cache entries; global keys have no `machineId`
+- [x] T024 [P] [US2] `apps/web/src/router.test.tsx`: each old path redirects to `/m/local/…` keeping path and query
+- [x] T025 [P] [US2] `apps/web/src/live/live.test.tsx`: after SSE reopen, files, git status and changes queries refetch; two overlapping refreshes of one session end with the newer data; an event during a refresh causes exactly one more refresh
+- [x] T026 [P] [US2] `packages/node/src/data/store.test.ts`: a snapshot invalidated during its build is rebuilt before it is returned
 
 ### Implementation
 
-- [ ] T027 [US2] `packages/api/src/machines.ts` per [data-model.md](data-model.md): `MachineId`, `CapabilityState`, `MachineCapabilities`, `MachineSummary`, `NodeHello`, `NodeSnapshot`, `MachineEvent`, `MachineStateEvent`; additive export in `packages/api/src/index.ts`
-- [ ] T028 [US2] `apps/hub/src/machines.ts`: machine list with one `local` entry and `GET /api/machines`
-- [ ] T029 [US2] `apps/hub/src/app.ts`: relay `/api/m/:machineId/*` to that machine's transport (404 unknown, 503 `{ reason: 'offline' }`); `/api/*` alias for `local` only; hub routes first
-- [ ] T030 [US2] `apps/hub/src/routes/events.ts`: wrap node events as `MachineEvent`, emit `machine` events; `apps/hub/src/routes/health.ts`: hub fields plus the deprecated `local` node copy (plan, justified non-additive changes)
-- [ ] T031 [US2] `apps/web/src/api.ts`: build every machine-scoped path as `/api/m/${machineId}…`
-- [ ] T032 [US2] `apps/web/src/queryKeys.ts` (new): key factories; every machine-scoped key starts with `machineId`; replace inline keys across `apps/web/src/`
-- [ ] T033 [US2] `apps/web/src/router.tsx` and route files: move routes under `/m/$machineId/…`; redirects from old paths
-- [ ] T034 [US2] `apps/web/src/live/index.tsx` and `live/state.ts`: R7 rules — invalidate only, refetch every query of a machine after a gap, one refresh per key with a dirty flag, never replace newer data with older
-- [ ] T035 [US2] Search page in `apps/web/src/search/`: read index progress from `/api/m/:machineId/health`
-- [ ] T036 [US2] `packages/node/src/data/store.ts`: generation counter; rebuild a snapshot invalidated mid-build
-- [ ] T037 [US2] Update existing web tests that hard-code `/api/…` paths or query keys
+- [x] T027 [US2] `packages/api/src/machines.ts` per [data-model.md](data-model.md): `MachineId`, `CapabilityState`, `MachineCapabilities`, `MachineSummary`, `NodeHello`, `NodeSnapshot`, `MachineEvent`, `MachineStateEvent`; additive export in `packages/api/src/index.ts`
+- [x] T028 [US2] `apps/hub/src/machines.ts`: machine list with one `local` entry and `GET /api/machines`
+- [x] T029 [US2] `apps/hub/src/app.ts`: relay `/api/m/:machineId/*` to that machine's transport (404 unknown, 503 `{ reason: 'offline' }`); `/api/*` alias for `local` only; hub routes first
+- [x] T030 [US2] `apps/hub/src/routes/events.ts`: wrap node events as `MachineEvent`, emit `machine` events; `apps/hub/src/routes/health.ts`: hub fields plus the deprecated `local` node copy (plan, justified non-additive changes)
+- [x] T031 [US2] `apps/web/src/api.ts`: build every machine-scoped path as `/api/m/${machineId}…`
+- [x] T032 [US2] `apps/web/src/queryKeys.ts` (new): key factories; every machine-scoped key starts with `machineId`; replace inline keys across `apps/web/src/`
+- [x] T033 [US2] `apps/web/src/router.tsx` and route files: move routes under `/m/$machineId/…`; redirects from old paths
+- [x] T034 [US2] `apps/web/src/live/index.tsx` and `live/state.ts`: R7 rules — invalidate only, refetch every query of a machine after a gap, one refresh per key with a dirty flag, never replace newer data with older
+- [x] T035 [US2] Search page in `apps/web/src/search/`: read index progress from `/api/m/:machineId/health`
+- [x] T036 [US2] `packages/node/src/data/store.ts`: generation counter; rebuild a snapshot invalidated mid-build
+- [x] T037 [US2] Update existing web tests that hard-code `/api/…` paths or query keys
 
 **Checkpoint**: with 6.0d merged, 002 PR 6a can start.
 
