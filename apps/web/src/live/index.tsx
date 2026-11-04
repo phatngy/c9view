@@ -3,10 +3,17 @@ import {
   useQueryClient,
   type QueryClient,
   type Query,
+  type InfiniteData,
 } from '@tanstack/react-query';
-import type { MachineEvent, MachineStateEvent } from '@c9view/api';
+import type { MachineEvent, SessionDetailResponse } from '@c9view/api';
 import { queryKeys } from '../queryKeys.js';
-import { api, HttpError } from '../api.js';
+import {
+  api,
+  HttpError,
+  SESSION_PAGE_SIZE,
+  type SessionPageParam,
+} from '../api.js';
+import { machineEventSchema, machineStateEventSchema } from './events.js';
 import { resetConnection, setConnection } from './state.js';
 export { useLiveConnection, useLivePolling, useLiveSession } from './state.js';
 
@@ -35,6 +42,18 @@ async function refreshQuery(client: QueryClient, query: Query) {
         // Include a request already started by mounting, polling or pagination.
         if (query.state.fetchStatus !== 'idle')
           await query.promise?.catch(() => {});
+        if (
+          query.queryKey[1] === 'session' &&
+          (query.state.data as InfiniteData<SessionDetailResponse> | undefined)
+            ?.pages
+        ) {
+          void client.invalidateQueries(
+            { queryKey: query.queryKey, exact: true, refetchType: 'none' },
+            { cancelRefetch: false },
+          );
+          await readNewestPage(client, query);
+          continue;
+        }
         await client.invalidateQueries(
           { queryKey: query.queryKey, exact: true },
           { cancelRefetch: false },
@@ -46,6 +65,27 @@ async function refreshQuery(client: QueryClient, query: Query) {
   })();
   return state.promise;
 }
+// A concurrent cache update (including pagination) wins over this response.
+async function readNewestPage(client: QueryClient, query: Query) {
+  const cached = query.state.data as InfiniteData<
+    SessionDetailResponse,
+    SessionPageParam
+  >;
+  const last = cached.pages.at(-1);
+  const param = cached.pageParams.at(-1);
+  if (!last) return;
+  const [machineId, , projectId, sessionId] = query.queryKey as string[];
+  const page = await api.session(machineId!, projectId!, sessionId!, {
+    cursor: last.cursor,
+    limit: typeof param === 'object' ? param.limit : SESSION_PAGE_SIZE,
+  });
+  client.setQueryData(query.queryKey, (current: unknown) =>
+    current === cached
+      ? { ...cached, pages: [...cached.pages.slice(0, -1), page] }
+      : current,
+  );
+}
+export const refreshNewestPage = refreshSession;
 /** Polling uses the same serialized invalidation path as live hints. */
 export async function refreshSession(
   client: QueryClient,
@@ -53,12 +93,10 @@ export async function refreshSession(
   projectId: string,
   sessionId: string,
 ) {
-  const query = client
-    .getQueryCache()
-    .find({
-      queryKey: queryKeys.session(machineId, projectId, sessionId),
-      exact: true,
-    });
+  const query = client.getQueryCache().find({
+    queryKey: queryKeys.session(machineId, projectId, sessionId),
+    exact: true,
+  });
   if (query) await refreshQuery(client, query);
 }
 export async function refreshMachine(client: QueryClient, machineId?: string) {
@@ -127,6 +165,10 @@ let stopProbe: AbortController | undefined;
 let retryTimer: ReturnType<typeof setTimeout> | undefined;
 let retryDelay = 1_000;
 let hasOpened = false;
+const machineStates = new Map<
+  string,
+  { state: 'online' | 'offline'; bootId?: string | undefined }
+>();
 let authBlocked = false;
 let probeUnauthorized = false;
 function start() {
@@ -195,29 +237,42 @@ function start() {
   ]) {
     current.addEventListener(type, (message) => {
       if (source !== current) return;
-      let data: MachineEvent | MachineStateEvent;
+      let raw: unknown;
       try {
-        data = JSON.parse((message as MessageEvent<string>).data) as
-          MachineEvent | MachineStateEvent;
+        raw = JSON.parse((message as MessageEvent<string>).data);
       } catch {
         return;
       }
-      if (
-        !data ||
-        typeof data !== 'object' ||
-        typeof data.machineId !== 'string'
-      )
-        return;
       if (type === 'machine') {
-        if (
-          'type' in data &&
-          data.type === 'machine' &&
-          data.state === 'online'
-        )
-          for (const client of clients.keys())
+        const parsed = machineStateEventSchema.safeParse(raw);
+        if (!parsed.success) return;
+        const data = parsed.data;
+        const previous = machineStates.get(data.machineId);
+        machineStates.set(data.machineId, data);
+        for (const client of clients.keys()) {
+          if (
+            !previous ||
+            previous.state !== data.state ||
+            previous.bootId !== data.bootId
+          )
+            void client
+              .invalidateQueries(
+                { queryKey: queryKeys.machines(), exact: true },
+                { cancelRefetch: false },
+              )
+              .catch(() => {});
+          if (
+            previous &&
+            data.state === 'online' &&
+            (previous.state === 'offline' || previous.bootId !== data.bootId)
+          )
             void refreshMachine(client, data.machineId).catch(() => {});
+        }
         return;
       }
+      const parsed = machineEventSchema.safeParse(raw);
+      if (!parsed.success) return;
+      const data = parsed.data;
       if (
         !('event' in data) ||
         !data.event ||
@@ -256,6 +311,7 @@ export function LiveProvider({ children }: { children: ReactNode }) {
         retryTimer = undefined;
         retryDelay = 1_000;
         hasOpened = false;
+        machineStates.clear();
         authBlocked = false;
         stopProbe?.abort();
         stopProbe = undefined;
