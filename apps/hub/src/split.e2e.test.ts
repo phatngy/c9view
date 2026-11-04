@@ -1,3 +1,4 @@
+import { hostname } from 'node:os';
 import { once } from 'node:events';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
@@ -42,10 +43,36 @@ it('preserves every pre-split API snapshot through the real hub server', async (
     const baseUrl = `http://127.0.0.1:${address.port}`;
     await server.index.ready;
     await waitForReady(baseUrl);
-    for (const { name, path } of ROUTES)
-      expect(serialize(await fetchSnapshot(baseUrl, path, dirs)), path).toBe(
+    for (const { name, path } of ROUTES) {
+      const alias = await fetchSnapshot(baseUrl, path, dirs);
+      expect(serialize(alias), path).toBe(
         await readFile(join(SNAPSHOT_DIR, `${name}.json`), 'utf8'),
       );
+      // Health and events belong to the hub; every other route is a local alias.
+      if (name !== 'health' && name !== 'events') {
+        const scoped = await fetchSnapshot(
+          baseUrl,
+          path.replace(/^\/api/, '/api/m/local'),
+          dirs,
+        );
+        expect({ ...scoped, path }, path).toEqual(alias);
+      }
+    }
+    const machinesResponse = await fetch(`${baseUrl}/api/machines`);
+    expect(machinesResponse.status).toBe(200);
+    expect(await machinesResponse.json()).toEqual([
+      {
+        machineId: 'local',
+        name: hostname(),
+        state: 'online',
+        lastSeenAt: null,
+        version: '0.0.0',
+        protocol: 1,
+        outdated: false,
+        bootId: expect.any(String),
+        capabilities: { control: { state: 'off' }, bypass: false },
+      },
+    ]);
   } finally {
     if (server) {
       const closed = once(server, 'close');

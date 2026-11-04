@@ -13,6 +13,8 @@ import {
   type NodeTransport,
   type ServerConfig,
 } from '@c9view/node';
+import { Machines, machineRoutes } from './machines.js';
+import type { AuthMode } from './auth/index.js';
 import { transportResponse } from './relay.js';
 import { healthRoutes } from './routes/health.js';
 import { createLocalTransport } from './local-node.js';
@@ -21,7 +23,8 @@ export function createApp(
   config: ServerConfig,
   options: {
     store?: DataStore;
-    transport?: NodeTransport;
+    transport?: NodeTransport | null;
+    authMode?: AuthMode;
     limits?: NodeLimits;
     webDist?: string;
     auth?: MiddlewareHandler;
@@ -30,16 +33,21 @@ export function createApp(
 ) {
   const app = new Hono();
   const limits = options.limits ?? loadNodeLimits();
-  const runtime = options.transport
-    ? undefined
-    : options.store
-      ? {
-          store: options.store,
-          events: options.store.events,
-          hello: createNodeHello(),
-        }
-      : createNode(config);
-  const transport = options.transport ?? createLocalTransport(runtime!, limits);
+  const runtime =
+    options.transport !== undefined
+      ? undefined
+      : options.store
+        ? {
+            store: options.store,
+            events: options.store.events,
+            hello: createNodeHello(),
+          }
+        : createNode(config);
+  const transport =
+    options.transport === undefined
+      ? createLocalTransport(runtime!, limits)
+      : options.transport;
+  const machines = new Machines(transport);
   const allowed = new Set([
     'localhost',
     '127.0.0.1',
@@ -93,8 +101,9 @@ export function createApp(
     );
     return c.json({ error: 'Internal server error' } satisfies ApiError, 500);
   });
-  app.route('/api', healthRoutes(transport));
+  app.route('/api', healthRoutes(transport, options.authMode ?? 'none'));
   app.route('/api', eventRoutes(transport));
+  app.route('/api', machineRoutes(machines));
   const relay: MiddlewareHandler = async (c) => {
     if (
       c.req.method !== 'GET' &&
@@ -102,6 +111,18 @@ export function createApp(
       c.req.method !== 'HEAD'
     )
       return c.json({ error: 'Not found' } satisfies ApiError, 404);
+    let path = c.req.path.slice(4) || '/';
+    let machineId = 'local';
+    if (path === '/m' || path.startsWith('/m/')) {
+      const match = /^\/m\/([^/]+)(\/.*)?$/.exec(path);
+      if (!match) return c.json({ error: 'Not found' } satisfies ApiError, 404);
+      machineId = match[1]!;
+      path = match[2] || '/';
+    }
+    const machine = machines.get(machineId);
+    if (!machine) return c.json({ error: 'Not found' } satisfies ApiError, 404);
+    if (machine.summary.state === 'offline' || !machine.transport)
+      return c.json({ error: 'Machine offline', reason: 'offline' }, 503);
     const method = c.req.method === 'HEAD' ? 'GET' : c.req.method;
     let body: Uint8Array | undefined;
     if (method === 'POST') {
@@ -112,10 +133,10 @@ export function createApp(
       if (result instanceof Response) return result;
       body = result;
     }
-    const response = await transport.request(
+    const response = await machine.transport.request(
       {
         method,
-        path: c.req.path.slice(4) || '/',
+        path,
         query: c.req.query(),
         ...(body ? { body } : {}),
       },

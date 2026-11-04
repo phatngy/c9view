@@ -69,6 +69,9 @@ it('streams transcript append events and cleans listeners on cancel and abort', 
   expect(new TextDecoder().decode((await reader.read()).value)).toBe(
     'retry: 3000\n\n',
   );
+  expect(new TextDecoder().decode((await reader.read()).value)).toContain(
+    'event: machine\n',
+  );
   expect(store.events.listeners.size).toBe(1);
   await appendFile(
     join(store.config.claudeDir, 'projects/-fixture-alpha/s1.jsonl'),
@@ -85,7 +88,7 @@ it('streams transcript append events and cleans listeners on cancel and abort', 
     ),
   ]);
   expect(new TextDecoder().decode(chunk.value)).toBe(
-    'event: session\ndata: {"projectId":"-fixture-alpha","sessionId":"s1"}\n\n',
+    'event: session\ndata: {"machineId":"local","event":{"projectId":"-fixture-alpha","sessionId":"s1","type":"session"}}\n\n',
   );
   const refreshed = (await json(
     '/api/projects/-fixture-alpha/sessions/s1',
@@ -122,7 +125,9 @@ it('sends heartbeat comments every fifteen seconds', async () => {
     const response = await app.request('/api/events');
     const reader = response.body!.getReader();
     await reader.read();
-    await vi.advanceTimersByTimeAsync(15_000);
+    await vi.advanceTimersByTimeAsync(100);
+    await reader.read();
+    await vi.advanceTimersByTimeAsync(14_900);
     expect(new TextDecoder().decode((await reader.read()).value)).toBe(
       ': heartbeat\n\n',
     );

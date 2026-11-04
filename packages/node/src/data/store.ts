@@ -94,19 +94,19 @@ export class DataStore {
     if (this.snapshotValue && Date.now() < this.snapshotUntil)
       return Promise.resolve(this.snapshotValue);
     if (this.snapshotFlight) return this.snapshotFlight;
-    const generation = this.generation;
-    this.snapshotFlight = this.buildSnapshot()
-      .then((value) => {
-        if (generation === this.generation) {
-          this.dirtyProjects.clear();
-          this.snapshotValue = value;
-          this.snapshotUntil = Date.now() + 1500;
-        }
+    this.snapshotFlight = (async () => {
+      for (;;) {
+        const generation = this.generation;
+        const value = await this.buildSnapshot();
+        if (generation !== this.generation) continue;
+        this.dirtyProjects.clear();
+        this.snapshotValue = value;
+        this.snapshotUntil = Date.now() + 1500;
         return value;
-      })
-      .finally(() => {
-        this.snapshotFlight = undefined;
-      });
+      }
+    })().finally(() => {
+      this.snapshotFlight = undefined;
+    });
     return this.snapshotFlight;
   }
   private async buildSnapshot(): Promise<SnapshotProject[]> {
