@@ -88,6 +88,69 @@ it('T031 reads Claude trust without modifying the file', async () => {
   expect(await readFile(path)).toEqual(before);
 });
 
+it('ignores Claude Code bookkeeping in ~/.claude.json and marketplaces, not MCP or tool changes', async () => {
+  const { FolderTrust } = await import('./trust.js');
+  const { dirname, resolve } = await import('node:path');
+  const t = await setupControl({}, { trusted: false });
+  cleanups.push(t.close);
+  const trust = new FolderTrust(t.claudeDir, {
+    trusted: () => false,
+    trust: () => {},
+    close: () => {},
+  });
+  const globalConfig = join(dirname(resolve(t.claudeDir)), '.claude.json');
+  const marketplaces = join(t.claudeDir, 'plugins/known_marketplaces.json');
+  await mkdir(dirname(marketplaces), { recursive: true });
+  const config = (extra: Record<string, unknown>, mcp = {}) =>
+    writeFile(
+      globalConfig,
+      JSON.stringify({
+        numStartups: 1,
+        mcpServers: mcp,
+        projects: { [t.folder]: { allowedTools: [], lastCost: 0, ...extra } },
+      }),
+    );
+  const market = (lastUpdated: string, source = 'github:synthetic/market') =>
+    writeFile(
+      marketplaces,
+      JSON.stringify({
+        synthetic: { source, installLocation: '/synthetic', lastUpdated },
+      }),
+    );
+  await config({});
+  await market('2026-01-01T00:00:00Z');
+  const base = (await trust.summary(t.folder)).fingerprint;
+  // What Claude Code rewrites on every start and every run.
+  await writeFile(
+    globalConfig,
+    JSON.stringify({
+      numStartups: 99,
+      tipsHistory: { synthetic: 3 },
+      mcpServers: {},
+      projects: {
+        [t.folder]: { allowedTools: [], lastCost: 1.5, lastSessionId: 'x' },
+        '/synthetic/other': { lastCost: 9 },
+      },
+    }),
+  );
+  await market('2026-02-02T00:00:00Z');
+  expect((await trust.summary(t.folder)).fingerprint).toBe(base);
+  // What changes what a session in this folder can run.
+  await config({ allowedTools: ['Bash(rm:*)'] });
+  const tools = (await trust.summary(t.folder)).fingerprint;
+  expect(tools).not.toBe(base);
+  await config({}, { synthetic: { command: 'synthetic-server' } });
+  expect((await trust.summary(t.folder)).fingerprint).not.toBe(base);
+  await config({});
+  await market('2026-01-01T00:00:00Z', 'github:synthetic/other');
+  expect((await trust.summary(t.folder)).fingerprint).not.toBe(base);
+  // An unparsable file is hashed whole: any change prompts again.
+  await writeFile(globalConfig, '{not json');
+  const broken = (await trust.summary(t.folder)).fingerprint;
+  await writeFile(globalConfig, '{not json!');
+  expect((await trust.summary(t.folder)).fingerprint).not.toBe(broken);
+});
+
 it('accepts a known project symlink by realpath and ignores timestamp-only changes', async () => {
   const { symlink, utimes } = await import('node:fs/promises');
   const { FolderTrust } = await import('./trust.js');

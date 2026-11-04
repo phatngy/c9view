@@ -57,14 +57,27 @@ export class FolderTrust {
         ...plugin.mcpServers.map((server) => server.source.path),
       ]),
     ];
+    const globalConfig = join(dirname(resolve(this.claudeDir)), '.claude.json');
+    const marketplaces = join(
+      this.claudeDir,
+      'plugins/known_marketplaces.json',
+    );
     const hash = createHash('sha256');
     for (const file of [...new Set(sources)].sort()) {
       hash.update(file);
       try {
         const [info, bytes] = await Promise.all([stat(file), readFile(file)]);
-        hash
-          .update(`${info.size}:`)
-          .update(createHash('sha256').update(bytes).digest());
+        const relevant =
+          file === globalConfig
+            ? globalConfigFields(bytes, folder)
+            : file === marketplaces
+              ? marketplaceFields(bytes)
+              : undefined;
+        if (relevant !== undefined) hash.update(`json:${relevant}`);
+        else
+          hash
+            .update(`${info.size}:`)
+            .update(createHash('sha256').update(bytes).digest());
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== 'ENOENT')
           throw new ControlError(
@@ -168,6 +181,71 @@ export class FolderTrust {
   }
 }
 /** State must not escape its dedicated exception into a project or Claude data. */
+// Claude Code rewrites ~/.claude.json on every start (counters, tips, per-project
+// costs and timings) and refreshes marketplace timestamps, so hashing those
+// files whole would invalidate trust constantly. Only the fields that change
+// what a session in this folder can run count. A file that does not parse
+// returns undefined and is hashed whole, so the safe failure is a new prompt.
+function globalConfigFields(bytes: Buffer, folder: string): string | undefined {
+  const parsed = parseObject(bytes);
+  if (!parsed) return undefined;
+  const projects = parseRecord(parsed.projects);
+  const project = parseRecord(projects?.[folder]) ?? {};
+  return canonical({
+    mcpServers: parsed.mcpServers ?? null,
+    project: {
+      allowedTools: project.allowedTools ?? null,
+      mcpServers: project.mcpServers ?? null,
+      enabledMcpjsonServers: project.enabledMcpjsonServers ?? null,
+      disabledMcpjsonServers: project.disabledMcpjsonServers ?? null,
+      hasClaudeMdExternalIncludesApproved:
+        project.hasClaudeMdExternalIncludesApproved ?? null,
+    },
+  });
+}
+function marketplaceFields(bytes: Buffer): string | undefined {
+  const parsed = parseObject(bytes);
+  if (!parsed) return undefined;
+  return canonical(
+    Object.fromEntries(
+      Object.entries(parsed).map(([name, entry]) => {
+        const value = parseRecord(entry) ?? {};
+        return [
+          name,
+          {
+            source: value.source ?? null,
+            installLocation: value.installLocation ?? null,
+          },
+        ];
+      }),
+    ),
+  );
+}
+function parseObject(bytes: Buffer): Record<string, unknown> | undefined {
+  try {
+    return parseRecord(JSON.parse(bytes.toString('utf8')));
+  } catch {
+    return undefined;
+  }
+}
+function parseRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+function canonical(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
+  if (value && typeof value === 'object')
+    return `{${Object.keys(value)
+      .sort()
+      .map(
+        (key) =>
+          `${JSON.stringify(key)}:${canonical((value as Record<string, unknown>)[key])}`,
+      )
+      .join(',')}}`;
+  return JSON.stringify(value);
+}
+
 export function assertStateLocation(
   stateDir: string,
   claudeDir: string,
