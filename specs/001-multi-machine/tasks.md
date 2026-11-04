@@ -37,10 +37,10 @@ description: 'Task list for Components and Multiple Machines'
 
 **Purpose**: create the packages the workers fill. Starts when no open PR edits `apps/server`.
 
-- [ ] T001 Create `packages/node/package.json` (`@c9view/node`, ESM, exports `./src/index.ts` build to `dist/`), `packages/node/tsconfig.json` and `packages/node/tsconfig.build.json` mirroring `packages/core`, and add it to `pnpm-workspace.yaml`
-- [ ] T002 `git mv apps/server apps/hub`, rename the package to `@c9view/hub` in `apps/hub/package.json`, and update workspace references in root `package.json` and `packages/cli/package.json`
-- [ ] T003 `git mv apps/server/src/data` (now `apps/hub/src/data`) to `packages/node/src/data`, and `git mv` the read routes `overview.ts`, `projects.ts`, `sessions.ts`, `files.ts`, `changes.ts`, `config.ts`, `usage.ts`, `search.ts` with their tests from `apps/hub/src/routes/` to `packages/node/src/routes/`
-- [ ] T004 Run `corepack pnpm install` and commit the lockfile; fix import paths only, so the moved tests run unchanged
+- [x] T001 Create `packages/node/package.json` (`@c9view/node`, ESM, exports `./src/index.ts` build to `dist/`), `packages/node/tsconfig.json` and `packages/node/tsconfig.build.json` mirroring `packages/core`, and add it to `pnpm-workspace.yaml`
+- [x] T002 `git mv apps/server apps/hub`, rename the package to `@c9view/hub` in `apps/hub/package.json`, and update workspace references in root `package.json` and `packages/cli/package.json`
+- [x] T003 `git mv apps/server/src/data` (now `apps/hub/src/data`) to `packages/node/src/data`, and `git mv` the read routes `overview.ts`, `projects.ts`, `sessions.ts`, `files.ts`, `changes.ts`, `config.ts`, `usage.ts`, `search.ts` with their tests from `apps/hub/src/routes/` to `packages/node/src/routes/`
+- [x] T004 Run `corepack pnpm install` and commit the lockfile; fix import paths only, so the moved tests run unchanged
 
 ## Phase 2: User Story 1 — split with no behaviour change (P1) — PR 6.0a
 
@@ -50,25 +50,25 @@ description: 'Task list for Components and Multiple Machines'
 
 ### Tests
 
-- [ ] T005 [P] [US1] Record pre-split responses: script `scripts/record-api-snapshots.ts` runs today's server on `tests/fixtures/` and writes `tests/fixtures/api-snapshots/*.json` for every `/api/*` route, including `/api/health` (run on `main` before T003)
-- [ ] T006 [P] [US1] Write the transport contract suite `packages/node/src/transport.contract.ts` per [contracts/node-transport.md](contracts/node-transport.md): envelopes, no browser headers reach the node, body over `C9VIEW_REQUEST_BODY_MAX_BYTES` → 413, chunks ≤ `C9VIEW_RESPONSE_CHUNK_MAX_BYTES`, total and idle deadlines → 504 and abort the node's signal, subscribe and snapshot
-- [ ] T007 [P] [US1] End-to-end test `apps/hub/src/split.e2e.test.ts`: start `c9view start` on the fixture data and compare every `/api/*` response to `tests/fixtures/api-snapshots/`
-- [ ] T008 [P] [US1] Runtime test `packages/node/src/runtime.test.ts`: an event from `startIndex` reaches the hub's SSE stream, and node health reports the same index state the routes use (FR-004)
-- [ ] T009 [P] [US1] Boundary lint fixtures `packages/node/test-fixtures/boundaries/` with one file per forbidden import, and `packages/node/src/boundaries.test.ts`, which runs the ESLint API on them and expects each to be reported
+- [x] T005 [P] [US1] Record pre-split responses: script `scripts/record-api-snapshots.ts` runs today's server on `tests/fixtures/` and writes `tests/fixtures/api-snapshots/*.json` for every `/api/*` route, including `/api/health` (run on `main` before T003)
+- [x] T006 [P] [US1] Write the transport contract suite `packages/node/src/transport.contract.ts` per [contracts/node-transport.md](contracts/node-transport.md): envelopes, no browser headers reach the node, body over `C9VIEW_REQUEST_BODY_MAX_BYTES` → 413, chunks ≤ `C9VIEW_RESPONSE_CHUNK_MAX_BYTES`, total and idle deadlines → 504 and abort the node's signal, subscribe and snapshot
+- [x] T007 [P] [US1] End-to-end test `apps/hub/src/split.e2e.test.ts`: start `c9view start` on the fixture data and compare every `/api/*` response to `tests/fixtures/api-snapshots/`
+- [x] T008 [P] [US1] Runtime test `packages/node/src/runtime.test.ts`: an event from `startIndex` reaches the hub's SSE stream, and node health reports the same index state the routes use (FR-004)
+- [x] T009 [P] [US1] Boundary lint fixtures `packages/node/test-fixtures/boundaries/` with one file per forbidden import, and `packages/node/src/boundaries.test.ts`, which runs the ESLint API on them and expects each to be reported
 
 ### Implementation
 
-- [ ] T010 [US1] `packages/node/src/limits.ts`: Zod-parse the limit variables in [plan.md](plan.md#limits-and-their-environment-variables-fr-002-fr-008-fr-014-fr-016-fr-017) with the design draft's defaults
-- [ ] T011 [US1] `packages/node/src/transport.ts`: `NodeRequest`, `NodeResponse`, `NodeEvent`, `NodeTransport` and `InProcessTransport` (builds a `Request` from the envelope for the node app, enforces T010's limits, subscribes to the runtime's `EventHub`); `packages/node/src/transport.test.ts` runs T006's suite
-- [ ] T012 [US1] `packages/node/src/hello.ts`: `NodeHello` with a random `bootId` per process, `version`, `protocol: 1`, capabilities with control `off`
-- [ ] T013 [US1] `packages/node/src/runtime.ts`: `createNode(config)` creates the store, `EventHub`, hook events, SQLite index and watcher once; app, transport, `startIndex` and shutdown share it
-- [ ] T014 [US1] `packages/node/src/app.ts`: `createNodeApp(runtime)` with the moved routes, error handler and redaction; no Host/Origin check, no auth
-- [ ] T015 [US1] `packages/node/src/routes/health.ts`: node health (index progress, hooks installation and files), moved out of `apps/hub/src/app.ts`; export from `packages/node/src/index.ts`
-- [ ] T016 [US1] `apps/hub/src/app.ts`: keep auth and Host/Origin middleware; serve the web build; relay every non-hub `/api/*` path to the local node through `InProcessTransport`; `apps/hub/src/routes/health.ts` combines hub fields with the local node's health into today's body; `apps/hub/src/routes/events.ts` feeds SSE from `transport.subscribe`
-- [ ] T017 [US1] `packages/cli/src/start.ts`: resolve `@c9view/hub` (and the repository fallback `apps/hub`); `packages/cli/src/start.test.ts` updated
-- [ ] T018 [US1] `eslint.config.js`: `packages/node` may not import `hono/cookie`, `apps/hub/src/auth` or `@hono/node-server`'s `serve`; `apps/hub` imports `@c9view/node` only through its package entry
-- [ ] T019 [US1] `Dockerfile`, `.github/workflows/*.yml`: `apps/server` → `apps/hub` paths and filters
-- [ ] T020 [US1] Docs: `AGENTS.md` repository layout (`apps/hub`, `packages/node`), `docs/deploy.md` paths
+- [x] T010 [US1] `packages/node/src/limits.ts`: Zod-parse the limit variables in [plan.md](plan.md#limits-and-their-environment-variables-fr-002-fr-008-fr-014-fr-016-fr-017) with the design draft's defaults
+- [x] T011 [US1] `packages/node/src/transport.ts`: `NodeRequest`, `NodeResponse`, `NodeEvent`, `NodeTransport` and `InProcessTransport` (builds a `Request` from the envelope for the node app, enforces T010's limits, subscribes to the runtime's `EventHub`); `packages/node/src/transport.test.ts` runs T006's suite
+- [x] T012 [US1] `packages/node/src/hello.ts`: `NodeHello` with a random `bootId` per process, `version`, `protocol: 1`, capabilities with control `off`
+- [x] T013 [US1] `packages/node/src/runtime.ts`: `createNode(config)` creates the store, `EventHub`, hook events, SQLite index and watcher once; app, transport, `startIndex` and shutdown share it
+- [x] T014 [US1] `packages/node/src/app.ts`: `createNodeApp(runtime)` with the moved routes, error handler and redaction; no Host/Origin check, no auth
+- [x] T015 [US1] `packages/node/src/routes/health.ts`: node health (index progress, hooks installation and files), moved out of `apps/hub/src/app.ts`; export from `packages/node/src/index.ts`
+- [x] T016 [US1] `apps/hub/src/app.ts`: keep auth and Host/Origin middleware; serve the web build; relay every non-hub `/api/*` path to the local node through `InProcessTransport`; `apps/hub/src/routes/health.ts` combines hub fields with the local node's health into today's body; `apps/hub/src/routes/events.ts` feeds SSE from `transport.subscribe`
+- [x] T017 [US1] `packages/cli/src/start.ts`: resolve `@c9view/hub` (and the repository fallback `apps/hub`); `packages/cli/src/start.test.ts` updated
+- [x] T018 [US1] `eslint.config.js`: `packages/node` may not import `hono/cookie`, `apps/hub/src/auth` or `@hono/node-server`'s `serve`; `apps/hub` imports `@c9view/node` only through its package entry
+- [x] T019 [US1] `Dockerfile`, `.github/workflows/*.yml`: `apps/server` → `apps/hub` paths and filters
+- [x] T020 [US1] Docs: `AGENTS.md` repository layout (`apps/hub`, `packages/node`), `docs/deploy.md` paths
 
 **Checkpoint**: US1 done; 6.0b and 6.0d can start (6.0c after 6.0b).
 
