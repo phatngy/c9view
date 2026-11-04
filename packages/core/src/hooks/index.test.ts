@@ -8,7 +8,7 @@ import {
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   appendHookEvent,
   HookEventTailer,
@@ -28,7 +28,15 @@ async function temp() {
   dirs.push(dir);
   return dir;
 }
+beforeEach(async () => {
+  const home = await temp();
+  vi.stubEnv('HOME', home);
+  vi.stubEnv('XDG_STATE_HOME', join(home, 'xdg'));
+  vi.stubEnv('C9VIEW_STATE_DIR', undefined);
+  vi.stubEnv('C9VIEW_LEGACY_STATE_DIR', undefined);
+});
 afterEach(async () => {
+  vi.unstubAllEnvs();
   await Promise.all(
     dirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })),
   );
@@ -58,8 +66,8 @@ describe('hook files', () => {
         message: 'permission needed: secret',
       }),
     ).toMatchObject({ notificationType: 'permission_prompt' });
-    expect(hookStateDir({ XDG_STATE_HOME: '/tmp/state' })).toBe(
-      '/tmp/state/c9view',
+    expect(hookStateDir({ HOME: dir, XDG_STATE_HOME: '/tmp/state' }, [])).toBe(
+      join(dir, '.claude/c9view'),
     );
   });
   it('tails partial UTF-8 lines, rotation, malformed lines and bounded sessions', async () => {
@@ -334,5 +342,88 @@ it('keeps the standalone entry import graph within hooks and node built-ins', as
     }
   }
   await scan(join(root, 'hook-entry.ts'));
-  expect(visited.size).toBe(2);
+  expect(visited.size).toBe(3);
 });
+
+// Compiles the hook entry and the local files it imports from source, so the
+// test runs before (and without) `corepack pnpm build`, as CI does.
+async function compileHookEntry(): Promise<string> {
+  const { readFile: read, writeFile: write } = await import('node:fs/promises');
+  const { fileURLToPath } = await import('node:url');
+  const { transpileModule, ModuleKind, ScriptTarget } = (
+    await import('typescript')
+  ).default;
+  const out = await temp();
+  for (const name of ['hook-entry', 'state-dir', 'fields']) {
+    const source = await read(
+      fileURLToPath(new URL(`./${name}.ts`, import.meta.url)),
+      'utf8',
+    );
+    const { outputText } = transpileModule(source, {
+      compilerOptions: {
+        module: ModuleKind.ESNext,
+        target: ScriptTarget.ES2023,
+        verbatimModuleSyntax: true,
+      },
+    });
+    await write(join(out, `${name}.js`), outputText);
+  }
+  await write(join(out, 'package.json'), '{"type":"module"}');
+  return join(out, 'hook-entry.js');
+}
+
+it.each(['default', 'argument', 'override', 'empty'])(
+  'fires the standalone hook silently with %s state resolution',
+  async (mode) => {
+    const { spawn } = await import('node:child_process');
+    const entry = await compileHookEntry();
+    const home = await temp();
+    const argument = join(home, "state folder's");
+    const env: NodeJS.ProcessEnv = {
+      ...process.env,
+      HOME: home,
+      XDG_STATE_HOME: join(home, 'xdg'),
+    };
+    delete env.C9VIEW_STATE_DIR;
+    if (mode === 'override')
+      Object.assign(env, { C9VIEW_STATE_DIR: join(home, 'wrong') });
+    const child = spawn(
+      process.execPath,
+      [
+        entry,
+        '--c9view-hook',
+        ...(mode === 'default'
+          ? []
+          : mode === 'empty'
+            ? ['--c9view-state-dir']
+            : ['--c9view-state-dir', argument]),
+      ],
+      { env, stdio: ['pipe', 'pipe', 'pipe'] },
+    );
+    let output = '';
+    child.stdout.on('data', (chunk) => {
+      output += String(chunk);
+    });
+    child.stderr.on('data', (chunk) => {
+      output += String(chunk);
+    });
+    const finished = new Promise((resolve, reject) => {
+      child.on('error', reject);
+      child.on('exit', resolve);
+    });
+    child.stdin.end(JSON.stringify(input));
+    expect(await finished).toBe(0);
+    expect(output).toBe('');
+    if (mode === 'empty') {
+      const { readdir } = await import('node:fs/promises');
+      expect(await readdir(home)).toEqual([]);
+      return;
+    }
+    const dir = mode === 'default' ? join(home, '.claude/c9view') : argument;
+    expect(await readFile(join(dir, 'events.jsonl'), 'utf8')).not.toContain(
+      'secret',
+    );
+    expect((await stat(dir)).mode & 0o777).toBe(0o700);
+    expect((await stat(join(dir, 'events.jsonl'))).mode & 0o777).toBe(0o600);
+  },
+);

@@ -1,3 +1,5 @@
+import { isC9viewStatePath } from '../state/ignore.js';
+import { hookStateDir } from '../hooks/state-dir.js';
 import { assertClaudeDir } from '../index-db/paths.js';
 import { loadPrices } from '../pricing/index.js';
 import chokidar from 'chokidar';
@@ -21,6 +23,7 @@ export function watchClaudeDir(
   onError: (error: unknown) => void = () => {},
 ) {
   assertClaudeDir(config.claudeDir);
+  const stateDir = hookStateDir();
   const prices = loadPrices();
   const timers = new Map<string, ReturnType<typeof setTimeout>>();
   let queue = Promise.resolve();
@@ -36,16 +39,18 @@ export function watchClaudeDir(
       depth: 5,
       awaitWriteFinish: false,
       ignored: (file, stats) =>
-        !!stats?.isDirectory() &&
-        ![
-          config.claudeDir,
-          path.join(config.claudeDir, 'projects'),
-          path.join(config.claudeDir, 'sessions'),
-        ].includes(file) &&
-        !file.startsWith(path.join(config.claudeDir, 'projects') + path.sep),
+        isC9viewStatePath(config.claudeDir, stateDir, file) ||
+        (!!stats?.isDirectory() &&
+          ![
+            config.claudeDir,
+            path.join(config.claudeDir, 'projects'),
+            path.join(config.claudeDir, 'sessions'),
+          ].includes(file) &&
+          !file.startsWith(path.join(config.claudeDir, 'projects') + path.sep)),
     },
   );
   watcher.on('all', (_event, file) => {
+    if (isC9viewStatePath(config.claudeDir, stateDir, file)) return;
     const relative = path.relative(config.claudeDir, file);
     const parts = relative.split(path.sep);
     const transcript =

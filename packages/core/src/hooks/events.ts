@@ -1,5 +1,6 @@
 import { open } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
+import { legacyHookStateDir } from './state-dir.js';
 import { z } from 'zod';
 import { HOOK_EVENTS, hookStateDir } from './writer.js';
 export {
@@ -27,7 +28,13 @@ export type HookEvent = z.infer<typeof hookEventSchema>;
 export class HookEventTailer {
   private files = new Map<
     string,
-    { ino: number; offset: number; pending: Buffer; dropping: boolean }
+    {
+      ino: number;
+      dev: number;
+      offset: number;
+      pending: Buffer;
+      dropping: boolean;
+    }
   >();
   readonly sessions = new Map<string, HookEvent[]>();
   lastEventAt: string | null = null;
@@ -43,10 +50,28 @@ export class HookEventTailer {
   constructor(
     readonly stateDir = hookStateDir(),
     private readonly maxSessions = 2000,
+    readonly legacyStateDir = legacyHookStateDir(),
   ) {}
+  get eventFiles(): string[] {
+    return [
+      ...new Set(
+        [this.stateDir, this.legacyStateDir]
+          .filter((dir): dir is string => dir !== undefined)
+          .map((dir) => resolve(dir)),
+      ),
+    ].flatMap((dir) => [
+      join(dir, 'events.1.jsonl'),
+      join(dir, 'events.jsonl'),
+    ]);
+  }
+  get legacyEventsFile(): string | null {
+    return this.legacyStateDir &&
+      resolve(this.legacyStateDir) !== resolve(this.stateDir)
+      ? join(this.legacyStateDir, 'events.jsonl')
+      : null;
+  }
   async refresh(): Promise<void> {
-    for (const name of ['events.1.jsonl', 'events.jsonl']) {
-      const path = join(this.stateDir, name);
+    for (const path of this.eventFiles) {
       let file;
       try {
         file = await open(path, 'r');
@@ -57,14 +82,21 @@ export class HookEventTailer {
         const info = await file.stat();
         let cursor = this.files.get(path);
         // A renamed active file has already been consumed under its old name.
-        if (!cursor || cursor.ino !== info.ino || info.size < cursor.offset) {
+        if (
+          !cursor ||
+          cursor.ino !== info.ino ||
+          cursor.dev !== info.dev ||
+          info.size < cursor.offset
+        ) {
           cursor = [...this.files.values()].find(
-            (c) => c.ino === info.ino && c.offset <= info.size,
+            (c) =>
+              c.ino === info.ino && c.dev === info.dev && c.offset <= info.size,
           );
           cursor = cursor
             ? { ...cursor }
             : {
                 ino: info.ino,
+                dev: info.dev,
                 offset: 0,
                 pending: Buffer.alloc(0),
                 dropping: false,

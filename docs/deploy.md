@@ -25,13 +25,24 @@ Token mode generates a random token per start, or uses `C9VIEW_TOKEN` (at least 
 
 Password failures use a per-client exponential backoff: 1, 2, 4 seconds, doubling to a 60-second cap. Password checks are blocked while a client is in backoff because passwords are guessable. Token checks verify the token first, so a correct token always logs in and clears that client's backoff; wrong tokens during backoff receive HTTP 429. A rolling global cap permits 60 failures/minute across all clients. HTTP 429 includes `Retry-After` in seconds. Backoff history expires after five idle minutes. Sessions expire after 24 hours and all sessions are invalidated on restart.
 
+## c9view state folder
+
+c9view keeps its persistent state in `~/.claude/c9view/`, overridden by `C9VIEW_STATE_DIR`. The SQLite index remains a rebuildable cache at `C9VIEW_DB`. The default state folder follows `HOME`, independently of `C9VIEW_CLAUDE_DIR` and `XDG_STATE_HOME`. Claude data readers ignore the state folder, including aliases inside the Claude directory.
+
+With a custom Claude directory, set an absolute `C9VIEW_STATE_DIR` for c9view and reinstall hooks using that same environment. `hooks install` embeds a non-default resolved path in the command as `--c9view-state-dir '<dir>'`; reinstalling replaces an earlier path. This argument wins over the hook process's environment, since Claude Code may run in a different environment. The default path needs no argument.
+
+Hooks create directories 0700 and files 0600, tighten their own directory, and silently skip symlinked or foreign-owned state folders and symlinked files. Symlinked ancestors, such as `~/.claude`, are supported. Node/hub startup checks are read-only and allow a missing folder: existing wider permissions stop startup and print the exact `chmod 700 '<dir>'` or `chmod 600 '<file>'` command; they never tighten automatically. Symlinks and foreign owners are refused. Back up persistent state before upgrades; losing a paired node identity requires pairing again.
+
+Legacy hook events are read without writing, moving or deleting them. Set `C9VIEW_LEGACY_STATE_DIR` to name the old folder explicitly; without it the old `${XDG_STATE_HOME:-~/.local/state}/c9view` is read only when `C9VIEW_STATE_DIR` is unset. `hooks status` and node health report both event paths (`legacyEventsFile` is null when disabled); status also reports both sizes and merged event counts.
+
 ## Docker and Compose
 
 ```sh
 export C9VIEW_UID="$(id -u)" C9VIEW_GID="$(id -g)"
 export C9VIEW_TOKEN="$(node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))")"
 export C9VIEW_WORKSPACE="$HOME/workspace" # choose an existing workspace root
-mkdir -p "$HOME/.local/state/c9view" "${C9VIEW_DATA:-$HOME/.local/share/c9view}"
+mkdir -p "$HOME/.claude/c9view" "$HOME/.local/state/c9view" "${C9VIEW_DATA:-$HOME/.local/share/c9view}"
+chmod 700 "$HOME/.claude/c9view"
 docker build -t c9view:local .
 docker compose up -d
 docker compose logs c9view
@@ -41,7 +52,7 @@ Open `http://127.0.0.1:7777/login` and paste your `C9VIEW_TOKEN` value. Keep tha
 
 `C9VIEW_UID` and `C9VIEW_GID` select the host owner (`id -u` and `id -g`), defaulting to 1000:1000. This preserves access to private 0700 Claude and hook directories without changing their permissions. The writable SQLite cache is a bind mount from `${C9VIEW_DATA:-${HOME}/.local/share/c9view}`; create it first as that user. The image also supports arbitrary non-root UIDs with `--user`: it writes no app data under `/app`, and `HOME=/tmp` uses the writable tmpfs. The root filesystem stays read-only, capabilities are dropped, and privilege escalation is disabled.
 
-All bind mounts use `create_host_path: false`: the Claude directory, hook state directory, workspace and DB directory must already exist. A typo fails instead of silently creating root-owned directories. The image binds `0.0.0.0` with token authentication; Compose publishes only to host loopback.
+Before starting Compose, create the host state folder with `mkdir -m 700 -p ~/.claude/c9view` (or run the hook once). The dashboard does not create it. All bind mounts use `create_host_path: false`: the Claude directory, hook state directory, workspace and DB directory must already exist. A typo fails instead of silently creating root-owned directories. The image binds `0.0.0.0` with token authentication; Compose publishes only to host loopback.
 
 Projects resolve from transcript `cwd` values. Compose mounts `${C9VIEW_WORKSPACE:-${HOME}/workspace}` at that same absolute path. For several workspace roots, add one long-syntax read-only bind for each, keeping source and target identical:
 
@@ -66,7 +77,7 @@ node packages/cli/dist/main.js hooks install
 node packages/cli/dist/main.js hooks status
 ```
 
-Mount `~/.local/state/c9view` read-only at `/data/c9view-state`; match `C9VIEW_STATE_DIR` if customized. Containers cannot normally inspect host PIDs. Hooks and live status files still provide evidence with lower confidence. Optionally uncomment `pid: host` on Linux to enable host process checks; this grants visibility into host processes.
+Compose mounts `~/.claude/c9view` writable at `/data/claude/c9view`, over the read-only `/data/claude` mount; the image sets `C9VIEW_STATE_DIR=/data/claude/c9view`. Match the host state path if customized. The legacy `~/.local/state/c9view` mount remains read-only at `/data/c9view-state`, with `C9VIEW_LEGACY_STATE_DIR=/data/c9view-state` set in Compose because the image uses `HOME=/tmp` and an explicit state directory. Remove that environment entry and its mount together once legacy events no longer matter. A hub-only deployment should set `C9VIEW_STATE_DIR` to its own writable volume and omit Claude and workspace mounts. Containers cannot normally inspect host PIDs. Hooks and live status files still provide evidence with lower confidence. Optionally uncomment `pid: host` on Linux to enable host process checks; this grants visibility into host processes.
 
 ## Tunnels and remote access
 
@@ -115,7 +126,7 @@ docker run -d --name c9view-verify --user "$(id -u):$(id -g)" \
   --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges:true \
   -p 127.0.0.1:7777:7777 -e C9VIEW_TOKEN \
   --mount "type=bind,src=$C9VIEW_VERIFY_DIR/claude,dst=/data/claude,readonly" \
-  --mount "type=bind,src=$C9VIEW_VERIFY_DIR/state,dst=/data/c9view-state,readonly" \
+  --mount "type=bind,src=$C9VIEW_VERIFY_DIR/state,dst=/data/claude/c9view" \
   --mount "type=bind,src=$C9VIEW_VERIFY_DIR/db,dst=/var/lib/c9view" \
   --mount "type=bind,src=$C9VIEW_VERIFY_DIR/workspace,dst=$C9VIEW_VERIFY_DIR/workspace,readonly" \
   c9view:local

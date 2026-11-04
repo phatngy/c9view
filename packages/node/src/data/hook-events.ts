@@ -4,6 +4,7 @@ import {
   decideStatus,
   hooksInstalled,
   hookStateDir,
+  checkStateDirSync,
 } from '@c9view/core';
 import type { SessionStatus, StatusHistoryResponse } from '@c9view/api';
 
@@ -20,6 +21,7 @@ export class HookEvents {
   private flight: Promise<void> | undefined;
   private changes = new Map<string, StatusHistoryResponse['changes']>();
   constructor(stateDir = hookStateDir()) {
+    checkStateDirSync(stateDir);
     this.tailer = new HookEventTailer(stateDir);
     const timer = setInterval(() => {
       void this.refresh().catch(() => {});
@@ -109,6 +111,7 @@ export class HookEvents {
     return {
       installed: await hooksInstalled(claudeDir),
       eventsFile: join(this.tailer.stateDir, 'events.jsonl'),
+      legacyEventsFile: this.tailer.legacyEventsFile,
       lastEventAt: this.tailer.lastEventAt,
     };
   }
