@@ -109,6 +109,7 @@ export class HookEvents {
     return {
       installed: await hooksInstalled(claudeDir),
       eventsFile: join(this.tailer.stateDir, 'events.jsonl'),
+      legacyEventsFile: this.tailer.legacyEventsFile,
       lastEventAt: this.tailer.lastEventAt,
     };
   }

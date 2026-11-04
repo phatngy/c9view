@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { createInterface } from 'node:readline/promises';
 import {
   hookStateDir,
+  defaultStateDir,
   HookEventTailer,
   hooksInstalled,
   hookCommand,
@@ -27,6 +28,12 @@ export async function runHooksCommand(
       JSON.stringify({
         installed: await hooksInstalled(claudeDir),
         eventsFile: path,
+        legacyEventsFile: tailer.legacyEventsFile,
+        legacySize: tailer.legacyEventsFile
+          ? await stat(tailer.legacyEventsFile)
+              .then((s) => s.size)
+              .catch(() => 0)
+          : 0,
         size,
         lastEventAt: tailer.lastEventAt,
         eventsLastHour,
@@ -48,6 +55,7 @@ export async function runHooksCommand(
           import.meta.resolve('@c9view/core'),
         ),
       ),
+      hookStateDir() === defaultStateDir() ? undefined : hookStateDir(),
     ),
     action === 'install',
   );

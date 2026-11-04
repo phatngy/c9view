@@ -1,3 +1,5 @@
+import { isC9viewStatePath } from '../state/ignore.js';
+import { hookStateDir } from '../hooks/state-dir.js';
 import { realpath } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -42,6 +44,7 @@ export async function readInstructions(
     ancestors: Set<string>,
     policy: ReadPolicy,
   ): Promise<InstructionNode | undefined> {
+    if (isC9viewStatePath(claudeDir, hookStateDir(), path)) return undefined;
     const read = await readTextResult(path, policy);
     if (!read) return undefined;
     if (read.denied)
@@ -96,8 +99,10 @@ async function document(
   path: string,
   scope: Scope,
   fallback: string,
-  policy?: ReadPolicy,
+  policy: ReadPolicy,
+  claudeDir: string,
 ): Promise<ConfigDocument | undefined> {
+  if (isC9viewStatePath(claudeDir, hookStateDir(), path)) return undefined;
   const text = await readText(path, policy);
   if (text === undefined) return undefined;
   const { frontmatter, content } = parseFrontmatter(text);
@@ -124,9 +129,16 @@ export async function readSkills(
 ): Promise<ConfigDocument[]> {
   const result: ConfigDocument[] = [];
   async function visit(parent: string, depth: number): Promise<void> {
+    if (isC9viewStatePath(dirname(dir), hookStateDir(), parent)) return;
     for (const name of await entries(parent)) {
       const path = join(parent, name);
-      const doc = await document(join(path, 'SKILL.md'), scope, name, policy);
+      const doc = await document(
+        join(path, 'SKILL.md'),
+        scope,
+        name,
+        policy,
+        dirname(dir),
+      );
       if (doc) result.push(doc);
       else if (depth < 2) await visit(path, depth + 1);
     }
@@ -149,6 +161,7 @@ async function readMarkdown(
       scope,
       name.slice(0, -3),
       policy,
+      dirname(dir),
     );
     if (doc) result.push(doc);
   }

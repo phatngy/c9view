@@ -1,15 +1,10 @@
 import { constants } from 'node:fs';
-import { mkdir, lstat, rename, open, chmod } from 'node:fs/promises';
-import { homedir } from 'node:os';
+import { lstat, rename, open } from 'node:fs/promises';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { whitelistHookInput } from './fields.js';
-export function hookStateDir(env: NodeJS.ProcessEnv = process.env): string {
-  return (
-    env.C9VIEW_STATE_DIR ??
-    join(env.XDG_STATE_HOME ?? join(homedir(), '.local', 'state'), 'c9view')
-  );
-}
+import { hookStateDir, ensureStateDir } from './state-dir.js';
+export { hookStateDir } from './state-dir.js';
 export function normalizeHookEvent(input: unknown, now = new Date()) {
   const data = whitelistHookInput(input);
   const notificationType =
@@ -47,22 +42,20 @@ export async function appendHookEvent(
   try {
     const line = JSON.stringify(normalizeHookEvent(input)) + '\n';
     if (Buffer.byteLength(line) >= 4096) return;
-    await mkdir(stateDir, { recursive: true, mode: 0o700 });
-    const directory = await lstat(stateDir);
-    if (
-      !directory.isDirectory() ||
-      directory.isSymbolicLink() ||
-      (process.getuid && directory.uid !== process.getuid())
-    )
-      return;
-    if ((directory.mode & 0o777) !== 0o700) await chmod(stateDir, 0o700);
+    await ensureStateDir(stateDir, 'hook');
     const path = join(stateDir, 'events.jsonl');
     const rotated = join(stateDir, 'events.1.jsonl');
     const existing = await lstat(path).catch((error: NodeJS.ErrnoException) => {
       if (error.code !== 'ENOENT') throw error;
       return undefined;
     });
-    if (existing && (!existing.isFile() || existing.isSymbolicLink())) return;
+    if (
+      existing &&
+      (!existing.isFile() ||
+        existing.isSymbolicLink() ||
+        (process.getuid && existing.uid !== process.getuid()))
+    )
+      return;
     if (existing && existing.size > 20 * 1024 * 1024) {
       const previous = await lstat(rotated).catch(
         (error: NodeJS.ErrnoException) => {
@@ -73,6 +66,15 @@ export async function appendHookEvent(
       if (previous && (!previous.isFile() || previous.isSymbolicLink())) return;
       // Two hooks rotating concurrently can drop one rotation's worth of data;
       // this is acceptable for best-effort status telemetry (no ordering guarantee).
+      const source = await open(
+        path,
+        constants.O_WRONLY | constants.O_NOFOLLOW,
+      );
+      try {
+        await source.chmod(0o600);
+      } finally {
+        await source.close();
+      }
       await rename(path, rotated);
     }
     const file = await open(
@@ -84,6 +86,10 @@ export async function appendHookEvent(
       0o600,
     );
     try {
+      const info = await file.stat();
+      if (!info.isFile() || (process.getuid && info.uid !== process.getuid()))
+        return;
+      await file.chmod(0o600);
       await file.writeFile(line);
     } finally {
       await file.close();

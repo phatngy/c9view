@@ -197,3 +197,28 @@ describe('project readers', () => {
     );
   });
 });
+
+it('ignores state folders exposed as project directories', async () => {
+  const { mkdtemp, mkdir, symlink, writeFile, rm } =
+    await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { vi } = await import('vitest');
+  const home = await mkdtemp(join(tmpdir(), 'c9view-project-state-'));
+  try {
+    const claude = join(home, 'claude');
+    await mkdir(join(claude, 'projects'), { recursive: true });
+    for (const name of ['c9view', 'my-state']) {
+      const state = join(claude, name);
+      await mkdir(state);
+      await writeFile(join(state, 'private.jsonl'), '{}');
+      await symlink(state, join(claude, 'projects', name));
+    }
+    vi.stubEnv('HOME', home);
+    vi.stubEnv('C9VIEW_STATE_DIR', join(claude, 'my-state'));
+    expect(await discoverProjects(claude)).toEqual([]);
+  } finally {
+    vi.unstubAllEnvs();
+    await rm(home, { recursive: true, force: true });
+  }
+});

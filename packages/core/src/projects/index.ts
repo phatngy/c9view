@@ -1,3 +1,5 @@
+import { isC9viewStatePath } from '../state/ignore.js';
+import { hookStateDir } from '../hooks/state-dir.js';
 import { readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { parse as parseYaml } from 'yaml';
@@ -168,7 +170,9 @@ async function isDirectory(filePath: string): Promise<boolean> {
 export async function discoverProjects(
   claudeDir: string,
 ): Promise<DiscoveredProject[]> {
+  const stateDir = hookStateDir();
   const projectsDir = path.join(claudeDir, 'projects');
+  if (isC9viewStatePath(claudeDir, stateDir, projectsDir)) return [];
   let entries;
   try {
     entries = await readdir(projectsDir, { withFileTypes: true });
@@ -178,6 +182,7 @@ export async function discoverProjects(
   const projects: DiscoveredProject[] = [];
   for (const entry of entries) {
     const dir = path.join(projectsDir, entry.name);
+    if (isC9viewStatePath(claudeDir, stateDir, dir)) continue;
     if (
       !entry.isDirectory() &&
       !(entry.isSymbolicLink() && (await isDirectory(dir)))
@@ -193,6 +198,7 @@ export async function discoverProjects(
     for (const child of children) {
       if (!child.isFile() || !child.name.endsWith('.jsonl')) continue;
       const filePath = path.join(dir, child.name);
+      if (isC9viewStatePath(claudeDir, stateDir, filePath)) continue;
       try {
         const info = await stat(filePath);
         sessionFiles.push({
