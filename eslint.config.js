@@ -10,6 +10,7 @@ export default tseslint.config(
       '**/coverage/**',
       '**/node_modules/**',
       '.worktrees/**',
+      'packages/node/test-fixtures/**',
     ],
   },
   eslint.configs.recommended,
@@ -38,6 +39,59 @@ export default tseslint.config(
   {
     files: ['apps/web/src/**/*.{ts,tsx}'],
     ...reactHooks.configs.flat.recommended,
+  },
+  {
+    files: ['packages/node/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'hono/cookie',
+              message: 'Cookie handling belongs in the hub.',
+            },
+            {
+              name: '@c9view/hub',
+              message: 'The node package cannot depend on the hub.',
+            },
+          ],
+          patterns: [
+            {
+              group: [
+                '@hono/node-server',
+                '@hono/node-server/*',
+                '@c9view/hub/*',
+                '**/apps/hub/**',
+                'apps/hub/**',
+              ],
+              message:
+                'The node package cannot depend on the hub or its server.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['apps/hub/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [
+                '@c9view/node/*',
+                '**/packages/node/**',
+                'packages/node/**',
+              ],
+              message: 'Import @c9view/node through its package entry.',
+            },
+          ],
+        },
+      ],
+    },
   },
   prettier,
 );
