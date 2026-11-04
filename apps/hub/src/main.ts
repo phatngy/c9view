@@ -4,7 +4,8 @@ import { resolve } from 'node:path';
 import { serve } from '@hono/node-server';
 import { loadConfig } from '@c9view/core';
 import { createApp } from './app.js';
-import { createNode, createNodeApp, InProcessTransport } from '@c9view/node';
+import { createNode } from '@c9view/node';
+import { createLocalTransport } from './local-node.js';
 import {
   authMode,
   normalizeBindHost,
@@ -81,13 +82,7 @@ export function startServer(options: StartServerOptions = {}) {
   });
   const runtime = createNode(config);
   const indexHandle = runtime.start();
-  const transport = new InProcessTransport(
-    runtime,
-    createNodeApp(runtime).onError((error) => {
-      // Let the hub log the browser-facing path and sanitize the response.
-      throw error;
-    }),
-  );
+  const transport = createLocalTransport(runtime);
   const index = {
     ready: indexHandle.ready,
     close: () => {
