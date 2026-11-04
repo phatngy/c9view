@@ -89,16 +89,34 @@ export class DataStore {
   }
   private snapshotValue?: SnapshotProject[];
   private snapshotUntil = 0;
-  private snapshotFlight: Promise<SnapshotProject[]> | undefined;
-  snapshot() {
+  private snapshotFlight:
+    | { promise: Promise<SnapshotProject[]>; build: { generation: number } }
+    | undefined;
+  snapshot(): Promise<SnapshotProject[]> {
     if (this.snapshotValue && Date.now() < this.snapshotUntil)
       return Promise.resolve(this.snapshotValue);
-    if (this.snapshotFlight) return this.snapshotFlight;
-    this.snapshotFlight = (async () => {
-      for (;;) {
+    const requiredGeneration = this.generation;
+    if (this.snapshotFlight) {
+      const flight = this.snapshotFlight;
+      if (flight.build.generation >= requiredGeneration) return flight.promise;
+      return flight.promise.then((value) =>
+        // A late caller needs a build started after its invalidation, even
+        // when the shared flight reaches the rebuild cap.
+        flight.build.generation < requiredGeneration ? this.snapshot() : value,
+      );
+    }
+    const build = { generation: requiredGeneration };
+    const promise = (async () => {
+      for (let attempt = 1; ; attempt++) {
         const generation = this.generation;
+        build.generation = generation;
         const value = await this.buildSnapshot();
-        if (generation !== this.generation) continue;
+        if (generation !== this.generation) {
+          // Continuous watcher activity must not starve readers. Leave the
+          // cache dirty so the next request rebuilds after this bounded flight.
+          if (attempt === 3) return value;
+          continue;
+        }
         this.dirtyProjects.clear();
         this.snapshotValue = value;
         this.snapshotUntil = Date.now() + 1500;
@@ -107,7 +125,8 @@ export class DataStore {
     })().finally(() => {
       this.snapshotFlight = undefined;
     });
-    return this.snapshotFlight;
+    this.snapshotFlight = { promise, build };
+    return promise;
   }
   private async buildSnapshot(): Promise<SnapshotProject[]> {
     await this.hooks.refresh();

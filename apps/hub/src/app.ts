@@ -2,6 +2,7 @@ import { eventRoutes } from './routes/events.js';
 import { Hono } from 'hono';
 import type { MiddlewareHandler } from 'hono';
 import { serveStatic } from '@hono/node-server/serve-static';
+import type { HttpBindings } from '@hono/node-server';
 import { redactText } from '@c9view/core';
 import type { ApiError } from '@c9view/api';
 import {
@@ -87,6 +88,18 @@ export function createApp(
   });
   // Authentication applies before every route, including health enrichment and streams.
   if (options.auth) app.use('*', options.auth);
+
+  app.use('/api/*', async (c, next) => {
+    // The HTTP adapter normalizes encoded dot segments in Request.url. Check
+    // the original target too, before an unknown machine can become an alias.
+    const incoming = (c.env as Partial<HttpBindings> | undefined)?.incoming;
+    const rawId = /^(?:https?:\/\/[^/]+)?\/api\/m\/([^/?]+)/.exec(
+      incoming?.url ?? c.req.url,
+    )?.[1];
+    if (rawId && !machines.get(rawId))
+      return c.json({ error: 'Not found' } satisfies ApiError, 404);
+    await next();
+  });
 
   app.onError((error, c) => {
     console.error(
