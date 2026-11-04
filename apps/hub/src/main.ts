@@ -97,6 +97,7 @@ export function startServer(options: StartServerOptions = {}) {
     limits,
     webDist,
     auth: auth.middleware,
+    authMode: mode,
     allowedHosts: [hostname, ...allowedHosts],
   });
   const server = serve({ fetch: app.fetch, port, hostname }, (info) => {

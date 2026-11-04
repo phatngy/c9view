@@ -13,7 +13,7 @@ function setup(response: NodeResponse) {
     hello: createNodeHello,
     request: vi.fn(async () => response),
     subscribe: () => () => {},
-    snapshot: async () => ({ projects: [], sessions: [], controlRuns: [] }),
+    snapshot: async () => ({ projects: [], sessions: [], control: [] }),
     close: () => {},
   };
   return {

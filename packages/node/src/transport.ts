@@ -1,3 +1,4 @@
+import type { NodeEvent } from '@c9view/api';
 import type { NodeHello, NodeSnapshot } from './hello.js';
 import type { NodeRuntime } from './runtime.js';
 import { loadNodeLimits, type NodeLimits } from './limits.js';
@@ -14,7 +15,7 @@ export interface NodeResponse {
   contentType: string;
   body: AsyncIterable<Uint8Array>;
 }
-export type NodeEvent = { type: string; [k: string]: unknown };
+export type { NodeEvent } from '@c9view/api';
 export interface NodeTransport {
   readonly machineId: string;
   hello(): NodeHello;
@@ -193,7 +194,7 @@ export class InProcessTransport implements NodeTransport {
     return redactStrings({
       projects: projects.map((p) => p.project),
       sessions: projects.flatMap((p) => p.sessions),
-      controlRuns: [],
+      control: [],
     });
   }
   close(): void {

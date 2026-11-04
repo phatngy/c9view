@@ -69,7 +69,7 @@ export function describeTransportContract(
       expect(response).not.toHaveProperty('machineId');
       expect(transport.hello()).toMatchObject({
         protocol: 1,
-        capabilities: { control: 'off' },
+        capabilities: { control: { state: 'off' }, bypass: false },
       });
       expect(transport.hello()).not.toHaveProperty('machineId');
       expect(transport.hello().bootId).toBe(transport.hello().bootId);
@@ -278,7 +278,7 @@ export function describeTransportContract(
       expect(snapshot.projects.length).toBeGreaterThan(0);
       expect(snapshot.sessions.length).toBeGreaterThan(0);
       expect(snapshot.sessions[0]).toHaveProperty('status.column');
-      expect(snapshot.controlRuns).toEqual([]);
+      expect(snapshot.control).toEqual([]);
       expect(snapshot).not.toHaveProperty('machineId');
     });
   });
