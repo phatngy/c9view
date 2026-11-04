@@ -9,6 +9,7 @@ import {
   createNode,
   createNodeHello,
   loadNodeLimits,
+  type NodeLimits,
   type NodeTransport,
   type ServerConfig,
 } from '@c9view/node';
@@ -21,13 +22,14 @@ export function createApp(
   options: {
     store?: DataStore;
     transport?: NodeTransport;
+    limits?: NodeLimits;
     webDist?: string;
     auth?: MiddlewareHandler;
     allowedHosts?: string[];
   } = {},
 ) {
   const app = new Hono();
-  const limits = loadNodeLimits();
+  const limits = options.limits ?? loadNodeLimits();
   const runtime = options.transport
     ? undefined
     : options.store

@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import { serve } from '@hono/node-server';
 import { loadConfig } from '@c9view/core';
 import { createApp } from './app.js';
-import { createNode } from '@c9view/node';
+import { createNode, loadNodeLimits } from '@c9view/node';
 import { createLocalTransport } from './local-node.js';
 import {
   authMode,
@@ -80,9 +80,11 @@ export function startServer(options: StartServerOptions = {}) {
     ...(options.claudeDir ? { C9VIEW_CLAUDE_DIR: options.claudeDir } : {}),
     ...(options.db ? { C9VIEW_DB: options.db } : {}),
   });
+  // Validate limits before the index watcher starts, so a bad value leaks nothing.
+  const limits = loadNodeLimits();
   const runtime = createNode(config);
   const indexHandle = runtime.start();
-  const transport = createLocalTransport(runtime);
+  const transport = createLocalTransport(runtime, limits);
   const index = {
     ready: indexHandle.ready,
     close: () => {
@@ -92,6 +94,7 @@ export function startServer(options: StartServerOptions = {}) {
   };
   const app = createApp(config, {
     transport,
+    limits,
     webDist,
     auth: auth.middleware,
     allowedHosts: [hostname, ...allowedHosts],
