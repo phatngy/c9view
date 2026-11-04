@@ -237,5 +237,7 @@ test('legacy project URLs redirect while retaining their query', async ({
   const url = new URL(page.url());
   expect(url.searchParams.get('tab')).toBe('files');
   expect(url.searchParams.get('path')).toBe('README.md');
-  expect(url.searchParams.get('line')).toBe('2');
+  // The router stores search values as JSON and the project route keeps `line`
+  // as a string, so `line=2` reads back as `"2"` (same as before the redirect).
+  expect(JSON.parse(url.searchParams.get('line') ?? 'null')).toBe('2');
 });
