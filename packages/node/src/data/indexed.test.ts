@@ -22,6 +22,8 @@ let runtime: ReturnType<typeof startIndex> | undefined;
 let app: ReturnType<typeof createApp>;
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), 'c9view-index-server-'));
+  vi.stubEnv('C9VIEW_STATE_DIR', join(dir, 'state'));
+  vi.stubEnv('C9VIEW_LEGACY_STATE_DIR', join(dir, 'legacy'));
   const claudeDir = join(dir, 'claude');
   await cp(
     fileURLToPath(new URL('../../test/fixtures/claude', import.meta.url)),
@@ -40,6 +42,7 @@ afterEach(async () => {
   await runtime?.close();
   runtime = undefined;
   store.hooks.close();
+  vi.unstubAllEnvs();
   await rm(dir, { recursive: true, force: true });
 });
 async function json(path: string) {
@@ -263,7 +266,7 @@ it('emits computed status transitions from live-file and hook-tail updates', asy
   const { HookEvents } = await import('./hook-events.js');
   store.hooks.close();
   const state = join(dir, 'hooks');
-  await mkdir(state);
+  await mkdir(state, { mode: 0o700 });
   store = new DataStore(store.config, { hooks: new HookEvents(state) });
   app = createApp(store.config, { store });
   runtime = startIndex(store.config, store);

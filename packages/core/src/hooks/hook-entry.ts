@@ -37,12 +37,13 @@ export function normalizeHookEvent(input: unknown, now = new Date()) {
 }
 export async function appendHookEvent(
   input: unknown,
-  stateDir = hookStateDir(),
+  stateDir?: string,
 ): Promise<void> {
   try {
+    stateDir ??= hookStateDir();
     const line = JSON.stringify(normalizeHookEvent(input)) + '\n';
     if (Buffer.byteLength(line) >= 4096) return;
-    await ensureStateDir(stateDir, 'hook');
+    await ensureStateDir(stateDir);
     const path = join(stateDir, 'events.jsonl');
     const rotated = join(stateDir, 'events.1.jsonl');
     const existing = await lstat(path).catch((error: NodeJS.ErrnoException) => {

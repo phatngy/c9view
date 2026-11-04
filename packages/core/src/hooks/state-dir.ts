@@ -1,3 +1,4 @@
+import { lstatSync, type Stats } from 'node:fs';
 import { lstat, mkdir, chmod } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -37,45 +38,63 @@ function quote(path: string): string {
   return "'" + path.replaceAll("'", "'\\''") + "'";
 }
 
-/** Check every component before creating anything through a symlink. */
+/** Ancestors may be symlinks; only the final state folder must be a real directory. */
 async function prepareDirectory(path: string): Promise<void> {
-  const parent = dirname(path);
-  if (parent !== path) await prepareDirectory(parent);
+  await mkdir(dirname(path), { recursive: true, mode: 0o700 });
   try {
-    const info = await lstat(path);
-    if (info.isSymbolicLink())
-      throw new Error(`Refusing symlink state folder: ${path}`);
-    if (!info.isDirectory()) throw new Error(`Not a state folder: ${path}`);
+    await mkdir(path, { mode: 0o700 });
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-    try {
-      await mkdir(path, { mode: 0o700 });
-    } catch (creationError) {
-      if ((creationError as NodeJS.ErrnoException).code !== 'EEXIST')
-        throw creationError;
-      await prepareDirectory(path);
-    }
+    if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
   }
 }
 
-/** Hooks may tighten their own folder. Native node/hub callers must never tighten. */
+/** Only the best-effort hook writer may create or tighten the state folder. */
 export async function ensureStateDir(
   path: string = hookStateDir(),
-  caller: 'server' | 'hook' = 'server',
 ): Promise<void> {
-  await prepareDirectory(resolve(path));
+  path = resolve(path);
+  await prepareDirectory(path);
   const info = await lstat(path);
   if (info.isSymbolicLink() || !info.isDirectory())
     throw new Error(`Refusing symlink or invalid state folder: ${path}`);
   if (process.getuid && info.uid !== process.getuid())
     throw new Error(`Refusing foreign owner of state folder: ${path}`);
-  if ((info.mode & 0o777) !== 0o700) {
-    if (caller === 'hook') await chmod(path, 0o700);
-    else
-      throw new Error(
-        `State folder permissions must be 0700; run: chmod 700 ${quote(path)}`,
-      );
-  }
+  if ((info.mode & 0o777) !== 0o700) await chmod(path, 0o700);
+}
+
+function checkStateInfo(path: string, info: Stats, directory: boolean): void {
+  const kind = directory ? 'folder' : 'file';
+  if (
+    info.isSymbolicLink() ||
+    !(directory ? info.isDirectory() : info.isFile())
+  )
+    throw new Error(`Refusing symlink or invalid state ${kind}: ${path}`);
+  if (process.getuid && info.uid !== process.getuid())
+    throw new Error(`Refusing foreign owner of state ${kind}: ${path}`);
+  const mode = directory ? '700' : '600';
+  if ((info.mode & 0o777) !== Number.parseInt(mode, 8))
+    throw new Error(
+      `State ${kind} permissions must be 0${mode}; run: chmod ${mode} ${quote(path)}`,
+    );
+}
+
+/** Startup validation is read-only, including when the state folder is absent. */
+export function checkStateDirSync(path: string): void {
+  path = resolve(path);
+  const inspect = (target: string, directory: boolean): boolean => {
+    let info;
+    try {
+      info = lstatSync(target);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
+      throw error;
+    }
+    checkStateInfo(target, info, directory);
+    return true;
+  };
+  if (!inspect(path, true)) return;
+  for (const file of ['events.jsonl', 'events.1.jsonl'])
+    inspect(join(path, file), false);
 }
 
 /** Missing files can be created by the caller with mode 0600; existing files are never changed. */

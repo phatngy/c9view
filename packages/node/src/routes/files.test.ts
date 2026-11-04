@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtemp, mkdir, writeFile, rm, symlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { beforeAll, afterAll, describe, it, expect } from 'vitest';
+import { beforeAll, afterAll, describe, it, expect, vi } from 'vitest';
 import { loadConfig } from '@c9view/core';
 import type {
   FileContentResponse,
@@ -19,6 +19,8 @@ const base = '/api/projects/-fixture-files';
 const secret = 'sk-ant-fixture-secret-1234567890';
 beforeAll(async () => {
   dir = await mkdtemp(join(tmpdir(), 'c9view-file-routes-'));
+  vi.stubEnv('C9VIEW_STATE_DIR', join(dir, 'state'));
+  vi.stubEnv('C9VIEW_LEGACY_STATE_DIR', join(dir, 'legacy'));
   const root = join(dir, 'project'),
     claude = join(dir, 'claude');
   await mkdir(root);
@@ -101,6 +103,7 @@ beforeAll(async () => {
   app = createApp(loadConfig({ C9VIEW_CLAUDE_DIR: claude }));
 });
 afterAll(async () => {
+  vi.unstubAllEnvs();
   await rm(dir, { recursive: true, force: true });
 });
 async function get<T>(path: string): Promise<T> {

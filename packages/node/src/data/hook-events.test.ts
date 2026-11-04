@@ -1,4 +1,12 @@
-import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import {
+  mkdtemp,
+  mkdir,
+  writeFile,
+  rm,
+  chmod,
+  stat,
+  symlink,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, it, vi } from 'vitest';
@@ -99,5 +107,83 @@ it('serves hook-derived status, bounded history and health from a temporary stat
     vi.unstubAllEnvs();
     hooks.close();
     await rm(dir, { recursive: true, force: true });
+  }
+});
+
+it('validates server state read-only before building a tailer', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'c9view-startup-'));
+  const dir = join(root, 'state');
+  try {
+    const hooks = new HookEvents(dir);
+    hooks.close();
+    await expect(stat(dir)).rejects.toMatchObject({ code: 'ENOENT' });
+    await mkdir(dir, { mode: 0o755 });
+    expect(() => new HookEvents(dir)).toThrow(`chmod 700 '${dir}'`);
+    expect((await stat(dir)).mode & 0o777).toBe(0o755);
+    await chmod(dir, 0o700);
+    for (const name of ['events.jsonl', 'events.1.jsonl']) {
+      const file = join(dir, name);
+      await writeFile(file, '', { mode: 0o644 });
+      expect(() => new HookEvents(dir)).toThrow(`chmod 600 '${file}'`);
+      await chmod(file, 0o600);
+      new HookEvents(dir).close();
+      await rm(file);
+      await symlink(join(root, 'missing'), file);
+      expect(() => new HookEvents(dir)).toThrow('symlink');
+      await rm(file);
+    }
+    await symlink(dir, join(root, 'link'));
+    expect(() => new HookEvents(join(root, 'link'))).toThrow('symlink');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+it('returns timestamp-merged history and latest event across legacy and current files', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'c9view-merged-'));
+  const current = join(root, 'current');
+  const legacy = join(root, 'legacy');
+  vi.stubEnv('C9VIEW_LEGACY_STATE_DIR', legacy);
+  let hooks: HookEvents | undefined;
+  try {
+    await mkdir(current, { mode: 0o700 });
+    await mkdir(legacy, { mode: 0o755 });
+    const timestamps = [0, 1, 2, 3].map(
+      (second) => new Date(Date.now() - 4000 + second * 1000),
+    );
+    const event = (index: number, name: string) =>
+      JSON.stringify(
+        normalizeHookEvent(
+          { hook_event_name: name, session_id: 's', cwd: '/synthetic' },
+          timestamps[index],
+        ),
+      ) + '\n';
+    await writeFile(
+      join(current, 'events.jsonl'),
+      event(1, 'PermissionRequest') + event(3, 'PermissionRequest'),
+      { mode: 0o600 },
+    );
+    await writeFile(
+      join(legacy, 'events.jsonl'),
+      event(0, 'UserPromptSubmit') + event(2, 'UserPromptSubmit'),
+      { mode: 0o644 },
+    );
+    hooks = new HookEvents(current);
+    await hooks.refresh();
+    expect(hooks.events('s').map((e) => e.ts)).toEqual(
+      timestamps.map((t) => t.toISOString()),
+    );
+    expect(hooks.history('s').changes.map((c) => [c.at, c.column])).toEqual(
+      timestamps.map((t, i) => [
+        t.toISOString(),
+        i % 2 ? 'need_input' : 'in_progress',
+      ]),
+    );
+    expect((await hooks.health(join(root, 'claude'))).lastEventAt).toBe(
+      timestamps[3]!.toISOString(),
+    );
+  } finally {
+    hooks?.close();
+    vi.unstubAllEnvs();
+    await rm(root, { recursive: true, force: true });
   }
 });

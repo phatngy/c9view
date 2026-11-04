@@ -345,7 +345,7 @@ it('keeps the standalone entry import graph within hooks and node built-ins', as
   expect(visited.size).toBe(3);
 });
 
-it.each(['default', 'argument', 'override'])(
+it.each(['default', 'argument', 'override', 'empty'])(
   'fires the standalone hook silently with %s state resolution',
   async (mode) => {
     const { spawn } = await import('node:child_process');
@@ -367,7 +367,11 @@ it.each(['default', 'argument', 'override'])(
           new URL('../../dist/hooks/hook-entry.js', import.meta.url),
         ),
         '--c9view-hook',
-        ...(mode === 'default' ? [] : ['--c9view-state-dir', argument]),
+        ...(mode === 'default'
+          ? []
+          : mode === 'empty'
+            ? ['--c9view-state-dir']
+            : ['--c9view-state-dir', argument]),
       ],
       { env, stdio: ['pipe', 'pipe', 'pipe'] },
     );
@@ -385,6 +389,11 @@ it.each(['default', 'argument', 'override'])(
     child.stdin.end(JSON.stringify(input));
     expect(await finished).toBe(0);
     expect(output).toBe('');
+    if (mode === 'empty') {
+      const { readdir } = await import('node:fs/promises');
+      expect(await readdir(home)).toEqual([]);
+      return;
+    }
     const dir = mode === 'default' ? join(home, '.claude/c9view') : argument;
     expect(await readFile(join(dir, 'events.jsonl'), 'utf8')).not.toContain(
       'secret',
