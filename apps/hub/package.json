@@ -1,5 +1,5 @@
 {
-  "name": "@c9view/server",
+  "name": "@c9view/hub",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -19,6 +19,7 @@
   "dependencies": {
     "@c9view/api": "workspace:*",
     "@c9view/core": "workspace:*",
+    "@c9view/node": "workspace:*",
     "@hono/node-server": "^2.1.5",
     "hono": "^4.13.13",
     "zod": "^4.6.7"
@@ -29,6 +30,6 @@
     "typescript": "^6.0.3",
     "vitest": "^5.0.5"
   },
-  "description": "Local HTTP server for the c9view dashboard and API.",
+  "description": "Browser-facing c9view hub: login, Host and Origin checks, the web build and the relay to nodes.",
   "license": "MIT"
 }

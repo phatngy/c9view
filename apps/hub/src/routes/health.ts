@@ -1,8 +1,8 @@
-import { redactStrings } from '../data/redaction.js';
+import { redactStrings } from '@c9view/node';
 import { Hono } from 'hono';
 import { VERSION } from '@c9view/core';
 import type { HealthResponse } from '@c9view/api';
-import type { DataStore } from '../data/store.js';
+import type { DataStore } from '@c9view/node';
 export function healthRoutes(store: DataStore) {
   const app = new Hono();
   app.get('/health', (c) => {

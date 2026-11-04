@@ -25,7 +25,7 @@ vi.mock('@hono/node-server', () => ({
     });
   },
 }));
-import { startServer } from '../main.js';
+import { startServer } from './main.js';
 
 it('returns the index handle and closes watcher and database on HTTP close', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'c9view-lifecycle-'));

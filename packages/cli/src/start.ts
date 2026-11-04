@@ -15,16 +15,8 @@ export async function runStart(options: StartOptions) {
     throw new Error('--port must be an integer from 1 to 65535');
   if (options.auth && !['none', 'token', 'password'].includes(options.auth))
     throw new Error('--auth must be none, token or password');
-  let serverPackage: string;
-  try {
-    serverPackage = import.meta.resolve('@c9view/server/package.json');
-  } catch {
-    serverPackage = new URL(
-      '../../../apps/server/package.json',
-      import.meta.url,
-    ).href;
-  }
-  const entry = new URL('./dist/main.js', serverPackage);
+  const hubPackage = hubPackageUrl();
+  const entry = new URL('./dist/main.js', hubPackage);
   const { startServer } = (await import(entry.href)) as {
     startServer: (options: Record<string, unknown>) => unknown;
   };
@@ -40,9 +32,17 @@ export async function runStart(options: StartOptions) {
     // Repository layout fallback; deployed containers set C9VIEW_WEB_DIST.
     webDist:
       process.env.C9VIEW_WEB_DIST ??
-      fileURLToPath(new URL('../web/dist/', serverPackage)),
+      fileURLToPath(new URL('../web/dist/', hubPackage)),
     ...(options.open ? { onListening: openBrowser } : {}),
   });
+}
+/** The hub's package.json: the installed package, else the repository layout. */
+export function hubPackageUrl(): string {
+  try {
+    return import.meta.resolve('@c9view/hub/package.json');
+  } catch {
+    return new URL('../../../apps/hub/package.json', import.meta.url).href;
+  }
 }
 function openBrowser(url: string) {
   const command =

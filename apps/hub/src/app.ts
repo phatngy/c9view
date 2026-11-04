@@ -1,20 +1,23 @@
-import { usageRoutes } from './routes/usage.js';
-import { searchRoutes } from './routes/search.js';
 import { eventRoutes } from './routes/events.js';
 import { Hono } from 'hono';
 import type { MiddlewareHandler } from 'hono';
 import { serveStatic } from '@hono/node-server/serve-static';
-import { redactStrings } from './data/redaction.js';
 import { redactText } from '@c9view/core';
 import type { ApiError } from '@c9view/api';
-import { DataStore, type ServerConfig } from './data/store.js';
+import {
+  DataStore,
+  redactStrings,
+  type ServerConfig,
+  overviewRoutes,
+  projectRoutes,
+  sessionRoutes,
+  fileRoutes,
+  changeRoutes,
+  configRoutes,
+  usageRoutes,
+  searchRoutes,
+} from '@c9view/node';
 import { healthRoutes } from './routes/health.js';
-import { overviewRoutes } from './routes/overview.js';
-import { projectRoutes } from './routes/projects.js';
-import { sessionRoutes } from './routes/sessions.js';
-import { fileRoutes } from './routes/files.js';
-import { changeRoutes } from './routes/changes.js';
-import { configRoutes } from './routes/config.js';
 
 export function createApp(
   config: ServerConfig,

@@ -19,7 +19,7 @@
   },
   "dependencies": {
     "@c9view/core": "workspace:*",
-    "@c9view/server": "workspace:*"
+    "@c9view/hub": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",

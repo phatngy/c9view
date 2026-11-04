@@ -161,7 +161,10 @@ export function createAuth(options: {
     };
     if (c.req.path === '/login' && c.req.method === 'GET') {
       if (c.req.query('token') !== undefined) {
-        if (mode === 'token' && equal(c.req.query('token') ?? '', token ?? '')) {
+        if (
+          mode === 'token' &&
+          equal(c.req.query('token') ?? '', token ?? '')
+        ) {
           // Tokens are at least 32 characters (256-bit random by default), so online guessing is infeasible; backoff for tokens only adds a lockout risk.
           login();
           return c.redirect('/');
