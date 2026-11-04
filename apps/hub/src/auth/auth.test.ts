@@ -277,6 +277,8 @@ it('ignores forwarded identities unless proxy trust is enabled', async () => {
   }
 });
 
+// 61 logins each run a synchronous scrypt, which can take more than the
+// default 5 s on a loaded CI runner.
 it('enforces the global password cap even for concurrent body reads', async () => {
   const { app } = protectedApp({
     mode: 'password',
@@ -301,4 +303,4 @@ it('enforces the global password cap even for concurrent body reads', async () =
   expect(responses.filter((response) => response.status === 429)).toHaveLength(
     1,
   );
-});
+}, 20_000);
