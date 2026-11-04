@@ -271,7 +271,7 @@ it('emits computed status transitions from live-file and hook-tail updates', asy
   app = createApp(store.config, { store });
   runtime = startIndex(store.config, store);
   await runtime.ready;
-  const events: import('@c9view/api').LiveEvent[] = [];
+  const events: import('./events.js').NodeLiveEvent[] = [];
   const unsubscribe = store.events.subscribe((e) => events.push(e));
   await mkdir(join(store.config.claudeDir, 'sessions'), { recursive: true });
   await writeFile(

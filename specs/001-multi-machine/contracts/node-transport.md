@@ -25,6 +25,8 @@ interface NodeTransport {
 }
 ```
 
+The optional typed `NodeRequest.clientBootId` field carries the hub-validated boot identity and is mapped to the synthetic request’s `x-c9view-boot-id` header only; the envelope remains headerless.
+
 ## Rules (FR-002, FR-005, FR-015, FR-016)
 
 | Rule               | Expected                                                                                                                         |

@@ -74,6 +74,24 @@ export function describeTransportContract(
       expect(transport.hello()).not.toHaveProperty('machineId');
       expect(transport.hello().bootId).toBe(transport.hello().bootId);
     });
+    it('forwards clientBootId as exactly one dedicated header', async () => {
+      let seen: Request | undefined;
+      const { transport } = await setup((request) => {
+        seen = request;
+        return new Response('ok');
+      });
+      await transport.request(
+        {
+          ...get,
+          clientBootId: 'boot-id',
+          ...{ headers: { Cookie: 'secret', 'X-C9view-Boot-Id': 'forged' } },
+        },
+        signal(),
+      );
+      expect([...seen!.headers.entries()]).toEqual([
+        ['x-c9view-boot-id', 'boot-id'],
+      ]);
+    });
     it('rejects oversized bodies before dispatch, accepts the boundary', async () => {
       let calls = 0;
       const { transport } = await setup(

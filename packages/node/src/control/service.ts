@@ -1,0 +1,374 @@
+import { randomUUID } from 'node:crypto';
+import { realpath } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+import { hookStateDir, mergeSettings, readSettings } from '@c9view/core';
+import type {
+  CommandReceipt,
+  ControlCapability,
+  ControlRuns,
+  DecisionBody,
+  ModeBody,
+  NewSessionBody,
+  ReplyBody,
+  RunActionBody,
+  TrustBody,
+} from '@c9view/api';
+import type { DataStore } from '../data/store.js';
+import type { ControlConfig } from './config.js';
+import {
+  assertWritableDirectory,
+  resolveClaudeBinary,
+  claudeBinaryVersion,
+} from './config.js';
+import type { SdkAdapter } from './sdk.js';
+import { childEnvironment } from './env.js';
+import { Receipts } from './receipts.js';
+import { Runs } from './runs.js';
+import { Requests } from './requests.js';
+import { createLiveness, type Liveness } from './liveness.js';
+import { openControlState, type TrustState } from './state.js';
+import { assertStateLocation, FolderTrust } from './trust.js';
+import { ControlError } from './errors.js';
+export interface ControlService {
+  readonly claudeCodeVersion?: string;
+  readonly capability: ControlCapability;
+  reply(
+    projectId: string,
+    sessionId: string,
+    body: ReplyBody,
+    bootId?: string,
+  ): Promise<CommandReceipt>;
+  start(
+    projectId: string,
+    body: NewSessionBody,
+    bootId?: string,
+  ): Promise<CommandReceipt>;
+  decide(
+    requestId: string,
+    body: DecisionBody,
+    bootId?: string,
+  ): Promise<CommandReceipt>;
+  interrupt(
+    runId: string,
+    body: RunActionBody,
+    bootId?: string,
+  ): Promise<CommandReceipt>;
+  stop(
+    runId: string,
+    body: RunActionBody,
+    bootId?: string,
+  ): Promise<CommandReceipt>;
+  setMode(
+    runId: string,
+    body: ModeBody,
+    bootId?: string,
+  ): Promise<CommandReceipt>;
+  trust(body: TrustBody, bootId?: string): Promise<CommandReceipt>;
+  snapshot(): ControlRuns;
+  receipt(id: string): CommandReceipt | undefined;
+  close(): Promise<void>;
+}
+export interface ControlDependencies {
+  sdk?: SdkAdapter;
+  state?: TrustState;
+  liveness?: Liveness;
+  env?: NodeJS.ProcessEnv;
+  stateDir?: string;
+  binary?: string;
+}
+export function createControlService(
+  store: DataStore,
+  config: ControlConfig,
+  bootId: string,
+  dependencies: ControlDependencies = {},
+): ControlService {
+  const env = dependencies.env ?? process.env;
+  const stateDir = dependencies.stateDir ?? hookStateDir(env, []);
+  assertWritableDirectory(store.config.claudeDir, 'Claude data directory');
+  for (const folder of store.config.workspaceRoots)
+    assertWritableDirectory(folder, 'project directory');
+  assertStateLocation(
+    stateDir,
+    store.config.claudeDir,
+    store.config.workspaceRoots,
+  );
+  const binary = dependencies.binary ?? resolveClaudeBinary(config, env);
+  const version = dependencies.binary
+    ? undefined
+    : claudeBinaryVersion(binary, childEnvironment(env, stateDir));
+  const state = dependencies.state ?? openControlState(stateDir);
+  const folders = new FolderTrust(store.config.claudeDir, state);
+  const receipts = new Receipts(
+    bootId,
+    config.receiptMin * 60000,
+    config.tombstoneMax,
+  );
+  const emit = (event: import('@c9view/api').ControlEvent) => {
+    const { type, ...data } = event;
+    store.events.emit({
+      event: type,
+      data,
+    } as import('../data/events.js').NodeLiveEvent);
+  };
+  const requests = new Requests(
+    config.approvalMin * 60000,
+    emit,
+    (id, waiting) => runs.waiting(id, waiting),
+  );
+  const runs = new Runs(
+    config.maxRuns,
+    config.idleMin * 60000,
+    dependencies.sdk ??
+      (async (input, options) =>
+        (await import('./sdk.js')).sdkAdapter(input, options)),
+    emit,
+    (id) => requests.close(id),
+  );
+  const liveness =
+    dependencies.liveness ?? createLiveness(store.config.claudeDir);
+  let closed = false;
+  const reserve = (
+    operation: string,
+    body: { clientRequestId: string },
+    boot: string | undefined,
+    action: () => Promise<Partial<CommandReceipt>>,
+    target: Record<string, string> = {},
+  ) => {
+    if (closed || !config.control)
+      return Promise.reject(new ControlError(404, 'Control is off'));
+    return receipts.run(
+      operation,
+      body.clientRequestId,
+      { ...body, ...target },
+      boot,
+      async () => {
+        try {
+          return await action();
+        } catch (error) {
+          if (error instanceof ControlError) throw error;
+          throw new ControlError(
+            503,
+            error instanceof Error ? error.message : 'Control operation failed',
+          );
+        }
+      },
+    );
+  };
+  async function project(id: string) {
+    const found = (await store.snapshot()).find((p) => p.project.id === id);
+    if (!found?.project.path) throw new ControlError(404, 'Project not found');
+    const folder = await realpath(found.project.path);
+    assertWritableDirectory(folder, 'project directory');
+    assertStateLocation(stateDir, store.config.claudeDir, [folder]);
+    return folder;
+  }
+  async function begin(
+    projectId: string,
+    body: NewSessionBody | ReplyBody,
+    operation: string,
+    source?: string,
+  ) {
+    const folder = await project(projectId);
+    if (source && !(await store.findSession(projectId, source)))
+      throw new ControlError(404, 'Session not found');
+    const existing =
+      source && !('fork' in body && body.fork)
+        ? runs.bySession(projectId, source)
+        : undefined;
+    if (existing) {
+      runs.enqueue(existing, body.text, (patch) =>
+        receipts.update(operation, body.clientRequestId, patch),
+      );
+      return {
+        status: 'accepted' as const,
+        runId: existing.summary.runId,
+        sessionId: existing.summary.sessionId,
+        projectId,
+      };
+    }
+    await folders.check(folder);
+    const sourceOwned = source ? runs.bySession(projectId, source) : undefined;
+    const settings = mergeSettings(
+      await readSettings(store.config.claudeDir, folder),
+    ).effective;
+    const permissions = settings.permissions as
+      Record<string, unknown> | undefined;
+    const defaultMode = permissions?.defaultMode;
+    const requested =
+      'permissionMode' in body ? body.permissionMode : undefined;
+    const mode = config.bypass
+      ? 'bypassPermissions'
+      : (requested ??
+        (defaultMode === 'acceptEdits' || defaultMode === 'plan'
+          ? defaultMode
+          : 'default'));
+    const fork = 'fork' in body && body.fork === true;
+    const sessionId = source && !fork ? source : randomUUID();
+    const concurrent =
+      source && !('fork' in body && body.fork)
+        ? runs.bySession(projectId, source)
+        : undefined;
+    if (concurrent) {
+      runs.enqueue(concurrent, body.text, (patch) =>
+        receipts.update(operation, body.clientRequestId, patch),
+      );
+      return {
+        status: 'accepted' as const,
+        runId: concurrent.summary.runId,
+        sessionId: concurrent.summary.sessionId,
+        projectId,
+      };
+    }
+    const run = runs.create(projectId, sessionId, mode);
+    runs.enqueue(run, body.text, (patch) =>
+      receipts.update(operation, body.clientRequestId, patch),
+    );
+    // Launch after the receipt has been installed, never wait on SDK startup.
+    runs.launch(
+      run,
+      async () => {
+        if (source && !fork && (!sourceOwned || sourceOwned.closed))
+          await liveness(source);
+        await folders.check(folder);
+        assertWritableDirectory(folder, 'project directory');
+        if (source && !fork && (!sourceOwned || sourceOwned.closed))
+          await liveness(source);
+        const childEnv = childEnvironment(env, stateDir);
+        if (store.config.claudeDir !== join(env.HOME ?? homedir(), '.claude'))
+          childEnv.CLAUDE_CONFIG_DIR = store.config.claudeDir;
+        return {
+          cwd: folder,
+          ...(source ? { resume: source, forkSession: fork } : { sessionId }),
+          permissionMode: mode,
+          env: childEnv,
+          pathToClaudeCodeExecutable: binary,
+          ...(config.maxTurns !== undefined
+            ? { maxTurns: config.maxTurns }
+            : {}),
+          ...(config.maxBudgetUsd !== undefined
+            ? { maxBudgetUsd: config.maxBudgetUsd }
+            : {}),
+          ...('name' in body && body.name
+            ? { extraArgs: { name: body.name } }
+            : {}),
+          abortController: run.abort,
+          canUseTool: requests.handler(
+            run.summary.runId,
+            () => run.summary.sessionId,
+          ),
+        };
+      },
+      () => {},
+    );
+
+    return {
+      status: 'accepted' as const,
+      runId: run.summary.runId,
+      ...(fork ? {} : { sessionId }),
+      projectId,
+    };
+  }
+  return {
+    ...(version ? { claudeCodeVersion: version } : {}),
+    get capability(): ControlCapability {
+      const reason = closed ? 'Control is closed' : receipts.unavailable;
+      return {
+        state: reason ? 'unavailable' : 'ready',
+        bypass: config.bypass,
+        ...(reason ? { reason } : {}),
+      };
+    },
+    reply: (projectId, sessionId, body, boot) => {
+      const operation = 'reply';
+      return reserve(
+        operation,
+        body,
+        boot,
+        () => begin(projectId, body, operation, sessionId),
+        { projectId, sessionId },
+      );
+    },
+    start: (projectId, body, boot) => {
+      const operation = 'start';
+      return reserve(
+        operation,
+        body,
+        boot,
+        () => begin(projectId, body, operation),
+        { projectId },
+      );
+    },
+    decide: (id, body, boot) =>
+      reserve(
+        'decide',
+        body,
+        boot,
+        async () => {
+          requests.decide(id, body);
+          return {};
+        },
+        { requestId: id },
+      ),
+    interrupt: (id, body, boot) =>
+      reserve(
+        'interrupt',
+        body,
+        boot,
+        async () => {
+          const run = runs.get(id);
+          await run.ready;
+          runs.get(id);
+          await run.runner?.interrupt();
+          return { runId: id };
+        },
+        { runId: id },
+      ),
+    stop: (id, body, boot) =>
+      reserve(
+        'stop',
+        body,
+        boot,
+        async () => {
+          runs.stop(runs.get(id));
+          return { runId: id };
+        },
+        { runId: id },
+      ),
+    setMode: (id, body, boot) =>
+      reserve(
+        'mode',
+        body,
+        boot,
+        async () => {
+          if (config.bypass)
+            throw new ControlError(409, 'Bypass is fixed by the node flag');
+          const run = runs.get(id);
+          await run.ready;
+          runs.get(id);
+          await run.runner?.setPermissionMode(body.mode);
+          run.summary.mode = body.mode;
+          runs.emitRun(run);
+          return { runId: id };
+        },
+        { runId: id },
+      ),
+    trust: (body, boot) =>
+      reserve('trust', body, boot, async () => {
+        const known = (await store.snapshot()).flatMap((p) =>
+          p.project.path ? [p.project.path] : [],
+        );
+        await folders.accept(body.path, body.fingerprint, known);
+        return {};
+      }),
+    snapshot: () => ({ runs: runs.snapshot(), requests: requests.snapshot() }),
+    receipt: (id) => receipts.get(id),
+    close: async () => {
+      if (closed) return;
+      closed = true;
+      requests.close();
+      await runs.close();
+      state.close();
+    },
+  };
+}
