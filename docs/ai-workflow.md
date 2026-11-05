@@ -28,7 +28,7 @@ The lead session is the one the maintainer talks to. It writes briefs, verifies,
 
 ## Agent team
 
-When a lead agent splits work across other agents, use this distribution:
+The lead always splits feature work across these agents ([AGENTS.md](../AGENTS.md#workflow) makes this the default; the maintainer doesn't have to ask). Use this distribution:
 
 | Work                                                                                        | Agent           | Model         | Effort   |
 | ------------------------------------------------------------------------------------------- | --------------- | ------------- | -------- |
