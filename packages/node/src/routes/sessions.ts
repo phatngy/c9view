@@ -105,8 +105,8 @@ export function sessionRoutes(
     if (page.more || page.truncated) response.truncated = true;
     else delete response.truncated;
     const final = redactStrings(response);
-    warnPageBudget('sessions', final, limits.pageBudgetBytes);
-    return c.json(final);
+    const text = warnPageBudget('sessions', final, limits.pageBudgetBytes);
+    return c.body(text, 200, { 'content-type': 'application/json' });
   });
   app.get('/projects/:projectId/sessions/:sessionId/status', async (c) => {
     const found = await store.findSession(

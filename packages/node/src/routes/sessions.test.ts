@@ -201,6 +201,21 @@ describe.each(['file cache', 'SQLite index'])(
       expect(seen).toEqual([...expected, 'appended']);
     });
 
+    it('returns an empty bounded window when the numeric cursor is greater than before', async () => {
+      const served = await app();
+      const empty = await page(
+        served,
+        'cursor=100&limit=50&fill=end&before=40',
+      );
+      expect(empty).toMatchObject({
+        messages: [],
+        cursor: 40,
+        prevCursor: 0,
+        nextCursor: 40,
+        totalMessages: COUNT,
+      });
+    });
+
     it('pages backwards from the end without gaps', async () => {
       const served = await app();
       expect(await backward(served)).toEqual(expected);

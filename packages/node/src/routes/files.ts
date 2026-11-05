@@ -53,8 +53,8 @@ export function fileRoutes(
         entries: page.items,
         nextCursor: page.nextCursor,
       };
-      warnPageBudget('files', response, budget);
-      return c.json(response);
+      const text = warnPageBudget('files', response, budget);
+      return c.body(text, 200, { 'content-type': 'application/json' });
     } catch {
       return c.json({ error: 'Path unavailable or forbidden' }, 400);
     }
@@ -90,8 +90,8 @@ export function fileRoutes(
       const git = createGit(found.project.path);
       if (!(await git.isRepo())) {
         const response = { isRepo: false } satisfies GitStatusResponse;
-        warnPageBudget('git/status', response, budget);
-        return c.json(response);
+        const text = warnPageBudget('git/status', response, budget);
+        return c.body(text, 200, { 'content-type': 'application/json' });
       }
       const status = redactStrings(await git.status());
       const envelope = { isRepo: true as const, ...status, files: [] };
@@ -106,8 +106,8 @@ export function fileRoutes(
         files: page.items,
         nextCursor: page.nextCursor,
       };
-      warnPageBudget('git/status', response, budget);
-      return c.json(response);
+      const text = warnPageBudget('git/status', response, budget);
+      return c.body(text, 200, { 'content-type': 'application/json' });
     } catch (error) {
       console.error('Git status failed', error);
       const response: ApiError = { error: 'Git read failed' };
@@ -137,8 +137,8 @@ export function fileRoutes(
         files: page.items,
         nextCursor: page.nextCursor,
       };
-      warnPageBudget('git/diff', response, budget);
-      return c.json(response);
+      const text = warnPageBudget('git/diff', response, budget);
+      return c.body(text, 200, { 'content-type': 'application/json' });
     } catch (error) {
       console.error('Git diff failed', error);
       const response: ApiError = { error: 'Git read failed' };

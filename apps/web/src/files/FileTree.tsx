@@ -133,10 +133,12 @@ function Directory({
     }),
   );
   const [reason, setReason] = useState<string>();
-  if (query.error)
+  if (query.error && !query.data)
     return <FileFailure error={query.error} retry={query.refetch} />;
   return (
     <ul
+      data-page-list
+      tabIndex={-1}
       className={path ? 'ml-3 border-l border-line pl-2' : ''}
       aria-label={path || 'Root folder'}
     >
@@ -239,11 +241,9 @@ function Directory({
           </li>
         );
       })}
-      {query.hasNextPage && (
-        <li>
-          <LoadMore query={query} />
-        </li>
-      )}
+      <li hidden={!query.hasNextPage}>
+        <LoadMore query={query} label="files in this folder" />
+      </li>
       {query.data?.entries.length === 0 && (
         <li>
           <EmptyState compact title="Empty folder" />

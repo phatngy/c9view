@@ -1,5 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { Hono } from 'hono';
 import {
+  warnPageBudget,
   budgetItems,
   budgetOffsetPage,
   encodedBytes,
@@ -153,4 +155,50 @@ it('cuts an oversized diff line to show the start of a minified file', () => {
   expect(fitted.hunks[0]?.lines[0]).toContain(TRUNCATED_MARKER);
   expect(encodedBytes(fitted.hunks)).toBeLessThanOrEqual(300);
   expect(fitHunks([hunk], 0)).toEqual({ hunks: [], cut: true });
+});
+
+it.each(['', '«', '«redacted:x»'])(
+  'fits a redaction boundary at %j exactly',
+  (boundary) => {
+    const prefix = 'safe ';
+    const text = prefix + (boundary || '«redacted:x»') + 'x'.repeat(200);
+    const room = encodedBytes(prefix + boundary + TRUNCATED_MARKER);
+    const expected = boundary === '«redacted:x»' ? prefix + boundary : prefix;
+    expect(fitText(text, room)).toBe(expected + TRUNCATED_MARKER);
+  },
+);
+
+it('serializes the measured wire text once and warns with UTF-8 byte counts only', () => {
+  const toJSON = vi.fn(() => ({ text: 'é', optional: undefined }));
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  try {
+    const text = warnPageBudget('files', { toJSON }, 1);
+    expect(text).toBe('{"text":"é"}');
+    expect(toJSON).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(
+      `files: ${Buffer.byteLength(text)} bytes > 1 bytes`,
+    );
+  } finally {
+    warn.mockRestore();
+  }
+});
+
+it('returns measured JSON with the same status, headers and bytes as c.json', async () => {
+  const payload = {
+    text: 'é\n«redacted:x»',
+    absent: undefined,
+    nextCursor: null,
+  };
+  const app = new Hono();
+  app.get('/original', (c) => c.json(payload));
+  app.get('/measured', (c) =>
+    c.body(warnPageBudget('files', payload, 1000), 200, {
+      'content-type': 'application/json',
+    }),
+  );
+  const original = await app.request('/original');
+  const measured = await app.request('/measured');
+  expect(measured.status).toBe(original.status);
+  expect([...measured.headers]).toEqual([...original.headers]);
+  expect(await measured.text()).toBe(await original.text());
 });

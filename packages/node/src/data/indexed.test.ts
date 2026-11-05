@@ -614,6 +614,21 @@ it('advances ordinal cursors across selected rows that cannot map to messages', 
   const full = (await json(path + '?limit=4')) as SessionDetailResponse;
   expect(full.messages.map((m) => m.uuid)).toEqual(['row-0', 'row-2']);
   expect(full).toMatchObject({ cursor: 0, nextCursor: 4, totalMessages: 5 });
+  const bounded = (await json(
+    path + '?cursor=0&limit=5&fill=end&before=3',
+  )) as SessionDetailResponse;
+  expect(bounded.messages.map((m) => m.uuid)).toEqual(['row-0', 'row-2']);
+  expect(bounded).toMatchObject({
+    cursor: 0,
+    prevCursor: null,
+    nextCursor: 3,
+    totalMessages: 5,
+  });
+  const boundedAgain = (await json(
+    path + '?cursor=0&limit=5&fill=end&before=1',
+  )) as SessionDetailResponse;
+  expect(boundedAgain.messages.map((m) => m.uuid)).toEqual(['row-0']);
+  expect(boundedAgain.nextCursor).toBe(1);
   app = createApp(store.config, { store, limits: { pageBudgetBytes: 1 } });
   const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
   try {
