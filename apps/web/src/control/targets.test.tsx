@@ -119,5 +119,5 @@ it('keeps run controls at least 44px tall below lg', () => {
   );
 
   expectTarget(screen.getByRole('button', { name: 'Interrupt' }));
-  expectTarget(screen.getByRole('button', { name: 'Stop' }));
+  expectTarget(screen.getByRole('button', { name: 'Run options' }));
 });
