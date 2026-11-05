@@ -88,7 +88,7 @@ it('reaches Stop through the Run options menu and calls it', async () => {
 it('exposes the cost with an accessible description', () => {
   bar({ costUsd: 0.02 });
   const link = screen.getByRole('link', {
-    name: 'About 0.02 dollars, API-equivalent cost',
+    name: 'About $0.02, API-equivalent cost',
   });
   expect(link).toHaveAttribute('href', '#api-equivalent-cost');
   expect(link).toHaveTextContent('$0.02');
@@ -113,6 +113,48 @@ it('announces only Waiting for you, Ended and Failed, once, and not on refetch',
   expect(live()).toBe('Ended');
   rerender({ state: 'idle' });
   expect(live()).toBe('');
+  rerender({ state: 'failed' });
+  expect(live()).toBe('Failed');
+});
+it('hides Run options once the run has ended or failed', () => {
+  for (const state of ['ended', 'failed'] as const) {
+    bar({ state });
+    expect(screen.queryByRole('button', { name: 'Run options' })).toBeNull();
+    cleanup();
+  }
+});
+it('keeps the full status in a title and the queued count out of truncation', () => {
+  bar({ state: 'running', queued: 3 });
+  expect(screen.getByText('Working…').parentElement).toHaveAttribute(
+    'title',
+    'Working… · 3 queued',
+  );
+  expect(screen.getByText('· 3 queued')).toHaveClass('shrink-0');
+  expect(screen.getByText('· 3 queued')).not.toHaveClass('truncate');
+});
+it('opens Run options from the keyboard and selects Stop run with ArrowDown and Enter', async () => {
+  const { onStop } = bar({ state: 'idle' });
+  const trigger = screen.getByRole('button', { name: 'Run options' });
+  trigger.focus();
+  expect(trigger).toHaveFocus();
+  fireEvent.keyDown(trigger, { key: 'Enter' });
+  fireEvent.click(trigger);
+  const item = await screen.findByRole('menuitem', { name: 'Stop run' });
+  fireEvent.keyDown(item, { key: 'ArrowDown' });
+  fireEvent.keyDown(item, { key: 'Enter' });
+  fireEvent.click(item);
+  await waitFor(() => expect(onStop).toHaveBeenCalledTimes(1));
+});
+it('closes the menu on Escape, returns focus to the trigger and does not stop', async () => {
+  const { onStop } = bar({ state: 'idle' });
+  const trigger = screen.getByRole('button', { name: 'Run options' });
+  trigger.focus();
+  fireEvent.click(trigger);
+  const item = await screen.findByRole('menuitem', { name: 'Stop run' });
+  fireEvent.keyDown(item, { key: 'Escape' });
+  await waitFor(() => expect(screen.queryByRole('menuitem')).toBeNull());
+  await waitFor(() => expect(trigger).toHaveFocus());
+  expect(onStop).not.toHaveBeenCalled();
 });
 it('keeps one line on phones: badges hide first, text truncates, targets stay 44px', () => {
   bar({ state: 'running', mode: 'bypassPermissions', costUsd: 1 });

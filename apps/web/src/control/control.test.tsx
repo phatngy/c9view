@@ -342,7 +342,8 @@ it('T051 shows state, linked cost and badges and locks run actions while pending
       onStop={stopped}
     />,
   );
-  expect(screen.getByText('Working… · 2 queued')).toBeVisible();
+  expect(screen.getByText('Working…')).toBeVisible();
+  expect(screen.getByText('· 2 queued')).toBeVisible();
   expect(screen.getByRole('link', { name: /API-equivalent/ })).toHaveAttribute(
     'href',
     '#api-equivalent-cost',

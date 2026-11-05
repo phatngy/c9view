@@ -450,3 +450,21 @@ it('ignores shortcuts that start inside a dialog', () => {
   expect(box()).not.toHaveFocus();
   dialog.remove();
 });
+
+it('moves focus to the reply box after a successful Interrupt, never onto a button', async () => {
+  mount(run('running'));
+  const bar = await screen.findByRole('button', { name: 'Interrupt' });
+  fireEvent.click(bar);
+  await waitFor(() => expect(box()).toHaveFocus());
+});
+it('does not steal focus from another field after Interrupt', async () => {
+  mount(run('running'));
+  const other = document.createElement('input');
+  document.body.append(other);
+  const bar = await screen.findByRole('button', { name: 'Interrupt' });
+  fireEvent.click(bar);
+  other.focus();
+  await new Promise((r) => setTimeout(r, 50));
+  expect(other).toHaveFocus();
+  other.remove();
+});
