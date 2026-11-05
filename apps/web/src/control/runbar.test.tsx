@@ -82,16 +82,17 @@ it('reaches Stop through the Run options menu and calls it', async () => {
   trigger.focus();
   fireEvent.keyDown(trigger, { key: 'Enter' });
   fireEvent.click(trigger);
-  fireEvent.click(await screen.findByRole('menuitem', { name: 'Stop run' }));
+  fireEvent.click(await screen.findByRole('menuitem', { name: 'Stop' }));
   await waitFor(() => expect(onStop).toHaveBeenCalledTimes(1));
 });
-it('exposes the cost with an accessible description', () => {
+it('shows no cost and styles Stop with the danger token', async () => {
   bar({ costUsd: 0.02 });
-  const link = screen.getByRole('link', {
-    name: 'About $0.02, API-equivalent cost',
-  });
-  expect(link).toHaveAttribute('href', '#api-equivalent-cost');
-  expect(link).toHaveTextContent('$0.02');
+  expect(screen.queryByText('$0.02')).toBeNull();
+  expect(screen.queryByRole('link')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Run options' }));
+  expect(await screen.findByRole('menuitem', { name: 'Stop' })).toHaveClass(
+    'text-danger!',
+  );
 });
 it('announces only Waiting for you, Ended and Failed, once, and not on refetch', () => {
   const live = () =>
@@ -103,11 +104,11 @@ it('announces only Waiting for you, Ended and Failed, once, and not on refetch',
   expect(live()).toBe('');
   rerender({ state: 'running' });
   expect(live()).toBe('');
-  rerender({ state: 'running', costUsd: 1 });
+  rerender({ state: 'running' });
   expect(live()).toBe('');
   rerender({ state: 'waiting' });
   expect(live()).toBe('Waiting for you');
-  rerender({ state: 'waiting', queued: 0, costUsd: 2 });
+  rerender({ state: 'waiting', queued: 0 });
   expect(live()).toBe('Waiting for you');
   rerender({ state: 'ended' });
   expect(live()).toBe('Ended');
@@ -132,14 +133,14 @@ it('keeps the full status in a title and the queued count out of truncation', ()
   expect(screen.getByText('· 3 queued')).toHaveClass('shrink-0');
   expect(screen.getByText('· 3 queued')).not.toHaveClass('truncate');
 });
-it('opens Run options from the keyboard and selects Stop run with ArrowDown and Enter', async () => {
+it('opens Run options from the keyboard and selects Stop with ArrowDown and Enter', async () => {
   const { onStop } = bar({ state: 'idle' });
   const trigger = screen.getByRole('button', { name: 'Run options' });
   trigger.focus();
   expect(trigger).toHaveFocus();
   fireEvent.keyDown(trigger, { key: 'Enter' });
   fireEvent.click(trigger);
-  const item = await screen.findByRole('menuitem', { name: 'Stop run' });
+  const item = await screen.findByRole('menuitem', { name: 'Stop' });
   fireEvent.keyDown(item, { key: 'ArrowDown' });
   fireEvent.keyDown(item, { key: 'Enter' });
   fireEvent.click(item);
@@ -150,14 +151,14 @@ it('closes the menu on Escape, returns focus to the trigger and does not stop', 
   const trigger = screen.getByRole('button', { name: 'Run options' });
   trigger.focus();
   fireEvent.click(trigger);
-  const item = await screen.findByRole('menuitem', { name: 'Stop run' });
+  const item = await screen.findByRole('menuitem', { name: 'Stop' });
   fireEvent.keyDown(item, { key: 'Escape' });
   await waitFor(() => expect(screen.queryByRole('menuitem')).toBeNull());
   await waitFor(() => expect(trigger).toHaveFocus());
   expect(onStop).not.toHaveBeenCalled();
 });
 it('keeps one line on phones: badges hide first, text truncates, targets stay 44px', () => {
-  bar({ state: 'running', mode: 'bypassPermissions', costUsd: 1 });
+  bar({ state: 'running', mode: 'bypassPermissions' });
   expect(screen.getByTestId('run-badges')).toHaveClass('max-sm:hidden');
   expect(screen.getByText('Working…')).toHaveClass('truncate');
   expect(screen.getByRole('button', { name: 'Interrupt' })).toHaveClass(
@@ -167,5 +168,4 @@ it('keeps one line on phones: badges hide first, text truncates, targets stay 44
     'min-h-11',
     'min-w-11',
   );
-  expect(screen.getByRole('link')).toHaveClass('min-h-11');
 });
