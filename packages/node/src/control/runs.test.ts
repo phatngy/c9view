@@ -33,6 +33,63 @@ it('T019 accepts simultaneous replies into one run and completes every queued re
     await t.close();
   }
 });
+it('T019 keeps replies in call order when the first check is slower', async () => {
+  let calls = 0;
+  const t = await setupControl(
+    {},
+    {
+      liveness: async () => {
+        if (calls++ === 0) await new Promise((r) => setTimeout(r, 150));
+      },
+    },
+  );
+  try {
+    const bodies = [
+      { ...t.body(), text: 'first' },
+      { ...t.body(), text: 'second' },
+    ];
+    const receipts = await Promise.all(
+      bodies.map((body) =>
+        t.service.reply('project', 'session', body, t.bootId),
+      ),
+    );
+    await tick();
+    expect(new Set(receipts.map((receipt) => receipt.runId)).size).toBe(1);
+    const run = t.sdk.runs[0]!;
+    run.init('session');
+    await tick();
+    expect(run.inputs.map((input) => input.message.content)).toEqual([
+      'first',
+      'second',
+    ]);
+  } finally {
+    await t.close();
+  }
+});
+it('T019 a failed reply does not block the replies queued behind it', async () => {
+  let calls = 0;
+  const t = await setupControl(
+    {},
+    {
+      liveness: async () => {
+        if (calls++ === 0) {
+          await new Promise((r) => setTimeout(r, 100));
+          throw new Error('boom');
+        }
+      },
+    },
+  );
+  try {
+    const [first, second] = await Promise.allSettled([
+      t.service.reply('project', 'session', t.body(), t.bootId),
+      t.service.reply('project', 'session', t.body(), t.bootId),
+    ]);
+    expect(first.status).toBe('rejected');
+    expect(second.status).toBe('fulfilled');
+  } finally {
+    await t.close();
+  }
+});
 it('T022 mode and interrupt during delayed startup wait for the actual runner', async () => {
   const t = await setupControl();
   let release!: () => void;
@@ -165,26 +222,21 @@ it('an interrupted error result ends the turn and keeps the fake SDK run open fo
   }
 });
 
-it('rechecks session ownership after interleaved preflight awaits and joins in delivery order', async () => {
+it('serialises same-session preflight so the second reply joins the first run in delivery order', async () => {
   const releases: (() => void)[] = [];
   let firstEntered!: () => void;
   const firstGate = new Promise<void>((resolve) => {
     firstEntered = resolve;
-  });
-  let both!: () => void;
-  const entered = new Promise<void>((resolve) => {
-    both = resolve;
   });
   let calls = 0;
   const t = await setupControl(
     {},
     {
       liveness: async () => {
-        if (++calls > 2) return;
+        if (++calls > 1) return;
         await new Promise<void>((resolve) => {
           releases.push(resolve);
           if (releases.length === 1) firstEntered();
-          if (releases.length === 2) both();
         });
       },
     },
@@ -203,11 +255,11 @@ it('rechecks session ownership after interleaved preflight awaits and joins in d
       { ...t.body(), text: 'second' },
       t.bootId,
     );
-    await entered;
     releases[0]!();
     const a = await first;
-    releases[1]!();
     const b = await second;
+    // Only the first reply ran a preflight: the second waited, then joined.
+    expect(releases).toHaveLength(1);
     expect(a.runId).toBe(b.runId);
     await tick();
     expect(t.sdk.runs).toHaveLength(1);
