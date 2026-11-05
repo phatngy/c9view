@@ -1,26 +1,23 @@
 import { queryKeys } from '../queryKeys.js';
 import { useMachineId } from '../machine.js';
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { api, fileQueryOptions } from '../api.js';
+import { api } from '../api.js';
+import { useCursorList, useGitStatus } from './paging.js';
+import { LoadMore } from './LoadMore.js';
 import { DiffView } from '../diff/DiffView.js';
 import { Empty, Loading } from '../ui.js';
 import { FileFailure } from './shared.js';
 export function ProjectChanges({ projectId }: { projectId: string }) {
   const machineId = useMachineId();
   const [selected, setSelected] = useState('');
-  const status = useQuery({
-    queryKey: queryKeys.gitStatus(machineId, projectId),
-    queryFn: ({ signal }) => api.gitStatus(machineId, projectId, signal),
-    ...fileQueryOptions,
-  });
-  const diff = useQuery({
-    queryKey: queryKeys.gitDiff(machineId, projectId, selected),
-    queryFn: ({ signal }) =>
-      api.gitDiff(machineId, projectId, selected, signal),
-    enabled: !!selected,
-    ...fileQueryOptions,
-  });
+  const status = useGitStatus(projectId);
+  const diff = useCursorList(
+    queryKeys.gitDiff(machineId, projectId, selected),
+    (signal, cursor) =>
+      api.gitDiff(machineId, projectId, selected, signal, cursor),
+    (pages) => ({ ...pages[0]!, files: pages.flatMap((page) => page.files) }),
+    !!selected,
+  );
   if (status.error)
     return <FileFailure error={status.error} retry={status.refetch} />;
   if (!status.data) return <Loading />;
@@ -53,6 +50,7 @@ export function ProjectChanges({ projectId }: { projectId: string }) {
                   key={patch.path}
                   filePath={patch.path}
                   hunks={patch.hunks}
+                  truncated={patch.truncated ?? false}
                   kind={
                     file.status === 'added' || file.status === 'untracked'
                       ? 'create'
@@ -67,8 +65,10 @@ export function ProjectChanges({ projectId }: { projectId: string }) {
             ) : (
               <Empty>No text diff available (untracked or binary file).</Empty>
             ))}
+          {selected === file.path && <LoadMore query={diff} />}
         </div>
       ))}
+      <LoadMore query={status} />
     </section>
   );
 }

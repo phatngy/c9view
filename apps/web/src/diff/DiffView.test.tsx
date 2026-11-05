@@ -40,7 +40,9 @@ describe('diff renderer', () => {
     expect(
       screen.queryByRole('button', { name: /Diff mode/ }),
     ).not.toBeInTheDocument();
-    expect(screen.getByText(/Truncated diff/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Diff cut to fit the page size/),
+    ).toBeInTheDocument();
     expect(
       screen.getByText('Unified view on small screens'),
     ).toBeInTheDocument();

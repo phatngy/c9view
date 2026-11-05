@@ -4,6 +4,8 @@ import type { ToolFileChange } from '@c9view/api';
 import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api, fileQueryOptions } from '../api.js';
+import { useCursorList } from './paging.js';
+import { LoadMore } from './LoadMore.js';
 import { DiffView } from '../diff/DiffView.js';
 import { Empty, Failure, Loading } from '../ui.js';
 import { toolAnchor } from '../tools/ToolCard.js';
@@ -25,12 +27,12 @@ export function SessionChanges({
   const [selected, setSelected] = useState('');
   const dialog = useRef<HTMLDialogElement>(null);
   const selectedStep = useRef<HTMLLIElement>(null);
-  const list = useQuery({
-    queryKey: queryKeys.changes(machineId, projectId, sessionId),
-    queryFn: ({ signal }) =>
-      api.changes(machineId, projectId, sessionId, signal),
-    ...fileQueryOptions,
-  });
+  const list = useCursorList(
+    queryKeys.changes(machineId, projectId, sessionId),
+    (signal, cursor) =>
+      api.changes(machineId, projectId, sessionId, signal, cursor),
+    (pages) => ({ ...pages[0]!, files: pages.flatMap((page) => page.files) }),
+  );
   const requested = list.data?.files.find(
     (file) => requestedTool && file.toolUseIds.includes(requestedTool),
   );
@@ -93,6 +95,7 @@ export function SessionChanges({
             </button>
           ))
         )}
+        <LoadMore query={list} />
         {requestedTool && list.data && !requested && (
           <p role="note">
             This tool call has no available full diff in the returned file list.
