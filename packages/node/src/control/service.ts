@@ -130,7 +130,9 @@ export function createControlService(
   let closed = false;
   // Replies to one session are accepted in call order: each reply's checks and
   // run join wait for the previous reply of that session to settle (pass or
-  // fail). Other sessions are never serialised behind it.
+  // fail). Other sessions are never serialised behind it. The chain is entered
+  // in call order because receipts.run calls the action from a
+  // Promise.resolve().then microtask, queued in call order.
   const replyTails = new Map<string, Promise<unknown>>();
   const inOrder = <T>(key: string, work: () => Promise<T>): Promise<T> => {
     const previous = replyTails.get(key) ?? Promise.resolve();
@@ -294,8 +296,12 @@ export function createControlService(
         operation,
         body,
         boot,
-        // The action starts in call order (receipts.run schedules it at once),
-        // so the ticket is taken before any async liveness or trust check.
+        // receipts.run runs the action from a microtask queued in call order,
+        // so the chain is entered in call order, before any async liveness or
+        // trust check. Never put an await before reserve/receipts.run in
+        // reply, or call order is lost. A repeated clientRequestId returns the
+        // existing promise before the action runs and takes no place in the
+        // chain.
         () =>
           inOrder(`${projectId}\0${sessionId}`, () =>
             begin(projectId, body, operation, sessionId),
