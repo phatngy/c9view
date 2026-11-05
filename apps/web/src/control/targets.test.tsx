@@ -110,14 +110,7 @@ it('keeps trust card buttons at least 44px tall below lg', () => {
 });
 
 it('keeps run controls at least 44px tall below lg', () => {
-  render(
-    <RunBar
-      run={run}
-      onInterrupt={vi.fn().mockResolvedValue(undefined)}
-      onStop={vi.fn().mockResolvedValue(undefined)}
-    />,
-  );
+  render(<RunBar run={run} onStop={vi.fn().mockResolvedValue(undefined)} />);
 
-  expectTarget(screen.getByRole('button', { name: 'Interrupt' }));
   expectTarget(screen.getByRole('button', { name: 'Run options' }));
 });

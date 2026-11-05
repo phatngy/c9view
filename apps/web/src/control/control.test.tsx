@@ -6,6 +6,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, expect, it, vi } from 'vitest';
@@ -318,13 +319,12 @@ it('T048 gives each command a fresh ID, keeps the captured boot ID and parses ev
 
 it('T051 shows state and badges and locks run actions while pending', async () => {
   let finish!: () => void;
-  const interrupted = vi.fn(
+  const stopped = vi.fn(
     () =>
       new Promise<void>((resolve) => {
         finish = resolve;
       }),
   );
-  const stopped = vi.fn(async () => {});
   render(
     <RunBar
       run={{
@@ -338,7 +338,6 @@ it('T051 shows state and badges and locks run actions while pending', async () =
         startedAt: '2026-11-01',
         ownedByC9view: true,
       }}
-      onInterrupt={interrupted}
       onStop={stopped}
     />,
   );
@@ -346,17 +345,24 @@ it('T051 shows state and badges and locks run actions while pending', async () =
   expect(screen.getByText('· 2 queued')).toBeVisible();
   expect(screen.getByText('Driven by c9view')).toBeVisible();
   expect(screen.getByText('Bypass')).toBeVisible();
-  fireEvent.click(screen.getByRole('button', { name: 'Interrupt' }));
-  expect(screen.getByRole('button', { name: 'Run options' })).toBeDisabled();
-  fireEvent.click(screen.getByRole('button', { name: 'Interrupt' }));
-  expect(interrupted).toHaveBeenCalledTimes(1);
+  expect(screen.queryByRole('button', { name: 'Interrupt' })).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Run options' }));
+  fireEvent.click(await screen.findByRole('menuitem', { name: 'Stop' }));
+  fireEvent.click(
+    within(await screen.findByRole('alertdialog')).getByRole('button', {
+      name: 'Stop',
+    }),
+  );
+  await waitFor(() =>
+    expect(
+      screen.getByRole('button', { name: 'Run options', hidden: true }),
+    ).toBeDisabled(),
+  );
+  expect(stopped).toHaveBeenCalledTimes(1);
   finish();
   await waitFor(() =>
     expect(screen.getByRole('button', { name: 'Run options' })).toBeEnabled(),
   );
-  fireEvent.click(screen.getByRole('button', { name: 'Run options' }));
-  fireEvent.click(await screen.findByRole('menuitem', { name: 'Stop' }));
-  await waitFor(() => expect(stopped).toHaveBeenCalledTimes(1));
 });
 it('T046 recovers an uncertain trust command then retries the previously refused reply', async () => {
   let trusted = false;
