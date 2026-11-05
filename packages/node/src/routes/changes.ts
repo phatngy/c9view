@@ -13,7 +13,7 @@ import {
   encodedBytes,
   fitHunks,
   readOffsetCursor,
-  warnPageBudget,
+  serializePage,
 } from '../budget.js';
 
 export function changeRoutes(
@@ -50,7 +50,7 @@ export function changeRoutes(
           await changes.sessionFileDiff(fileId);
         if (!response) return c.json({ error: 'File change not found' }, 404);
         const final = fitFileDiff(redactStrings(response), budget);
-        const text = warnPageBudget('changes/file', final, budget);
+        const text = serializePage('changes/file', final, budget);
         return c.body(text, 200, { 'content-type': 'application/json' });
       }
       const files = redactStrings(changes.files);
@@ -66,7 +66,7 @@ export function changeRoutes(
         truncated: changes.truncated,
         nextCursor: page.nextCursor,
       };
-      const text = warnPageBudget('changes', response, budget);
+      const text = serializePage('changes', response, budget);
       return c.body(text, 200, { 'content-type': 'application/json' });
     });
   }

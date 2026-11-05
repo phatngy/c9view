@@ -11,7 +11,7 @@ export function useCursorList<T extends object>(
   merge: (pages: T[]) => T,
   enabled = true,
 ) {
-  return useInfiniteQuery({
+  const query = useInfiniteQuery({
     queryKey,
     initialPageParam: undefined as string | undefined,
     queryFn: ({ signal, pageParam }) => read(signal, pageParam),
@@ -23,6 +23,7 @@ export function useCursorList<T extends object>(
     enabled,
     ...fileQueryOptions,
   });
+  return { ...query, isFetchNextPageError: query.isFetchNextPageError };
 }
 
 export function useGitStatus(projectId: string) {

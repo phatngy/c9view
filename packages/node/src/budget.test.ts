@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { Hono } from 'hono';
 import {
-  warnPageBudget,
+  serializePage,
   budgetItems,
   budgetOffsetPage,
   encodedBytes,
@@ -172,7 +172,7 @@ it('serializes the measured wire text once and warns with UTF-8 byte counts only
   const toJSON = vi.fn(() => ({ text: 'é', optional: undefined }));
   const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
   try {
-    const text = warnPageBudget('files', { toJSON }, 1);
+    const text = serializePage('files', { toJSON }, 1);
     expect(text).toBe('{"text":"é"}');
     expect(toJSON).toHaveBeenCalledTimes(1);
     expect(warn).toHaveBeenCalledWith(
@@ -192,7 +192,7 @@ it('returns measured JSON with the same status, headers and bytes as c.json', as
   const app = new Hono();
   app.get('/original', (c) => c.json(payload));
   app.get('/measured', (c) =>
-    c.body(warnPageBudget('files', payload, 1000), 200, {
+    c.body(serializePage('files', payload, 1000), 200, {
       'content-type': 'application/json',
     }),
   );

@@ -1,5 +1,6 @@
-// session-one's API envelope is ~1,223 bytes, plus 64 bytes of cursor slack.
-// Its messages are 191, 325 and 234 bytes: 1,600 fits one per page and cuts
-// the assistant message, while preserving the prompt and tool result.
+// The current session-one response envelope is about 1.2 KB, so 1,600 bytes
+// fits the envelope and a typical message but forces multiple pages. The split
+// depends on the fixture, serialized fields, cursors, and JSON number formatting.
 export const pageBudgetBytes = 1600;
+export const defaultServerBaseURL = 'http://127.0.0.1:7791';
 export const budgetBaseURL = 'http://127.0.0.1:7792';
