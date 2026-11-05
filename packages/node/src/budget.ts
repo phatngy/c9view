@@ -78,6 +78,7 @@ export function budgetItems<T>(
 /** Largest prefix of `text` whose JSON encoding fits `roomBytes`, with the marker. */
 export function fitText(text: string, roomBytes: number): string {
   if (encodedBytes(text) <= roomBytes) return text;
+  if (roomBytes < encodedBytes(TRUNCATED_MARKER)) return '';
   const marker = encodedBytes(TRUNCATED_MARKER) - 2;
   let low = 0;
   let high = text.length;
@@ -89,10 +90,22 @@ export function fitText(text: string, roomBytes: number): string {
   return cut(text, low) + TRUNCATED_MARKER;
 }
 
-/** Avoids splitting a surrogate pair. */
+/** Avoid splitting surrogate pairs or a redaction mask. */
 function cut(text: string, length: number): string {
   const code = text.charCodeAt(length - 1);
-  return text.slice(0, code >= 0xd800 && code <= 0xdbff ? length - 1 : length);
+  let prefix = text.slice(
+    0,
+    code >= 0xd800 && code <= 0xdbff ? length - 1 : length,
+  );
+  const mask = prefix.lastIndexOf('«');
+  const tail = prefix.slice(mask);
+  if (
+    mask >= 0 &&
+    (tail.startsWith('«redacted:') || '«redacted:'.startsWith(tail)) &&
+    !tail.includes('»')
+  )
+    prefix = prefix.slice(0, mask);
+  return prefix;
 }
 
 /** Offset cursors for list routes. Opaque to clients; only this node reads them. */
@@ -162,7 +175,15 @@ export function fitHunks<T extends Hunk>(
       encodedBytes({ ...hunk, lines: [] }) + (kept.length ? 1 : 0);
     for (const line of hunk.lines) {
       const next = encodedBytes(line) + (lines.length ? 1 : 0);
-      if (used + lineBytes + next > roomBytes) break;
+      if (used + lineBytes + next > roomBytes) {
+        const room = Math.max(
+          0,
+          roomBytes - used - lineBytes - (lines.length ? 1 : 0),
+        );
+        if (room >= encodedBytes(TRUNCATED_MARKER))
+          lines.push(fitText(line, room));
+        break;
+      }
       lines.push(line);
       lineBytes += next;
     }
@@ -170,4 +191,15 @@ export function fitHunks<T extends Hunk>(
     return { hunks: kept, cut: true };
   }
   return { hunks: kept, cut: false };
+}
+
+/** Check the final wire payload; envelopes and indivisible items may exceed the budget. */
+export function warnPageBudget(
+  route: string,
+  response: unknown,
+  budgetBytes: number,
+): void {
+  const bytes = encodedBytes(response);
+  if (bytes > budgetBytes)
+    console.warn(`${route}: ${bytes} bytes > ${budgetBytes} bytes`);
 }

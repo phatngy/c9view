@@ -124,3 +124,33 @@ it('reads offset cursors and rejects anything else', () => {
   for (const raw of ['-1', '1.5', 'abc', '9'.repeat(16), ''])
     expect(readOffsetCursor(raw)).toBeNull();
 });
+
+it('never cuts inside a redaction mask, including its opening', () => {
+  const prefix = 'safe '.repeat(30);
+  const mask = '«redacted:api-key»';
+  const text = prefix + mask + 'x'.repeat(500);
+  for (let n = 1; n < mask.length; n++) {
+    const fitted = fitText(
+      text,
+      encodedBytes(prefix + mask.slice(0, n) + TRUNCATED_MARKER),
+    );
+    expect(fitted).toBe(prefix + TRUNCATED_MARKER);
+  }
+  expect(fitText(text, -1)).toBe('');
+});
+
+it('cuts an oversized diff line to show the start of a minified file', () => {
+  const hunk = {
+    oldStart: 1,
+    oldLines: 0,
+    newStart: 1,
+    newLines: 1,
+    lines: ['+const minified = ' + 'x'.repeat(10000)],
+  };
+  const fitted = fitHunks([hunk], 300);
+  expect(fitted.cut).toBe(true);
+  expect(fitted.hunks[0]?.lines[0]).toMatch(/^\+const minified = /);
+  expect(fitted.hunks[0]?.lines[0]).toContain(TRUNCATED_MARKER);
+  expect(encodedBytes(fitted.hunks)).toBeLessThanOrEqual(300);
+  expect(fitHunks([hunk], 0)).toEqual({ hunks: [], cut: true });
+});

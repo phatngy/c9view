@@ -6,7 +6,7 @@ import type { ApiError, SessionDetailResponse } from '@c9view/api';
 import type { DataStore } from '../data/store.js';
 import type { SessionPollResponse } from '@c9view/api';
 import { DEFAULT_NODE_LIMITS, type NodeLimits } from '../limits.js';
-import { budgetItems, encodedBytes } from '../budget.js';
+import { budgetItems, encodedBytes, warnPageBudget } from '../budget.js';
 import { shrinkMessage } from './session-budget.js';
 // Cursor fields may grow by a few digits after the envelope is measured.
 const CURSOR_SLACK = 64;
@@ -38,12 +38,17 @@ export function sessionRoutes(
     const requestedCursor =
       c.req.query('from') === 'end' ? 'end' : pageNumber(rawCursor, 0);
     const limit = Math.max(1, pageNumber(c.req.query('limit'), 200, 1000));
+    const fromEnd = requestedCursor === 'end' || c.req.query('fill') === 'end';
+    const before = fromEnd
+      ? pageNumber(c.req.query('before'), Number.MAX_SAFE_INTEGER)
+      : Number.MAX_SAFE_INTEGER;
     const indexed = store.readyIndex
       ? await indexedMessages(
           store.readyIndex,
           session.id,
           requestedCursor,
           limit,
+          before,
         )
       : null;
     const all = indexed
@@ -52,16 +57,12 @@ export function sessionRoutes(
     const cursor =
       indexed?.cursor ??
       (requestedCursor === 'end'
-        ? Math.max(0, all.length - limit)
-        : Math.min(requestedCursor, all.length));
-    const window = indexed?.messages ?? all.slice(cursor, cursor + limit);
-    const fromEnd = requestedCursor === 'end' || c.req.query('fill') === 'end';
+        ? Math.max(0, Math.min(all.length, before) - limit)
+        : Math.min(requestedCursor, all.length, before));
     const total = indexed?.totalMessages ?? all.length;
-    const windowNext = indexed
-      ? indexed.nextCursor
-      : cursor + limit < all.length
-        ? cursor + limit
-        : null;
+    const windowEnd = indexed?.end ?? Math.min(cursor + limit, total, before);
+    const window = indexed?.messages ?? all.slice(cursor, windowEnd);
+    const ordinals = indexed?.ordinals ?? window.map((_, i) => cursor + i);
     const envelope: SessionDetailResponse = redactStrings({
       session,
       cwd: cached.summary.cwd ?? null,
@@ -90,19 +91,22 @@ export function sessionRoutes(
     });
     // A page cut from the end starts later than its window; one cut from the
     // start ends earlier. Either way the cursors stay contiguous.
-    const start = fromEnd ? cursor + window.length - page.count : cursor;
-    const end = start + page.count;
+    const start =
+      fromEnd && page.more ? ordinals[window.length - page.count]! : cursor;
+    const end = !fromEnd && page.more ? ordinals[page.count]! : windowEnd;
     const response: SessionDetailResponse = {
       ...envelope,
       messages: page.items,
       cursor: start,
       prevCursor: start > 0 ? Math.max(0, start - limit) : null,
-      nextCursor: end < cursor + window.length ? end : windowNext,
+      nextCursor: end < total ? end : null,
       totalMessages: total,
     };
     if (page.more || page.truncated) response.truncated = true;
     else delete response.truncated;
-    return c.json(redactStrings(response));
+    const final = redactStrings(response);
+    warnPageBudget('sessions', final, limits.pageBudgetBytes);
+    return c.json(final);
   });
   app.get('/projects/:projectId/sessions/:sessionId/status', async (c) => {
     const found = await store.findSession(

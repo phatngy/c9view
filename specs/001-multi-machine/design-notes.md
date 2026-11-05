@@ -170,6 +170,7 @@ PRs 6.0a and 6.0b land before Step 6, so session control is written once, in its
 - **6.0c, response budgets**.
   - Owns `packages/node/src/budget.ts` (new): measures encoded JSON after redaction and stops a page at the budget.
   - Edits the node's session, search, files, git and changes routes to return byte-budgeted pages with continuation cursors (R8).
+  - Session number cursors stay because the web computes earlier pages from them; trimming backward pages from the start keeps pages contiguous. An oversized item is cut with a marker, but paging through the rest of that item has no cursor yet, so R8's per-item cursor is still open.
   - Web: `apps/web/src/session/paging.ts` follows returned cursors instead of counting messages; partial-content notices in the file viewer and diffs.
 - **7a, merged endpoints**.
   - Owns `apps/hub/src/aggregate.ts` (new): merges Overview, projects and usage over every transport, with `partial` (R17).

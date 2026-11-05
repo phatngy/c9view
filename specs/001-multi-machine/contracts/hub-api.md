@@ -28,7 +28,11 @@ Types in `@c9view/api` (`machines.ts`). All paths go through login (when enabled
 
 ## Paged responses (6.0c)
 
-Session pages, search, directory listings, git status and changes, diffs: `{ items, cursor?: string, truncated?: boolean }` where `cursor` continues the page (`?cursor=`). An oversized item has `truncated: true` and its own cursor. A file above the file budget returns `{ metadata, notice: 'too-large' }` instead of content.
+Fields are additive. Each route keeps its list field: session pages use `messages`, search `results`, directory listings `entries`, git status and diffs `files`, and session changes `files`.
+
+Session pages keep number cursors (`cursor`, `prevCursor`, `nextCursor`) and `totalMessages`. A forward page keeps the start of its window; `from=end` and `fill=end` keep its end. `truncated: true` means the page stopped before its window ended or contains a cut message (`message.truncated`). With `fill=end`, optional `before=<n>` limits the window to `[cursor, min(cursor + limit, before))`; pass the later page’s cursor as `before` to avoid overlap when `prevCursor` is clamped.
+
+Search, file listings, git status, git diff, and session changes return `nextCursor` as an opaque string; pass it as `?cursor=` to continue. A malformed cursor returns 400. A git diff file or session file diff cut to fit has `truncated: true`. A file over the file budget returns metadata with `tooLarge: true` and `notice: 'too-large'`, without `content`.
 
 ## Web routes (6.0b)
 

@@ -1,3 +1,4 @@
+import { redacted } from '../data/redaction.js';
 import type { Message, MessageBlock } from '@c9view/api';
 import { encodedBytes, fitText, TRUNCATED_MARKER } from '../budget.js';
 
@@ -24,7 +25,7 @@ export function shrinkMessage(message: Message, roomBytes: number): Message {
     }
     if ('text' in block) {
       const empty = encodedBytes({ ...block, text: '' }) + 1;
-      const room = roomBytes - used - empty;
+      const room = Math.max(0, roomBytes - used - empty);
       if (room >= MIN_TEXT_BYTES) {
         blocks.push({ ...block, text: fitText(block.text, room) });
         cutInside = true;
@@ -32,6 +33,6 @@ export function shrinkMessage(message: Message, roomBytes: number): Message {
     }
     break;
   }
-  if (!cutInside) blocks.push(marker);
-  return { ...shell, blocks };
+  if (!cutInside && used + markerBytes <= roomBytes) blocks.push(marker);
+  return redacted({ ...shell, blocks });
 }
