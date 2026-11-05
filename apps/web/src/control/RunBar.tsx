@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { MoreHorizontal } from 'lucide-react';
 import type { RunState, RunSummary } from '@c9view/api';
 import { Button, IconButton, Menu } from '../kit/index.js';
-import { money } from '../ui.js';
 import { BypassBadge, DrivenBadge } from './cards.js';
 
 /** Human text and a token colour for every run state. */
@@ -88,16 +87,6 @@ export function RunBar({
           {run.mode === 'bypassPermissions' && <BypassBadge compact />}
         </span>
         <span className="ml-auto flex shrink-0 items-center gap-1">
-          {run.costUsd !== undefined && (
-            <a
-              className="inline-flex min-h-11 items-center px-1 underline decoration-dotted lg:min-h-9"
-              href="#api-equivalent-cost"
-              title="API-equivalent cost estimate"
-              aria-label={`About ${money(run.costUsd)}, API-equivalent cost`}
-            >
-              {money(run.costUsd)}
-            </a>
-          )}
           {working && (
             <Button
               variant="ghost"
@@ -120,7 +109,8 @@ export function RunBar({
               }
               items={[
                 {
-                  label: 'Stop run',
+                  label: 'Stop',
+                  destructive: true,
                   disabled: pending,
                   onSelect: () => void act(onStop),
                 },

@@ -1,11 +1,13 @@
 import type { ReactElement } from 'react';
 import { Menu as BaseMenu } from '@base-ui/react/menu';
 import { Check } from 'lucide-react';
-import { popup, option } from './classes.js';
+import { cx, popup, option } from './classes.js';
 export interface MenuItem {
   label: string;
   onSelect?: () => void;
   disabled?: boolean;
+  /** Final or destructive action: danger text colour, label stays visible. */
+  destructive?: boolean;
 }
 export interface MenuRadioGroup {
   label?: string;
@@ -30,7 +32,11 @@ export function Menu({ trigger, items = [], radioGroup }: MenuProps) {
                 key={item.label}
                 disabled={item.disabled}
                 onClick={item.onSelect}
-                className={option}
+                className={cx(
+                  option,
+                  item.destructive &&
+                    'text-danger! data-[highlighted]:bg-danger/10! data-[highlighted]:text-danger!',
+                )}
               >
                 {item.label}
               </BaseMenu.Item>

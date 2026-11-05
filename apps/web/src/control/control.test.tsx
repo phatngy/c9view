@@ -316,7 +316,7 @@ it('T048 gives each command a fresh ID, keeps the captured boot ID and parses ev
     expect(init.headers).toMatchObject({ 'X-C9view-Boot-Id': 'captured-boot' });
 });
 
-it('T051 shows state, linked cost and badges and locks run actions while pending', async () => {
+it('T051 shows state and badges and locks run actions while pending', async () => {
   let finish!: () => void;
   const interrupted = vi.fn(
     () =>
@@ -344,10 +344,6 @@ it('T051 shows state, linked cost and badges and locks run actions while pending
   );
   expect(screen.getByText('Working…')).toBeVisible();
   expect(screen.getByText('· 2 queued')).toBeVisible();
-  expect(screen.getByRole('link', { name: /API-equivalent/ })).toHaveAttribute(
-    'href',
-    '#api-equivalent-cost',
-  );
   expect(screen.getByText('Driven by c9view')).toBeVisible();
   expect(screen.getByText('Bypass')).toBeVisible();
   fireEvent.click(screen.getByRole('button', { name: 'Interrupt' }));
@@ -359,7 +355,7 @@ it('T051 shows state, linked cost and badges and locks run actions while pending
     expect(screen.getByRole('button', { name: 'Run options' })).toBeEnabled(),
   );
   fireEvent.click(screen.getByRole('button', { name: 'Run options' }));
-  fireEvent.click(await screen.findByRole('menuitem', { name: 'Stop run' }));
+  fireEvent.click(await screen.findByRole('menuitem', { name: 'Stop' }));
   await waitFor(() => expect(stopped).toHaveBeenCalledTimes(1));
 });
 it('T046 recovers an uncertain trust command then retries the previously refused reply', async () => {
