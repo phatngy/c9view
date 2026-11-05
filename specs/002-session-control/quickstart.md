@@ -10,7 +10,7 @@ corepack pnpm lint && corepack pnpm typecheck && corepack pnpm test && corepack 
 
 ## Control off (US1)
 
-`node packages/cli/dist/main.js start --port 7790` (no `--control`): `POST /api/m/local/control/runs/x/stop` → 404; `GET /api/machines` shows control `off`; no composer on session pages.
+`node packages/cli/dist/main.js start --port 7790` (no `--control`): `GET /api/m/local/control/runs` → 404; a logged-in `POST /api/m/local/control/runs/x/stop` that passes the guard → 404 (an unauthenticated `POST` gets the hub guard's 403 first, per [contracts/control-api.md](contracts/control-api.md)); `GET /api/machines` shows control `off`; no composer on session pages.
 
 ## Startup refusals (US1)
 
