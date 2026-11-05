@@ -319,3 +319,58 @@ it('Confirm stops once even on a double click, and is disabled while pending', a
   await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
   expect(stop).toHaveBeenCalledTimes(1);
 });
+
+it('Stop failure closes the dialog, shows the error, refocuses Run options and allows a retry', async () => {
+  const stop = vi
+    .fn<() => Promise<void>>()
+    .mockRejectedValueOnce(new Error('Stop failed'))
+    .mockResolvedValue(undefined);
+  const { trigger, dialog } = await openConfirm(stop);
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Stop' }));
+  await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+  expect(await screen.findByRole('alert')).toHaveTextContent('Stop failed');
+  expect(trigger).toBeEnabled();
+  await waitFor(() => expect(trigger).toHaveFocus());
+  fireEvent.click(trigger);
+  fireEvent.click(await screen.findByRole('menuitem', { name: 'Stop' }));
+  const again = await screen.findByRole('alertdialog');
+  fireEvent.click(within(again).getByRole('button', { name: 'Stop' }));
+  await waitFor(() => expect(stop).toHaveBeenCalledTimes(2));
+});
+it('Stop success leaves focus on the enabled reply box', async () => {
+  const box = document.createElement('textarea');
+  box.id = 'session-reply';
+  document.body.append(box);
+  const { dialog } = await openConfirm();
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Stop' }));
+  await waitFor(() => expect(box).toHaveFocus());
+  expect(box).toBeEnabled();
+  box.remove();
+});
+it('Escape while Stop is pending closes the dialog without a second stop', async () => {
+  let finish!: () => void;
+  const stop = vi.fn(
+    () =>
+      new Promise<void>((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const { dialog } = await openConfirm(stop);
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Stop' }));
+  fireEvent.keyDown(dialog, { key: 'Escape' });
+  await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+  finish();
+  await Promise.resolve();
+  expect(stop).toHaveBeenCalledTimes(1);
+});
+it('does not announce Waiting for you from the bar when a request is pending', () => {
+  const live = () =>
+    screen
+      .getAllByRole('status')
+      .map((n) => n.textContent)
+      .join('');
+  const { rerender } = bar({ state: 'running' });
+  rerender({ state: 'running' }, true);
+  expect(screen.getByText('Waiting for you')).toBeVisible();
+  expect(live()).toBe('');
+});

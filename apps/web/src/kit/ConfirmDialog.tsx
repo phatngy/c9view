@@ -15,8 +15,8 @@ export interface ConfirmDialogProps {
   /** Disables Confirm (and Cancel) while the confirmed work is pending. */
   pending?: boolean;
   onConfirm: () => void;
-  /** Where focus goes on close; defaults to the element focused before open. */
-  finalFocus?: () => HTMLElement | null;
+  /** Where focus goes on close (false: leave it to the caller); defaults to the element focused before open. */
+  finalFocus?: () => HTMLElement | boolean | null;
 }
 
 /**
