@@ -113,6 +113,9 @@ export function controlApi(machineId: string, bootId: string) {
         signal,
       ),
     ) as CommandReceipt;
+  // A POST runs once: timeout, gateway failure or an unreadable receipt may hide
+  // a committed command. Recover only with receipt GETs; never replay it.
+  // A manual resend after a clean failure is a new command with a fresh ID.
   async function post(path: string, body: object) {
     const clientRequestId = crypto.randomUUID();
     let response: Response;

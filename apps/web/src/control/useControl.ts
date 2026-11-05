@@ -5,13 +5,6 @@ import { queryKeys } from '../queryKeys.js';
 import { useLivePolling } from '../live/state.js';
 import { controlApi } from './api.js';
 
-// Existing query keys have no control entries yet; extend the machine prefix locally.
-export const controlKeys = {
-  runs: (machineId: string) =>
-    [queryKeys.overview(machineId)[0], 'control-runs'] as const,
-  receipt: (machineId: string, id: string) =>
-    [queryKeys.overview(machineId)[0], 'control-receipt', id] as const,
-};
 export function useControl() {
   const machineId = useMachineId();
   const client = useQueryClient();
@@ -25,7 +18,7 @@ export function useControl() {
   const ready = machine?.capabilities.control.state === 'ready';
   const service = controlApi(machineId, machine?.bootId ?? '');
   const query = useQuery({
-    queryKey: controlKeys.runs(machineId),
+    queryKey: queryKeys.controlRuns(machineId),
     queryFn: ({ signal }) => service.runs(signal),
     enabled: ready,
     refetchInterval: useLivePolling(),
@@ -37,6 +30,6 @@ export function useControl() {
     machine,
     service,
     refresh: () =>
-      client.invalidateQueries({ queryKey: controlKeys.runs(machineId) }),
+      client.invalidateQueries({ queryKey: queryKeys.controlRuns(machineId) }),
   };
 }

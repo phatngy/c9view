@@ -132,10 +132,13 @@ export async function invalidateLiveEvent(
           case 'control.run':
           case 'control.request':
           case 'control.request.resolved':
-            return kind === 'control-runs';
+            return kind === queryKeys.controlRuns(machineId)[1];
           case 'control.project':
             return (
-              kind === 'control-receipt' && projectId === event.clientRequestId
+              typeof event.clientRequestId === 'string' &&
+              kind ===
+                queryKeys.controlReceipt(machineId, event.clientRequestId)[1] &&
+              projectId === event.clientRequestId
             );
           case 'project':
             return (
