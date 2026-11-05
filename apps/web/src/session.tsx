@@ -1,3 +1,5 @@
+import { useControl } from './control/useControl.js';
+import { Composer } from './control/Composer.js';
 import { MessageSquare, List, Files, ChartNoAxesColumn } from 'lucide-react';
 import {
   useCallback,
@@ -42,6 +44,7 @@ function SessionView({
   sessionId: string;
 }) {
   const machineId = useMachineId();
+  const control = useControl();
   const query = useSession(projectId, sessionId);
   const client = useQueryClient();
   const loadingOlder = useRef(false);
@@ -434,6 +437,14 @@ function SessionView({
   return (
     <div className="session-page gap-5">
       <SessionHeader
+        ownedRun={
+          control.ready
+            ? control.data?.runs.find(
+                (run) =>
+                  run.projectId === projectId && run.sessionId === sessionId,
+              )
+            : undefined
+        }
         data={data}
         projectName={projectLabel}
         status={poll.data?.status ?? data.session.status}
@@ -528,6 +539,7 @@ function SessionView({
               },
             }}
           />
+          <Composer projectId={projectId} sessionId={sessionId} />
         </div>
         <aside
           aria-label="Session rail"

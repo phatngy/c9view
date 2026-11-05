@@ -1,3 +1,5 @@
+import { useControl } from '../control/useControl.js';
+import { BypassBadge, DrivenBadge } from '../control/cards.js';
 import { useMachineId } from '../machine.js';
 import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
@@ -15,6 +17,7 @@ export function Kanban({
   projectId: string;
 }) {
   const machineId = useMachineId();
+  const control = useControl();
   const [inactiveLimit, setInactiveLimit] = useState(30);
   return (
     <div className="project-board">
@@ -53,6 +56,19 @@ export function Kanban({
                     {relative(session.lastAt)}
                   </time>
                 </div>
+                {control.ready &&
+                  control.data?.runs.some(
+                    (run) =>
+                      run.projectId === projectId &&
+                      run.sessionId === session.id,
+                  ) && <DrivenBadge compact />}
+                {control.ready &&
+                  control.data?.runs.some(
+                    (run) =>
+                      run.projectId === projectId &&
+                      run.sessionId === session.id &&
+                      run.mode === 'bypassPermissions',
+                  ) && <BypassBadge compact />}
                 {session.liveName && (
                   <span
                     className="text-xs text-muted"

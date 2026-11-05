@@ -1,5 +1,10 @@
+import { BypassBadge, DrivenBadge } from '../../control/cards.js';
 import { useState } from 'react';
-import type { SessionDetailResponse, SessionStatus } from '@c9view/api';
+import type {
+  RunSummary,
+  SessionDetailResponse,
+  SessionStatus,
+} from '@c9view/api';
 import { GitBranch, Search, Info } from 'lucide-react';
 import { Badge } from '../../kit/Badge.js';
 import { IconButton } from '../../kit/IconButton.js';
@@ -26,7 +31,9 @@ export function SessionHeader({
   toggleSearch,
   searchButton,
   notice,
+  ownedRun,
 }: {
+  ownedRun?: RunSummary | undefined;
   data: SessionDetailResponse;
   projectName: string;
   status: SessionStatus;
@@ -39,6 +46,12 @@ export function SessionHeader({
   notice: (message: string) => void;
 }) {
   const { session } = data;
+  const controlBadges = ownedRun && (
+    <>
+      <DrivenBadge compact />
+      {ownedRun.mode === 'bypassPermissions' && <BypassBadge compact />}
+    </>
+  );
   const [details, setDetails] = useState(false);
   const primaryModel =
     [...data.byModel].sort((a, b) => b.costUsd - a.costUsd)[0]?.model ??
@@ -55,6 +68,7 @@ export function SessionHeader({
       className="session-header sticky top-0 z-2 flex flex-none flex-wrap items-center border-b border-line bg-page md:static"
     >
       <div className="compact-session-header">
+        {controlBadges}
         <div className="min-w-0 flex-1">
           <p className="truncate text-lead font-semibold">
             {session.title || 'Untitled session'}
@@ -88,6 +102,7 @@ export function SessionHeader({
       <div id="session-full-header" className="session-desktop-header">
         <div className="session-header-primary">
           <div className="session-header-status">
+            {controlBadges}
             <Badge status={status.column}>{labels[status.column]}</Badge>
             <span className="text-xs text-muted">{status.reason}</span>
             {status.observedAt && (

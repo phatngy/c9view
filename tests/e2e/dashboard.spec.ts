@@ -241,3 +241,18 @@ test('legacy project URLs redirect while retaining their query', async ({
   // as a string, so `line=2` reads back as `"2"` (same as before the redirect).
   expect(JSON.parse(url.searchParams.get('line') ?? 'null')).toBe('2');
 });
+
+test('Control off keeps the session read-only without a reply composer', async ({
+  page,
+}) => {
+  await page.goto(sessionPath);
+  await expect(
+    page.getByRole('heading', { name: 'Sample widget', exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('textbox', { name: 'Reply to session' }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole('button', { name: 'Send', exact: true }),
+  ).toHaveCount(0);
+});
