@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -144,6 +144,63 @@ describe.each(['file cache', 'SQLite index'])(
       expect(uuids).toEqual(expected);
     });
 
+    it('uses before with the default limit and a clamped prevCursor without overlap or gaps', async () => {
+      const served = await app();
+      let current = await page(served, 'from=end');
+      const seen = current.messages.map((m) => m.uuid);
+      let clamped = false;
+      while (current.prevCursor !== null) {
+        const end = current.cursor;
+        if (current.prevCursor === 0 && end < 200) clamped = true;
+        current = await page(
+          served,
+          `cursor=${current.prevCursor}&fill=end&before=${end}`,
+        );
+        expect(current.cursor + current.messages.length).toBe(end);
+        seen.unshift(...current.messages.map((m) => m.uuid));
+      }
+      expect(clamped).toBe(true);
+      expect(seen).toEqual(expected);
+    });
+
+    it('handles a cursor past the end and limit=1', async () => {
+      const served = await app();
+      expect(await page(served, 'cursor=9999')).toMatchObject({
+        cursor: COUNT,
+        messages: [],
+        nextCursor: null,
+      });
+      const one = await page(served, 'cursor=1&limit=1');
+      expect(one.messages.map((m) => m.uuid)).toEqual(['u0']);
+      expect(one).toMatchObject({ cursor: 1, prevCursor: 0, nextCursor: 2 });
+    });
+
+    it('keeps forward pages contiguous when the session grows between requests', async () => {
+      const served = await app();
+      const first = await page(served, 'limit=199');
+      await appendFile(
+        join(store.config.claudeDir, 'projects/-fixture-large/s.jsonl'),
+        JSON.stringify({
+          type: 'user',
+          uuid: 'appended',
+          message: { content: 'new fixture message' },
+        }) + '\n',
+      );
+      await vi.waitFor(async () => {
+        const latest = await page(served, 'from=end&limit=1');
+        expect(latest.totalMessages).toBe(COUNT + 1);
+      });
+      const seen = first.messages.map((m) => m.uuid);
+      let cursor = first.nextCursor;
+      while (cursor !== null) {
+        const next = await page(served, `cursor=${cursor}`);
+        expect(next.cursor).toBe(cursor);
+        seen.push(...next.messages.map((m) => m.uuid));
+        cursor = next.nextCursor;
+      }
+      expect(seen).toEqual([...expected, 'appended']);
+    });
+
     it('pages backwards from the end without gaps', async () => {
       const served = await app();
       expect(await backward(served)).toEqual(expected);
@@ -176,4 +233,67 @@ it('leaves small pages as they were', async () => {
   expect(small).toMatchObject({ cursor: 0, nextCursor: 10, prevCursor: null });
   expect(small).not.toHaveProperty('truncated');
   expect(small.messages).toHaveLength(10);
+});
+
+it('answers and advances when the session envelope alone exceeds the budget', async () => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  try {
+    const served = createApp(store.config, {
+      store,
+      limits: { pageBudgetBytes: 1 },
+    });
+    const response = await served.request(`${base}?cursor=1`);
+    expect(response.status).toBe(200);
+    const text = await response.text();
+    expect(JSON.parse(text)).toMatchObject({
+      cursor: 1,
+      nextCursor: 2,
+      messages: [{ uuid: 'u0', blocks: [], truncated: true }],
+    });
+    expect(warn.mock.calls).toEqual([
+      [`sessions: ${Buffer.byteLength(text)} bytes > 1 bytes`],
+    ]);
+  } finally {
+    warn.mockRestore();
+  }
+});
+
+it('keeps redaction and truncation markers intact when a secret crosses the cut point', async () => {
+  const secret = 'sk-ant-fixture-secret-1234567890';
+  const file = join(
+    store.config.claudeDir,
+    'projects/-fixture-large/secret.jsonl',
+  );
+  const write = async (content: string) =>
+    writeFile(
+      file,
+      JSON.stringify({ type: 'user', uuid: 'secret', message: { content } }) +
+        '\n',
+    );
+  const served = createApp(store.config, {
+    store,
+    limits: { pageBudgetBytes: 2400 },
+  });
+  const path = '/api/projects/-fixture-large/sessions/secret';
+  const prefix = 'safe '.repeat(65) + secret + ' ';
+  await write(prefix + 'x '.repeat(5000));
+  const baseline = (await (
+    await served.request(path)
+  ).json()) as SessionDetailResponse;
+  const block = baseline.messages[0]!.blocks[0]!;
+  expect('text' in block).toBe(true);
+  const cutoff = 'text' in block ? block.text.indexOf(TRUNCATED_MARKER) : 0;
+  expect(cutoff).toBeGreaterThan(400);
+  const { redactText } = await import('@c9view/core');
+  const safePrefix = redactText(prefix);
+  const padding = 'x '.repeat(Math.ceil((cutoff - safePrefix.length - 6) / 2));
+  await write(prefix + padding + secret + ' ' + 'z '.repeat(5000));
+  const response = await served.request(path);
+  const text = await response.text();
+  expect(response.status).toBe(200);
+  expect(Buffer.byteLength(text)).toBeLessThanOrEqual(2400);
+  expect(text).not.toContain('sk-ant-');
+  expect(text).toContain('«redacted:');
+  expect(text).toContain(TRUNCATED_MARKER);
+  expect(text.replace(/«redacted:[^»]*»/g, '')).not.toContain('«');
 });

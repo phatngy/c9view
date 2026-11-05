@@ -293,3 +293,130 @@ describe('file and git budgets', () => {
     expect(body.files[0]).toMatchObject({ path: 'file.ts', truncated: true });
   });
 });
+
+it('checks project and session before changes cursors and ignores cursors for file diffs', async () => {
+  expect(
+    (await app.request('/api/projects/missing/sessions/s/changes?cursor=bad'))
+      .status,
+  ).toBe(404);
+  expect(
+    (await app.request(`${base}/sessions/missing/changes?cursor=bad`)).status,
+  ).toBe(404);
+  expect(
+    (await app.request(`${base}/sessions/s/changes?cursor=bad`)).status,
+  ).toBe(400);
+  const list = await get<SessionChangesResponse>(`${base}/sessions/s/changes`);
+  const path = `${base}/sessions/s/changes/${list.files[0]!.fileId}`;
+  expect(await get<SessionFileDiffResponse>(path + '?cursor=bad')).toEqual(
+    await get<SessionFileDiffResponse>(path),
+  );
+});
+
+it('logs final byte counts and advances paged routes even when the envelope cannot fit', async () => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  try {
+    const small = createApp(
+      loadConfig({ C9VIEW_CLAUDE_DIR: join(dir, 'claude') }),
+      { limits: { pageBudgetBytes: 1 } },
+    );
+    for (const [path, route, field] of [
+      [`${base}/files`, 'files', 'entries'],
+      [`${base}/git/status`, 'git/status', 'files'],
+      [`${base}/git/diff`, 'git/diff', 'files'],
+    ]) {
+      warn.mockClear();
+      const response = await small.request(path!);
+      expect(response.status).toBe(200);
+      const text = await response.text();
+      const body = JSON.parse(text);
+      expect(body[field!]).toHaveLength(1);
+      expect(body.nextCursor).toBe('1');
+      if (route === 'git/diff') expect(body.files[0].hunks).toEqual([]);
+      expect(warn.mock.calls).toEqual([
+        [`${route}: ${Buffer.byteLength(text)} bytes > 1 bytes`],
+      ]);
+    }
+    const files = await get<SessionChangesResponse>(
+      `${base}/sessions/s/changes`,
+    );
+    warn.mockClear();
+    const response = await small.request(
+      `${base}/sessions/s/changes/${files.files[0]!.fileId}`,
+    );
+    const text = await response.text();
+    expect(response.status).toBe(200);
+    expect(JSON.parse(text)).toMatchObject({
+      truncated: true,
+      hunks: [],
+      steps: [{ hunks: [], additions: 1, deletions: 1 }],
+    });
+    expect(warn.mock.calls).toEqual([
+      [`changes/file: ${Buffer.byteLength(text)} bytes > 1 bytes`],
+    ]);
+  } finally {
+    warn.mockRestore();
+  }
+});
+
+it('pages a changes list across multiple pages and logs oversized final envelopes', async () => {
+  const records = Array.from({ length: 4 }, (_, i) => ({
+    type: 'assistant',
+    uuid: `change-${i}`,
+    cwd: join(dir, 'project'),
+    message: {
+      id: `change-${i}`,
+      model: 'fixture',
+      content: [
+        {
+          type: 'tool_use',
+          id: `write-${i}`,
+          name: 'Write',
+          input: {
+            file_path: join(dir, 'project', `change-${i}.ts`),
+            content: 'fixture\n',
+          },
+        },
+      ],
+    },
+  }));
+  await writeFile(
+    join(dir, 'claude/projects/-fixture-files/many.jsonl'),
+    records.map((r) => JSON.stringify(r) + '\n').join(''),
+  );
+  const small = createApp(
+    loadConfig({ C9VIEW_CLAUDE_DIR: join(dir, 'claude') }),
+    { limits: { pageBudgetBytes: 1 } },
+  );
+  const fullApp = createApp(
+    loadConfig({ C9VIEW_CLAUDE_DIR: join(dir, 'claude') }),
+  );
+  const path = `${base}/sessions/many/changes`;
+  const full = (await (
+    await fullApp.request(path)
+  ).json()) as SessionChangesResponse;
+  expect(full.files).toHaveLength(4);
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  try {
+    const seen: SessionChangesResponse['files'] = [];
+    let cursor: string | null = '0';
+    while (cursor !== null) {
+      warn.mockClear();
+      const response = await small.request(`${path}?cursor=${cursor}`);
+      expect(response.status).toBe(200);
+      const text = await response.text();
+      const body = JSON.parse(text) as SessionChangesResponse;
+      expect(body.files).toHaveLength(1);
+      seen.push(...body.files);
+      expect(body.nextCursor).toBe(
+        seen.length < 4 ? String(seen.length) : null,
+      );
+      cursor = body.nextCursor ?? null;
+      expect(warn.mock.calls).toEqual([
+        [`changes: ${Buffer.byteLength(text)} bytes > 1 bytes`],
+      ]);
+    }
+    expect(seen).toEqual(full.files);
+  } finally {
+    warn.mockRestore();
+  }
+});

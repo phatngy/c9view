@@ -16,6 +16,7 @@ import {
   encodedBytes,
   fitHunks,
   readOffsetCursor,
+  warnPageBudget,
 } from '../budget.js';
 
 type DiffFile = GitDiffResponse['files'][number];
@@ -52,6 +53,7 @@ export function fileRoutes(
         entries: page.items,
         nextCursor: page.nextCursor,
       };
+      warnPageBudget('files', response, budget);
       return c.json(response);
     } catch {
       return c.json({ error: 'Path unavailable or forbidden' }, 400);
@@ -86,8 +88,11 @@ export function fileRoutes(
     if (offset === null) return c.json(badCursor, 400);
     try {
       const git = createGit(found.project.path);
-      if (!(await git.isRepo()))
-        return c.json({ isRepo: false } satisfies GitStatusResponse);
+      if (!(await git.isRepo())) {
+        const response = { isRepo: false } satisfies GitStatusResponse;
+        warnPageBudget('git/status', response, budget);
+        return c.json(response);
+      }
       const status = redactStrings(await git.status());
       const envelope = { isRepo: true as const, ...status, files: [] };
       const page = budgetOffsetPage(
@@ -101,6 +106,7 @@ export function fileRoutes(
         files: page.items,
         nextCursor: page.nextCursor,
       };
+      warnPageBudget('git/status', response, budget);
       return c.json(response);
     } catch (error) {
       console.error('Git status failed', error);
@@ -131,6 +137,7 @@ export function fileRoutes(
         files: page.items,
         nextCursor: page.nextCursor,
       };
+      warnPageBudget('git/diff', response, budget);
       return c.json(response);
     } catch (error) {
       console.error('Git diff failed', error);
@@ -144,7 +151,10 @@ export function fileRoutes(
 /** One file's diff larger than a page keeps the hunks and lines that fit. */
 export function shrinkDiffFile(file: DiffFile, roomBytes: number): DiffFile {
   const shell = { ...file, hunks: [], truncated: true };
-  const { hunks } = fitHunks(file.hunks, roomBytes - encodedBytes(shell) + 2);
+  const { hunks } = fitHunks(
+    file.hunks,
+    Math.max(0, roomBytes - encodedBytes(shell) + 2),
+  );
   return { ...shell, hunks };
 }
 

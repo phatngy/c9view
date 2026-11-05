@@ -111,15 +111,24 @@ export async function indexedMessages(
   id: string,
   cursor: number | 'end',
   limit: number,
+  before = Number.MAX_SAFE_INTEGER,
 ) {
   const session = getSession(db, id);
   if (!session) return null;
-  const cache = pages.get(db) ?? new Map();
+  const cache =
+    pages.get(db) ??
+    new Map<
+      string,
+      {
+        stamp: string;
+        value: NonNullable<Awaited<ReturnType<typeof readIndexedMessages>>>;
+      }
+    >();
   pages.set(db, cache);
-  const key = JSON.stringify([id, cursor, limit]);
+  const key = JSON.stringify([id, cursor, limit, before]);
   const previous = cache.get(key);
   if (previous?.stamp === stamp(session)) return previous.value;
-  const value = await readIndexedMessages(db, id, cursor, limit);
+  const value = await readIndexedMessages(db, id, cursor, limit, before);
   if (value) {
     cache.set(key, { stamp: stamp(session), value });
     if (cache.size > 20) cache.delete(cache.keys().next().value!);
@@ -131,23 +140,25 @@ async function readIndexedMessages(
   id: string,
   cursor: number | 'end',
   limit: number,
+  before = Number.MAX_SAFE_INTEGER,
 ) {
   const rows = messageRows(db, id);
   const visible = rows.filter((r) =>
     ['user', 'assistant', 'system'].includes(r.type),
   );
+  const bound = Math.min(visible.length, before);
   const start =
-    cursor === 'end'
-      ? Math.max(0, visible.length - limit)
-      : Math.min(cursor, visible.length);
+    cursor === 'end' ? Math.max(0, bound - limit) : Math.min(cursor, bound);
+  const end = Math.min(start + limit, bound);
   const pagination = {
+    end,
     cursor: start,
     prevCursor: start > 0 ? Math.max(0, start - limit) : null,
     nextCursor: start + limit < visible.length ? start + limit : null,
     totalMessages: visible.length,
   };
-  const selected = visible.slice(start, start + limit);
-  if (!selected.length) return { messages: [], ...pagination };
+  const selected = visible.slice(start, end);
+  if (!selected.length) return { messages: [], ordinals: [], ...pagination };
   // Core pages by byte offset, while the public API retains its message ordinal cursor.
   const wanted = new Set(selected.map((r) => r.uuid));
   const page: ReturnType<typeof getMessages> = [];
@@ -208,7 +219,8 @@ async function readIndexedMessages(
       if (acceptResults(record)) records.push(record);
   }
   const mapped = messages(records);
-  const result = selected.flatMap((row) => {
+  const ordinals: number[] = [];
+  const result = selected.flatMap((row, ordinal) => {
     const index = uuids.indexOf(row.uuid);
     const record = records[index];
     const uuid =
@@ -219,10 +231,12 @@ async function readIndexedMessages(
     if (!message) return [];
     if (record && typeof record.uuid !== 'string')
       message.uuid = `record-${rows.findIndex((r) => r.uuid === row.uuid)}`;
+    ordinals.push(start + ordinal);
     return [message];
   });
   return {
     messages: result,
+    ordinals,
     ...pagination,
   };
 }

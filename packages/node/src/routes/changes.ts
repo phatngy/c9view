@@ -13,6 +13,7 @@ import {
   encodedBytes,
   fitHunks,
   readOffsetCursor,
+  warnPageBudget,
 } from '../budget.js';
 
 export function changeRoutes(
@@ -26,8 +27,6 @@ export function changeRoutes(
     '/projects/:projectId/sessions/:sessionId/changes/:fileId',
   ]) {
     app.get(route, async (c) => {
-      const offset = readOffsetCursor(c.req.query('cursor'));
-      if (offset === null) return c.json({ error: 'Invalid cursor' }, 400);
       const project = await fileProject(store, c.req.param('projectId')!);
       if (!project) return c.json({ error: 'Project not found' }, 404);
       const found = await store.findSession(
@@ -36,6 +35,10 @@ export function changeRoutes(
         true,
       );
       if (!found) return c.json({ error: 'Session not found' }, 404);
+      const offset = c.req.param('fileId')
+        ? 0
+        : readOffsetCursor(c.req.query('cursor'));
+      if (offset === null) return c.json({ error: 'Invalid cursor' }, 400);
       const changes = await cachedSessionChanges(
         store,
         found,
@@ -45,9 +48,10 @@ export function changeRoutes(
       if (fileId !== undefined) {
         const response: SessionFileDiffResponse | undefined =
           await changes.sessionFileDiff(fileId);
-        return response
-          ? c.json(fitFileDiff(redactStrings(response), budget))
-          : c.json({ error: 'File change not found' }, 404);
+        if (!response) return c.json({ error: 'File change not found' }, 404);
+        const final = fitFileDiff(redactStrings(response), budget);
+        warnPageBudget('changes/file', final, budget);
+        return c.json(final);
       }
       const files = redactStrings(changes.files);
       const envelope = { files: [], truncated: true, nextCursor: null };
@@ -62,6 +66,7 @@ export function changeRoutes(
         truncated: changes.truncated,
         nextCursor: page.nextCursor,
       };
+      warnPageBudget('changes', response, budget);
       return c.json(response);
     });
   }
@@ -78,16 +83,18 @@ export function fitFileDiff(
 ): SessionFileDiffResponse {
   if (encodedBytes(response) <= budget) return response;
   const shell = { ...response, hunks: [], steps: [], truncated: true };
-  const room = budget - encodedBytes(shell) - 64;
+  const room = Math.max(0, budget - encodedBytes(shell) - 64);
   const { hunks } = fitHunks(response.hunks, Math.floor(room / 2));
   const steps = budgetItems(response.steps, {
     envelopeBytes: encodedBytes({ ...shell, hunks }) + 64,
     budgetBytes: budget,
+    // ToolFileChange has no truncated field: counts describe the original step,
+    // even when its hunks are cut; the enclosing diff is marked truncated.
     shrink: (step, stepRoom) => ({
       ...step,
       hunks: fitHunks(
         step.hunks,
-        stepRoom - encodedBytes({ ...step, hunks: [] }) + 2,
+        Math.max(0, stepRoom - encodedBytes({ ...step, hunks: [] }) + 2),
       ).hunks,
     }),
   });

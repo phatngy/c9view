@@ -579,3 +579,62 @@ it('keeps file and indexed pagination identical at the default and maximum limit
   for (const [i, query] of queries.entries())
     expect(await json(path + query)).toEqual(before[i]);
 });
+
+it('advances ordinal cursors across selected rows that cannot map to messages', async () => {
+  const file = join(
+    store.config.claudeDir,
+    'projects/-fixture-alpha/dropped.jsonl',
+  );
+  await writeFile(
+    file,
+    Array.from(
+      { length: 5 },
+      (_, i) =>
+        JSON.stringify(
+          i === 1 || i === 3
+            ? { type: 'progress', uuid: `row-${i}` }
+            : {
+                type: 'user',
+                uuid: `row-${i}`,
+                message: { content: 'fixture '.repeat(100) },
+              },
+        ) + '\n',
+    ).join(''),
+  );
+  runtime = startIndex(store.config, store);
+  await runtime.ready;
+  // Simulate stale indexed types: these rows are selected but their raw records
+  // are progress events, so the message mapper drops them.
+  store
+    .index!.sqlite.prepare(
+      "UPDATE messages SET type='user' WHERE sessionId='dropped' AND uuid IN ('row-1','row-3')",
+    )
+    .run();
+  const path = '/api/projects/-fixture-alpha/sessions/dropped';
+  const full = (await json(path + '?limit=4')) as SessionDetailResponse;
+  expect(full.messages.map((m) => m.uuid)).toEqual(['row-0', 'row-2']);
+  expect(full).toMatchObject({ cursor: 0, nextCursor: 4, totalMessages: 5 });
+  app = createApp(store.config, { store, limits: { pageBudgetBytes: 1 } });
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  try {
+    const first = (await json(path + '?limit=4')) as SessionDetailResponse;
+    expect(first.messages.map((m) => m.uuid)).toEqual(['row-0']);
+    expect(first).toMatchObject({ cursor: 0, nextCursor: 2 });
+    const next = (await json(
+      path + '?cursor=2&limit=2',
+    )) as SessionDetailResponse;
+    expect(next.messages.map((m) => m.uuid)).toEqual(['row-2']);
+    expect(next.nextCursor).toBe(4);
+    const back = (await json(
+      path + '?cursor=0&limit=4&fill=end&before=4',
+    )) as SessionDetailResponse;
+    expect(back.messages.map((m) => m.uuid)).toEqual(['row-2']);
+    expect(back).toMatchObject({ cursor: 2, nextCursor: 4 });
+    const empty = (await json(
+      path + '?cursor=1&limit=1',
+    )) as SessionDetailResponse;
+    expect(empty).toMatchObject({ cursor: 1, messages: [], nextCursor: 2 });
+  } finally {
+    warn.mockRestore();
+  }
+});

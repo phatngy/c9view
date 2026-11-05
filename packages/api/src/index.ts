@@ -139,6 +139,8 @@ export interface Message {
 // Pages stop under the node's page budget (6.0c): a forward page keeps the
 // start of its window and `nextCursor` continues it; `from=end` and
 // `fill=end` keep the end of the window and `prevCursor` continues backwards.
+// With `fill=end`, optional `before=<n>` bounds the window to
+// [cursor, min(cursor + limit, before)); pass the later page's cursor as before.
 export interface SessionDetailResponse {
   session: SessionSummary;
   cwd: string | null;
