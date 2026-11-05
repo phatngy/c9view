@@ -36,6 +36,22 @@ const announced = new Set([
   labels.need_input,
 ]);
 
+/** Focus the reply box once it is enabled, unless the user moved on. */
+function focusReply(attempt = 0) {
+  window.setTimeout(() => {
+    const box = document.getElementById('session-reply');
+    const active = document.activeElement;
+    if (
+      active &&
+      active !== document.body &&
+      !active.closest('[role="alertdialog"]')
+    )
+      return;
+    if (box instanceof HTMLTextAreaElement && !box.disabled) box.focus();
+    else if (attempt < 20) focusReply(attempt + 1);
+  }, 50);
+}
+
 export function RunBar({
   run,
   status,
@@ -95,7 +111,10 @@ export function RunBar({
   useEffect(() => {
     if (previous.current === info.label) return;
     previous.current = info.label;
-    setAnnouncement(announced.has(info.label) ? info.label : '');
+    // The composer already announces pending requests.
+    const skip = needsInput && info.label === stateInfo.waiting.label;
+    setAnnouncement(announced.has(info.label) && !skip ? info.label : '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [info.label]);
   const lastActive = lastAt ? `last active ${relative(lastAt)}` : 'No activity';
   return (
@@ -153,7 +172,10 @@ export function RunBar({
                   label: 'Stop',
                   destructive: true,
                   disabled: pending,
-                  onSelect: () => setConfirming(true),
+                  onSelect: () => {
+                    stopped.current = false;
+                    setConfirming(true);
+                  },
                 },
               ]}
             />
@@ -171,11 +193,14 @@ export function RunBar({
                 void act(onStop).then((ok) => {
                   stopped.current = ok;
                   setConfirming(false);
+                  if (ok) focusReply();
                 })
               }
               finalFocus={() =>
+                // After a successful stop the reply box takes focus once it
+                // is enabled again (see focusReply); otherwise the trigger.
                 stopped.current
-                  ? document.getElementById('session-reply')
+                  ? false
                   : (section.current?.querySelector<HTMLElement>(
                       '[aria-label="Run options"]',
                     ) ?? null)

@@ -556,7 +556,7 @@ function SessionView({
             sessionId={sessionId}
             lastResponse={lastResponse}
             status={poll.data?.status ?? data.session.status}
-            lastAt={poll.data?.lastAt ?? data.session.lastAt}
+            lastAt={poll.data ? poll.data.lastAt : data.session.lastAt}
           />
         </div>
         <aside
