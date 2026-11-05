@@ -55,8 +55,35 @@ function isComposing(event: KeyboardEvent | React.KeyboardEvent) {
 function coarsePointer() {
   return (
     typeof window.matchMedia === 'function' &&
-    window.matchMedia('(pointer: coarse)').matches
+    window.matchMedia('(hover: none) and (pointer: coarse)').matches
   );
+}
+/** Clipboard API where available (secure contexts), else a hidden textarea. */
+async function copyText(value: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value);
+      return true;
+    }
+  } catch {
+    // Fall through to the legacy path.
+  }
+  const area = document.createElement('textarea');
+  const active = document.activeElement;
+  try {
+    area.value = value;
+    area.setAttribute('readonly', '');
+    area.setAttribute('aria-hidden', 'true');
+    area.style.cssText = 'position:fixed;top:0;left:-9999px;opacity:0';
+    document.body.append(area);
+    area.select();
+    return document.execCommand('copy');
+  } catch {
+    return false;
+  } finally {
+    area.remove();
+    if (active instanceof HTMLElement) active.focus();
+  }
 }
 function Shortcut({ keys, label }: { keys: string[]; label: string }) {
   return (
@@ -239,7 +266,7 @@ export function Composer({
       if (!mod || !event.shiftKey || event.altKey) return;
       if (
         event.target instanceof Element &&
-        event.target.closest('dialog[open]')
+        event.target.closest('dialog[open], [role="dialog"]')
       )
         return;
       if (
@@ -250,6 +277,8 @@ export function Composer({
         event.preventDefault();
         composer.current?.focus();
       } else if (event.code === 'KeyC' || event.key.toLowerCase() === 'c') {
+        // Leave the browser's copy alone when text is selected.
+        if (window.getSelection()?.toString()) return;
         event.preventDefault();
         const value = lastResponseRef.current;
         window.clearTimeout(timer);
@@ -259,8 +288,8 @@ export function Composer({
           timer = window.setTimeout(() => setCopyNote(''), 3000);
         };
         if (!value) return announce('Nothing to copy');
-        navigator.clipboard.writeText(value).then(
-          () => announce('Copied'),
+        copyText(value).then(
+          (ok) => announce(ok ? 'Copied' : 'Could not copy'),
           () => announce('Could not copy'),
         );
       }
@@ -579,14 +608,18 @@ export function Composer({
               value={text}
               onChange={(event) => setText(event.target.value.slice(0, LIMIT))}
               onKeyDown={(event) => {
+                if (event.key !== 'Enter' || isComposing(event)) return;
+                const modified =
+                  (mac ? event.metaKey && !event.ctrlKey : event.ctrlKey) &&
+                  !event.shiftKey &&
+                  !event.altKey;
                 if (
-                  event.key !== 'Enter' ||
-                  event.shiftKey ||
-                  event.ctrlKey ||
-                  event.metaKey ||
-                  event.altKey ||
-                  isComposing(event) ||
-                  coarsePointer()
+                  !modified &&
+                  (event.shiftKey ||
+                    event.ctrlKey ||
+                    event.metaKey ||
+                    event.altKey ||
+                    coarsePointer())
                 )
                   return;
                 event.preventDefault();
@@ -648,6 +681,7 @@ export function Composer({
                     <dl className="space-y-2 text-sm">
                       <Shortcut label="Send" keys={['Enter']} />
                       <Shortcut label="New line" keys={['Shift', 'Enter']} />
+                      <Shortcut label="Send" keys={[modKey, 'Enter']} />
                       <Shortcut
                         label="Focus the reply box"
                         keys={[modKey, 'Shift', ';']}
@@ -671,7 +705,8 @@ export function Composer({
                   <button
                     key="interrupt"
                     type="button"
-                    aria-label="Interrupt"
+                    aria-label="Stop response"
+                    title="Stop response"
                     disabled={pending || !!waiting}
                     onClick={() =>
                       void action(() =>

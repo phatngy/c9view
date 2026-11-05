@@ -124,10 +124,13 @@ it('treats Enter as a newline on a coarse pointer', () => {
   fireEvent.click(screen.getByRole('button', { name: 'Send' }));
   expect(posts(fetcher)).toHaveLength(1);
 });
-it('turns the round button into Interrupt while a run is working', async () => {
+it('turns the round button into Stop response while a run is working', async () => {
   const fetcher = mount(run('running'));
-  const button = await screen.findAllByRole('button', { name: 'Interrupt' });
-  expect(button).toHaveLength(2);
+  const button = await screen.findAllByRole('button', {
+    name: 'Stop response',
+  });
+  expect(button).toHaveLength(1);
+  expect(screen.getByRole('button', { name: 'Interrupt' })).toBeVisible();
   expect(screen.queryByRole('button', { name: 'Send' })).toBeNull();
   fireEvent.click(button[0]!);
   await waitFor(() =>
@@ -301,3 +304,121 @@ it.each([
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   },
 );
+
+it('Ctrl+Enter always sends, even on a coarse pointer, but not during IME', async () => {
+  setPlatform('Linux x86_64');
+  coarse(true);
+  const fetcher = mount();
+  type('hello');
+  fireEvent.keyDown(box(), { key: 'Enter', ctrlKey: true, isComposing: true });
+  expect(posts(fetcher)).toHaveLength(0);
+  fireEvent.keyDown(box(), { key: 'Enter', ctrlKey: true });
+  await screen.findByText('Queued');
+  expect(posts(fetcher)).toHaveLength(1);
+});
+it('Cmd+Enter sends on macOS', async () => {
+  setPlatform('MacIntel');
+  const fetcher = mount();
+  type('hello');
+  fireEvent.keyDown(box(), { key: 'Enter', metaKey: true });
+  await screen.findByText('Queued');
+  expect(posts(fetcher)).toHaveLength(1);
+});
+it('checks for a touch-only device with hover none and coarse pointer', () => {
+  const matchMedia = vi.fn(() => ({ matches: false }));
+  vi.stubGlobal('matchMedia', matchMedia);
+  mount();
+  type('x');
+  fireEvent.keyDown(box(), { key: 'Enter' });
+  expect(matchMedia).toHaveBeenCalledWith(
+    '(hover: none) and (pointer: coarse)',
+  );
+});
+it('lists Ctrl+Enter in the help', async () => {
+  setPlatform('Linux x86_64');
+  mount();
+  fireEvent.click(screen.getByRole('button', { name: 'Keyboard shortcuts' }));
+  const popup = await screen.findByRole('dialog', {
+    name: 'Keyboard shortcuts',
+  });
+  expect(popup).toHaveTextContent('SendCtrlEnter');
+});
+it('copies through a hidden textarea when the Clipboard API is missing', async () => {
+  setPlatform('Linux x86_64');
+  vi.stubGlobal(
+    'navigator',
+    Object.assign(Object.create(navigator), { clipboard: undefined }),
+  );
+  const exec = vi.fn(() => true);
+  document.execCommand = exec;
+  mount(run('idle'), 'Shown reply');
+  fireEvent.keyDown(window, {
+    key: 'C',
+    code: 'KeyC',
+    ctrlKey: true,
+    shiftKey: true,
+  });
+  await screen.findByText('Copied');
+  expect(exec).toHaveBeenCalledWith('copy');
+  expect(document.querySelectorAll('body > textarea[readonly]')).toHaveLength(
+    0,
+  );
+});
+it('announces Could not copy when every path fails', async () => {
+  setPlatform('Linux x86_64');
+  vi.stubGlobal(
+    'navigator',
+    Object.assign(Object.create(navigator), { clipboard: undefined }),
+  );
+  document.execCommand = vi.fn(() => {
+    throw new Error('denied');
+  });
+  mount(run('idle'), 'Shown reply');
+  fireEvent.keyDown(window, {
+    key: 'C',
+    code: 'KeyC',
+    ctrlKey: true,
+    shiftKey: true,
+  });
+  await screen.findByText('Could not copy');
+});
+it('leaves Ctrl+Shift+C alone when text is selected', () => {
+  setPlatform('Linux x86_64');
+  const writeText = vi.fn().mockResolvedValue(undefined);
+  vi.stubGlobal(
+    'navigator',
+    Object.assign(Object.create(navigator), { clipboard: { writeText } }),
+  );
+  vi.spyOn(window, 'getSelection').mockReturnValue({
+    toString: () => 'picked',
+  } as Selection);
+  mount(run('idle'), 'Shown reply');
+  const event = new KeyboardEvent('keydown', {
+    key: 'C',
+    code: 'KeyC',
+    ctrlKey: true,
+    shiftKey: true,
+    cancelable: true,
+    bubbles: true,
+  });
+  window.dispatchEvent(event);
+  expect(event.defaultPrevented).toBe(false);
+  expect(writeText).not.toHaveBeenCalled();
+});
+it('ignores shortcuts that start inside a dialog', () => {
+  setPlatform('Linux x86_64');
+  mount();
+  const dialog = document.createElement('div');
+  dialog.setAttribute('role', 'dialog');
+  const field = document.createElement('button');
+  dialog.append(field);
+  document.body.append(dialog);
+  fireEvent.keyDown(field, {
+    key: ':',
+    code: 'Semicolon',
+    ctrlKey: true,
+    shiftKey: true,
+  });
+  expect(box()).not.toHaveFocus();
+  dialog.remove();
+});
