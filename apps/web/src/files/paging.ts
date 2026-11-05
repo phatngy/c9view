@@ -23,7 +23,7 @@ export function useCursorList<T extends object>(
     enabled,
     ...fileQueryOptions,
   });
-  return { ...query, isFetchNextPageError: query.isFetchNextPageError };
+  return query;
 }
 
 export function useGitStatus(projectId: string) {

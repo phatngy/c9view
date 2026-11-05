@@ -103,7 +103,8 @@ test('budgeted session pages preserve message order and show partial content', a
       url.searchParams.has('cursor') &&
       Number(url.searchParams.get('cursor')) < baseline.totalMessages - 1,
   );
-  expect(earlier.length).toBeGreaterThanOrEqual(2);
+  // Every page before the newest one is an earlier-page request.
+  expect(earlier.length).toBeGreaterThanOrEqual(pageCount - 1);
   expect(earlier.every((url) => url.searchParams.get('fill') === 'end')).toBe(
     true,
   );
