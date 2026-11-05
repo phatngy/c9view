@@ -5,6 +5,8 @@ import { redactText } from '@c9view/core';
 import { z } from 'zod';
 import type { SearchResponse } from '@c9view/api';
 import type { DataStore } from '../data/store.js';
+import { DEFAULT_NODE_LIMITS, type NodeLimits } from '../limits.js';
+import { budgetItems, encodedBytes } from '../budget.js';
 
 const parameters = z.object({
   q: z
@@ -95,7 +97,10 @@ export function snippet(text: string, query: string) {
       .map(([a, b]) => [a - start, b - start] as [number, number]),
   };
 }
-export function searchRoutes(store: DataStore) {
+export function searchRoutes(
+  store: DataStore,
+  limits: Pick<NodeLimits, 'pageBudgetBytes'> = DEFAULT_NODE_LIMITS,
+) {
   const app = new Hono();
   app.get('/search', (c) => {
     const parsed = parameters.safeParse(c.req.query());
@@ -118,8 +123,8 @@ export function searchRoutes(store: DataStore) {
     const rows = terms.length
       ? searchMessages(db, expression, definedFilters, limit + 1, cursor)
       : [];
-    const response: SearchResponse = {
-      results: rows.slice(0, limit).map(({ projectId, ...m }) => ({
+    const results: SearchResponse['results'] = redactStrings(
+      rows.slice(0, limit).map(({ projectId, ...m }) => ({
         projectId,
         sessionId: m.sessionId,
         messageUuid: m.uuid,
@@ -128,9 +133,21 @@ export function searchRoutes(store: DataStore) {
         model: m.model,
         ...snippet(m.text, q),
       })),
-      nextCursor: rows.length > limit ? String(cursor + limit) : null,
+    );
+    // Snippets are short, so a page only stops early with a very small budget.
+    const page = budgetItems(results, {
+      envelopeBytes: encodedBytes({ results: [], nextCursor: null }) + 64,
+      budgetBytes: limits.pageBudgetBytes,
+    });
+    const response: SearchResponse = {
+      results: page.items,
+      nextCursor: page.more
+        ? String(cursor + page.count)
+        : rows.length > limit
+          ? String(cursor + limit)
+          : null,
     };
-    return c.json(redactStrings(response));
+    return c.json(response);
   });
   return app;
 }

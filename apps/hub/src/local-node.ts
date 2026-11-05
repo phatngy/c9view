@@ -10,7 +10,7 @@ export function createLocalTransport(
   runtime: Pick<NodeRuntime, 'store' | 'events' | 'hello'>,
   limits?: NodeLimits,
 ) {
-  const nodeApp = createNodeApp(runtime).onError((error) => {
+  const nodeApp = createNodeApp(runtime, limits).onError((error) => {
     // Let the hub log the browser-facing path and sanitize the response.
     throw error;
   });

@@ -130,10 +130,15 @@ export interface Message {
   isSidechain: boolean;
   blocks: MessageBlock[];
   usage: TokenTotals | null;
+  /** Set when the message alone exceeded the page budget and was cut (6.0c). */
+  truncated?: boolean;
 }
 
 // GET /api/projects/:projectId/sessions/:sessionId?cursor=<n>&limit=<n>
-//   or ?from=end&limit=<n> (the newest `limit` messages)
+//   or ?from=end&limit=<n> (the newest `limit` messages).
+// Pages stop under the node's page budget (6.0c): a forward page keeps the
+// start of its window and `nextCursor` continues it; `from=end` and
+// `fill=end` keep the end of the window and `prevCursor` continues backwards.
 export interface SessionDetailResponse {
   session: SessionSummary;
   cwd: string | null;
@@ -151,6 +156,8 @@ export interface SessionDetailResponse {
   prevCursor: number | null;
   nextCursor: number | null;
   totalMessages: number;
+  /** True when the budget cut this page short of its window or cut a message. */
+  truncated?: boolean;
 }
 
 // GET /api/projects/:projectId/sessions/:sessionId/status  (cheap, for polling)
@@ -203,7 +210,8 @@ export interface ProjectFileEntry {
   ignored?: boolean;
   outside?: boolean;
 }
-export interface FileListResponse { path: string; entries: ProjectFileEntry[] }
+// Paged lists (6.0c): pass `nextCursor` back as `?cursor=` for the rest.
+export interface FileListResponse { path: string; entries: ProjectFileEntry[]; nextCursor?: string | null }
 export interface FileContentResponse {
   path: string;
   size: number;
@@ -211,6 +219,8 @@ export interface FileContentResponse {
   binary: boolean;
   tooLarge: boolean;
   content?: string;
+  /** Set when the file is over the node's file budget; `content` is omitted. */
+  notice?: 'too-large';
 }
 export type GitStatusResponse = { isRepo: false } | {
   isRepo: true;
@@ -218,10 +228,13 @@ export type GitStatusResponse = { isRepo: false } | {
   ahead: number;
   behind: number;
   files: { path: string; index: string; worktree: string; status: 'modified' | 'added' | 'deleted' | 'renamed' | 'untracked' }[];
+  nextCursor?: string | null;
 };
 export interface GitDiffResponse {
   isRepo: boolean;
-  files: { oldPath: string; path: string; hunks: DiffHunk[] }[];
+  /** `truncated` marks a file whose hunks were cut to fit the page budget. */
+  files: { oldPath: string; path: string; hunks: DiffHunk[]; truncated?: boolean }[];
+  nextCursor?: string | null;
 }
 export interface ToolFileChange {
   toolUseId: string;
@@ -249,7 +262,7 @@ export interface SessionChangedFile {
   firstAt: string | null;
   lastAt: string | null;
 }
-export interface SessionChangesResponse { files: SessionChangedFile[]; truncated?: boolean }
+export interface SessionChangesResponse { files: SessionChangedFile[]; truncated?: boolean; nextCursor?: string | null }
 export interface SessionFileDiffResponse {
   fileId: string;
   filePath: string;

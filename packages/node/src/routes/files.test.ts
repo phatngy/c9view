@@ -194,3 +194,102 @@ it('rejects git metadata through both file HTTP endpoints', async () => {
     400,
   );
 });
+
+describe('file and git budgets', () => {
+  it('returns metadata and a too-large notice for a file over the file budget', async () => {
+    const small = createApp(
+      loadConfig({ C9VIEW_CLAUDE_DIR: join(dir, 'claude') }),
+      {
+        limits: { fileBudgetBytes: 64 },
+      },
+    );
+    const response = await small.request(`${base}/file?path=file.ts`);
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as FileContentResponse;
+    expect(body).toMatchObject({
+      path: 'file.ts',
+      tooLarge: true,
+      notice: 'too-large',
+      language: 'typescript',
+    });
+    expect(body).not.toHaveProperty('content');
+    expect(body.size).toBeGreaterThan(0);
+    expect(
+      await get<FileContentResponse>(`${base}/file?path=large`),
+    ).toMatchObject({ tooLarge: true, notice: 'too-large' });
+    expect(
+      await get<FileContentResponse>(`${base}/file?path=file.ts`),
+    ).not.toHaveProperty('notice');
+  });
+
+  it('pages listings, git status, diffs and changes under the page budget', async () => {
+    const budget = 300;
+    const small = createApp(
+      loadConfig({ C9VIEW_CLAUDE_DIR: join(dir, 'claude') }),
+      {
+        limits: { pageBudgetBytes: budget },
+      },
+    );
+    async function all<T extends { nextCursor?: string | null }>(
+      path: string,
+      items: (page: T) => unknown[],
+    ) {
+      const collected: unknown[] = [];
+      let cursor: string | null | undefined = undefined;
+      let pages = 0;
+      do {
+        const separator = path.includes('?') ? '&' : '?';
+        const response = await small.request(
+          cursor === undefined ? path : `${path}${separator}cursor=${cursor}`,
+        );
+        expect(response.status).toBe(200);
+        const text = await response.text();
+        expect(text).not.toContain(secret);
+        const body = JSON.parse(text) as T;
+        const list = items(body);
+        // A page over budget only holds one item that could not be cut.
+        if (Buffer.byteLength(text) > budget) expect(list).toHaveLength(1);
+        collected.push(...list);
+        cursor = body.nextCursor;
+        pages++;
+      } while (cursor);
+      return { collected, pages };
+    }
+    const listing = await all<FileListResponse>(
+      `${base}/files`,
+      (p) => p.entries,
+    );
+    expect(listing.pages).toBeGreaterThan(1);
+    expect(listing.collected).toEqual(
+      (await get<FileListResponse>(`${base}/files`)).entries,
+    );
+    const status = await all<
+      GitStatusResponse & { nextCursor?: string | null }
+    >(`${base}/git/status`, (p) => (p.isRepo ? p.files : []));
+    const full = await get<GitStatusResponse>(`${base}/git/status`);
+    expect(status.collected).toEqual(full.isRepo ? full.files : []);
+    const diff = await all<GitDiffResponse>(`${base}/git/diff`, (p) => p.files);
+    expect(diff.collected.map((f) => (f as { path: string }).path)).toEqual(
+      (await get<GitDiffResponse>(`${base}/git/diff`)).files.map((f) => f.path),
+    );
+    const changes = await all<SessionChangesResponse>(
+      `${base}/sessions/s/changes`,
+      (p) => p.files,
+    );
+    expect(changes.collected).toEqual(
+      (await get<SessionChangesResponse>(`${base}/sessions/s/changes`)).files,
+    );
+    expect((await small.request(`${base}/files?cursor=-1`)).status).toBe(400);
+    expect((await small.request(`${base}/git/diff?cursor=x`)).status).toBe(400);
+  });
+
+  it('cuts one diff larger than the budget and marks it truncated', async () => {
+    const response = await createApp(
+      loadConfig({ C9VIEW_CLAUDE_DIR: join(dir, 'claude') }),
+      { limits: { pageBudgetBytes: 120 } },
+    ).request(`${base}/git/diff?path=file.ts`);
+    const body = (await response.json()) as GitDiffResponse;
+    expect(body.files).toHaveLength(1);
+    expect(body.files[0]).toMatchObject({ path: 'file.ts', truncated: true });
+  });
+});
