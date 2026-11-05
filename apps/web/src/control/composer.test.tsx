@@ -405,6 +405,34 @@ it('leaves Ctrl+Shift+C alone when text is selected', () => {
   expect(event.defaultPrevented).toBe(false);
   expect(writeText).not.toHaveBeenCalled();
 });
+it('leaves Ctrl+Shift+C alone when text is selected inside the composer', () => {
+  setPlatform('Linux x86_64');
+  const writeText = vi.fn().mockResolvedValue(undefined);
+  vi.stubGlobal(
+    'navigator',
+    Object.assign(Object.create(navigator), { clipboard: { writeText } }),
+  );
+  // As in Firefox, the window selection is empty for text-field selections.
+  vi.spyOn(window, 'getSelection').mockReturnValue({
+    toString: () => '',
+  } as Selection);
+  mount(run('idle'), 'Shown reply');
+  const box = screen.getByRole('textbox', { name: 'Reply to session' });
+  fireEvent.change(box, { target: { value: 'draft text' } });
+  (box as HTMLTextAreaElement).focus();
+  (box as HTMLTextAreaElement).setSelectionRange(0, 5);
+  const event = new KeyboardEvent('keydown', {
+    key: 'C',
+    code: 'KeyC',
+    ctrlKey: true,
+    shiftKey: true,
+    cancelable: true,
+    bubbles: true,
+  });
+  window.dispatchEvent(event);
+  expect(event.defaultPrevented).toBe(false);
+  expect(writeText).not.toHaveBeenCalled();
+});
 it('ignores shortcuts that start inside a dialog', () => {
   setPlatform('Linux x86_64');
   mount();
