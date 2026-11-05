@@ -35,7 +35,9 @@ export function ProjectFiles({
         className={`panel ${path ? 'hidden md:block' : ''}`}
       >
         {status.error && !status.data && (
-          <FileFailure error={status.error} retry={status.refetch} />
+          <p className="py-2 text-xs text-muted" role="note">
+            Git status unavailable
+          </p>
         )}
         <LoadMore query={status} label="changed files" />
         <FileTree

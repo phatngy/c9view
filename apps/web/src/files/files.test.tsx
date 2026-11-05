@@ -266,6 +266,57 @@ describe('files and changes', () => {
         .length,
     ).toBeGreaterThan(0);
   });
+  it('keeps the project tree visible when Git status is unavailable', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        if (url === `${base}/git/status`)
+          return { ok: false, status: 500, json: async () => ({}) };
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            path: '',
+            entries: [{ name: 'README.md', path: 'README.md', type: 'file' }],
+          }),
+        };
+      }),
+    );
+    open(<ProjectFiles projectId="p" path="" line="" select={vi.fn()} />);
+    expect(await screen.findByRole('note')).toHaveTextContent(
+      'Git status unavailable',
+    );
+    expect(
+      await screen.findByRole('button', { name: /README\.md/ }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+  it('does not show the Load-more error for a failed background refetch', async () => {
+    let statusRequests = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        if (url === `${base}/git/status` && ++statusRequests > 1)
+          throw new Error('temporary refetch failure');
+        return {
+          ok: true,
+          status: 200,
+          json: async () =>
+            url === `${base}/git/status`
+              ? { ...status, nextCursor: 'next' }
+              : { path: '', entries: [] },
+        };
+      }),
+    );
+    open(<ProjectChanges projectId="p" />);
+    await screen.findByRole('button', { name: 'Load more changed files' });
+    await clients[0]!.invalidateQueries();
+    await waitFor(() => expect(statusRequests).toBeGreaterThan(1));
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(
+      screen.getByRole('button', { name: 'Load more changed files' }),
+    ).toBeInTheDocument();
+  });
   it('uses calm query options for file and change data', async () => {
     mock({
       [`${base}/files?path=`]: { path: '', entries: [] },
@@ -706,3 +757,50 @@ it.each(['folder', 'status', 'badges', 'diff', 'session'] as const)(
     await waitFor(() => expect(target).toHaveFocus());
   },
 );
+
+it('clears pending focus after a failed Load more before a later refetch', async () => {
+  let rootRequests = 0;
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => {
+      if (url === `${base}/files?path=`) {
+        rootRequests++;
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            path: '',
+            entries: [{ name: 'first.ts', path: 'first.ts', type: 'file' }],
+            nextCursor: rootRequests === 1 ? 'next' : null,
+          }),
+        };
+      }
+      if (url === `${base}/files?path=&cursor=next`)
+        throw new Error('temporary page failure');
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ path: '', entries: [] }),
+      };
+    }),
+  );
+  open(<FileTree projectId="p" onOpen={vi.fn()} />);
+  const load = await screen.findByRole('button', {
+    name: 'Load more files in this folder',
+  });
+  const target = load.closest('[data-page-list]');
+  load.focus();
+  fireEvent.click(load);
+  await screen.findByRole('button', {
+    name: 'Retry loading files in this folder',
+  });
+  document.body.focus();
+  await clients[0]!.invalidateQueries();
+  await waitFor(() => expect(rootRequests).toBe(2));
+  await waitFor(() =>
+    expect(
+      screen.queryByRole('button', { name: 'Load more files in this folder' }),
+    ).toBeNull(),
+  );
+  expect(target).not.toHaveFocus();
+});

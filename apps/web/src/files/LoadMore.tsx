@@ -9,21 +9,23 @@ export function LoadMore({
   query: {
     hasNextPage: boolean;
     isFetching: boolean;
-    error: unknown;
-    data: unknown;
+    isFetchNextPageError: boolean;
     fetchNextPage: () => unknown;
   };
 }) {
   const focusTarget = useRef<HTMLElement | null>(null);
   useEffect(() => {
-    if (!query.hasNextPage && focusTarget.current) {
+    if (!focusTarget.current || query.isFetching) return;
+    if (!query.hasNextPage) {
       // Only restore focus lost with the removed button; respect navigation away.
       if (document.activeElement === document.body) focusTarget.current.focus();
       focusTarget.current = null;
+    } else if (query.isFetchNextPageError) {
+      focusTarget.current = null;
     }
-  }, [query.hasNextPage]);
+  }, [query.hasNextPage, query.isFetching, query.isFetchNextPageError]);
   if (!query.hasNextPage) return null;
-  const failed = !!query.error && !!query.data;
+  const failed = query.isFetchNextPageError;
   return (
     <div className="flex flex-wrap items-center gap-2 py-2 text-xs text-muted">
       {failed ? (

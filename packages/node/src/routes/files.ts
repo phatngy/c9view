@@ -16,7 +16,7 @@ import {
   encodedBytes,
   fitHunks,
   readOffsetCursor,
-  warnPageBudget,
+  serializePage,
 } from '../budget.js';
 
 type DiffFile = GitDiffResponse['files'][number];
@@ -53,7 +53,7 @@ export function fileRoutes(
         entries: page.items,
         nextCursor: page.nextCursor,
       };
-      const text = warnPageBudget('files', response, budget);
+      const text = serializePage('files', response, budget);
       return c.body(text, 200, { 'content-type': 'application/json' });
     } catch {
       return c.json({ error: 'Path unavailable or forbidden' }, 400);
@@ -90,7 +90,7 @@ export function fileRoutes(
       const git = createGit(found.project.path);
       if (!(await git.isRepo())) {
         const response = { isRepo: false } satisfies GitStatusResponse;
-        const text = warnPageBudget('git/status', response, budget);
+        const text = serializePage('git/status', response, budget);
         return c.body(text, 200, { 'content-type': 'application/json' });
       }
       const status = redactStrings(await git.status());
@@ -106,7 +106,7 @@ export function fileRoutes(
         files: page.items,
         nextCursor: page.nextCursor,
       };
-      const text = warnPageBudget('git/status', response, budget);
+      const text = serializePage('git/status', response, budget);
       return c.body(text, 200, { 'content-type': 'application/json' });
     } catch (error) {
       console.error('Git status failed', error);
@@ -137,7 +137,7 @@ export function fileRoutes(
         files: page.items,
         nextCursor: page.nextCursor,
       };
-      const text = warnPageBudget('git/diff', response, budget);
+      const text = serializePage('git/diff', response, budget);
       return c.body(text, 200, { 'content-type': 'application/json' });
     } catch (error) {
       console.error('Git diff failed', error);

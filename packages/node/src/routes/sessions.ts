@@ -6,7 +6,7 @@ import type { ApiError, SessionDetailResponse } from '@c9view/api';
 import type { DataStore } from '../data/store.js';
 import type { SessionPollResponse } from '@c9view/api';
 import { DEFAULT_NODE_LIMITS, type NodeLimits } from '../limits.js';
-import { budgetItems, encodedBytes, warnPageBudget } from '../budget.js';
+import { budgetItems, encodedBytes, serializePage } from '../budget.js';
 import { shrinkMessage } from './session-budget.js';
 // Cursor fields may grow by a few digits after the envelope is measured.
 const CURSOR_SLACK = 64;
@@ -105,7 +105,7 @@ export function sessionRoutes(
     if (page.more || page.truncated) response.truncated = true;
     else delete response.truncated;
     const final = redactStrings(response);
-    const text = warnPageBudget('sessions', final, limits.pageBudgetBytes);
+    const text = serializePage('sessions', final, limits.pageBudgetBytes);
     return c.body(text, 200, { 'content-type': 'application/json' });
   });
   app.get('/projects/:projectId/sessions/:sessionId/status', async (c) => {

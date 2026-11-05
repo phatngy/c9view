@@ -194,7 +194,7 @@ export function fitHunks<T extends Hunk>(
 }
 
 /** Serialize once for measurement and sending; indivisible items may exceed the budget. */
-export function warnPageBudget(
+export function serializePage(
   route: string,
   response: unknown,
   budgetBytes: number,
