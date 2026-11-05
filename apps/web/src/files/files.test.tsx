@@ -441,7 +441,7 @@ it('appends directory pages using the returned opaque cursor and refetches loade
   });
   vi.stubGlobal('fetch', fetcher);
   open(<FileTree projectId="p" onOpen={vi.fn()} />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Load more' }));
+  fireEvent.click(await screen.findByRole('button', { name: /^Load more/ }));
   await screen.findByRole('button', { name: /last.ts/ });
   expect(
     screen.getAllByRole('button').map((button) => button.textContent),
@@ -449,7 +449,7 @@ it('appends directory pages using the returned opaque cursor and refetches loade
     expect.stringContaining('first.ts'),
     expect.stringContaining('last.ts'),
   ]);
-  expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull();
+  expect(screen.queryByRole('button', { name: /^Load more/ })).toBeNull();
   expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
     `${base}/files?path=`,
     `${base}/files?path=&cursor=opaque%2Bcursor`,
@@ -487,20 +487,20 @@ it('appends working tree status pages and paged per-file diffs, with cut notices
     },
   });
   open(<ProjectChanges projectId="p" />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Load more' }));
+  fireEvent.click(await screen.findByRole('button', { name: /^Load more/ }));
   await screen.findByRole('button', { name: /second.ts/ });
   fireEvent.click(screen.getByRole('button', { name: /demo.ts/ }));
   expect(
     await screen.findByText('Diff cut to fit the page size.'),
   ).toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button', { name: 'Load more' }));
+  fireEvent.click(screen.getByRole('button', { name: /^Load more/ }));
   await screen.findByRole('region', { name: 'Diff for renamed.ts' });
   expect(
     screen
       .getAllByRole('region', { name: /^Diff for/ })
       .map((region) => region.getAttribute('aria-label')),
   ).toEqual(['Diff for demo.ts', 'Diff for renamed.ts']);
-  expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull();
+  expect(screen.queryByRole('button', { name: /^Load more/ })).toBeNull();
 });
 
 it('appends session change pages and warns when the selected file diff was cut', async () => {
@@ -552,13 +552,13 @@ it('appends session change pages and warns when the selected file diff was cut',
       jump={vi.fn()}
     />,
   );
-  fireEvent.click(await screen.findByRole('button', { name: 'Load more' }));
+  fireEvent.click(await screen.findByRole('button', { name: /^Load more/ }));
   fireEvent.click(await screen.findByRole('button', { name: /second.ts/ }));
   expect(
     await screen.findByText('Diff cut to fit the page size.'),
   ).toBeInTheDocument();
   expect(screen.getByText('2 files')).toBeInTheDocument();
-  expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull();
+  expect(screen.queryByRole('button', { name: /^Load more/ })).toBeNull();
 });
 
 it('uses the existing too-large state and byte size for a budget notice', () => {
@@ -577,3 +577,132 @@ it('uses the existing too-large state and byte size for a budget notice', () => 
   );
   expect(screen.queryByText('must not show')).toBeNull();
 });
+
+it.each(['folder', 'status', 'badges', 'diff', 'session'] as const)(
+  'keeps loaded %s items on next-page failure, retries only that page, and restores focus at the end',
+  async (kind) => {
+    if (!status.isRepo) throw new Error('Expected repository');
+    const folder = (name: string) => ({
+      path: '',
+      entries: [{ name, path: name, type: 'file' }],
+    });
+    const changes = (name: string) => ({
+      files: [
+        {
+          fileId: name,
+          filePath: name,
+          relPath: name,
+          kind: 'update',
+          additions: 1,
+          deletions: 0,
+          toolUseIds: [],
+          firstAt: null,
+          lastAt: null,
+        },
+      ],
+    });
+    const statusPage = (name: string) => ({
+      ...status,
+      files: [{ ...status.files[0]!, path: name }],
+    });
+    const diffPage = (name: string) => ({
+      ...patch,
+      files: [{ ...patch.files[0]!, path: name }],
+    });
+    const route =
+      kind === 'folder'
+        ? `${base}/files?path=`
+        : kind === 'session'
+          ? `${base}/sessions/s/changes`
+          : kind === 'diff'
+            ? `${base}/git/diff?path=demo.ts`
+            : `${base}/git/status`;
+    const label =
+      kind === 'folder'
+        ? 'files in this folder'
+        : kind === 'session'
+          ? 'session changes'
+          : kind === 'diff'
+            ? 'file diffs'
+            : 'changed files';
+    const makePage =
+      kind === 'folder'
+        ? folder
+        : kind === 'session'
+          ? changes
+          : kind === 'diff'
+            ? diffPage
+            : statusPage;
+    let attempts = 0;
+    const fetcher = vi.fn(async (url: string) => {
+      const isNext =
+        url === `${route}${route.includes('?') ? '&' : '?'}cursor=next`;
+      if (isNext && ++attempts === 1) throw new Error('temporary page failure');
+      const payload =
+        url === route || isNext
+          ? {
+              ...makePage(isNext ? 'second.ts' : 'first.ts'),
+              nextCursor: isNext ? null : 'next',
+            }
+          : url.includes('/git/status')
+            ? status
+            : folder('first.ts');
+      return { ok: true, status: 200, json: async () => payload };
+    });
+    vi.stubGlobal('fetch', fetcher);
+    open(
+      kind === 'folder' ? (
+        <FileTree projectId="p" onOpen={vi.fn()} />
+      ) : kind === 'badges' ? (
+        <ProjectFiles projectId="p" path="" line="" select={vi.fn()} />
+      ) : kind === 'session' ? (
+        <SessionChanges
+          projectId="p"
+          sessionId="s"
+          dismiss={vi.fn()}
+          jump={vi.fn()}
+        />
+      ) : (
+        <ProjectChanges projectId="p" />
+      ),
+    );
+    if (kind === 'diff')
+      fireEvent.click(await screen.findByRole('button', { name: /demo.ts/ }));
+    const load = await screen.findByRole('button', {
+      name: `Load more ${label}`,
+    });
+    expect(
+      screen.getByText(`More ${label} are available.`),
+    ).toBeInTheDocument();
+    const target = load.closest('[data-page-list]');
+    load.focus();
+    fireEvent.click(load);
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      `Could not load more ${label}`,
+    );
+    if (kind === 'diff')
+      expect(
+        screen.getByRole('region', { name: 'Diff for first.ts' }),
+      ).toBeInTheDocument();
+    else
+      expect(
+        screen.getByRole('button', { name: /first.ts/ }),
+      ).toBeInTheDocument();
+    const retry = screen.getByRole('button', {
+      name: `Retry loading ${label}`,
+    });
+    const callsBeforeRetry = fetcher.mock.calls.length;
+    retry.focus();
+    fireEvent.click(retry);
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('button', { name: `Retry loading ${label}` }),
+      ).toBeNull(),
+    );
+    expect(
+      fetcher.mock.calls.slice(callsBeforeRetry).map(([url]) => url),
+    ).toEqual([`${route}${route.includes('?') ? '&' : '?'}cursor=next`]);
+    expect(screen.queryByRole('alert')).toBeNull();
+    await waitFor(() => expect(target).toHaveFocus());
+  },
+);

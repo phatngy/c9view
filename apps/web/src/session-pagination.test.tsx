@@ -159,3 +159,56 @@ it('keeps byte-limited pages contiguous through backward loading, growth and ref
   unmount();
   client.clear();
 });
+
+it('loads a full backward window after refreshing a pinned one-message page', async () => {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  const request = vi
+    .spyOn(api, 'session')
+    .mockImplementation(async (_m, _p, _s, param = 0) => {
+      const limit = typeof param === 'object' ? param.limit : 50;
+      const cursor = typeof param === 'object' ? param.cursor : 100;
+      const count = limit === 1 || param === 'end' ? 1 : 50;
+      return {
+        ...sessionDetail,
+        cursor,
+        prevCursor: Math.max(0, cursor - limit),
+        nextCursor: cursor + count < 101 ? cursor + count : null,
+        totalMessages: 101,
+        messages: Array.from({ length: count }, (_, i) => ({
+          ...sessionDetail.messages[0]!,
+          uuid: String(cursor + i),
+        })),
+      };
+    });
+  const { result, unmount } = renderHook(() => useSession('p', 's'), {
+    wrapper: ({ children }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    ),
+  });
+  await waitFor(() => expect(result.current.isSuccess).toBe(true));
+  expect(result.current.data?.pageParams).toEqual([{ cursor: 100, limit: 1 }]);
+  await act(async () => {
+    await refreshSession(client, 'local', 'p', 's');
+  });
+  expect(request.mock.calls.at(-1)?.[3]).toEqual({ cursor: 100, limit: 1 });
+  await waitFor(() =>
+    expect(result.current.data?.pages[0]?.prevCursor).toBe(99),
+  );
+  await act(async () => {
+    await result.current.fetchPreviousPage();
+  });
+  expect(request.mock.calls.at(-1)?.[3]).toEqual({
+    cursor: 50,
+    limit: 50,
+    fill: 'end',
+  });
+  await waitFor(() =>
+    expect(
+      result.current.data?.pages.flatMap((p) => p.messages.map((m) => m.uuid)),
+    ).toEqual(Array.from({ length: 51 }, (_, i) => String(50 + i))),
+  );
+  unmount();
+  client.clear();
+});

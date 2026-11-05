@@ -70,8 +70,8 @@ export function SessionChanges({
           </span>
         )}
       </div>
-      <div>
-        {list.error ? (
+      <div data-page-list tabIndex={-1}>
+        {list.error && !list.data ? (
           <Failure error={list.error} retry={list.refetch} />
         ) : !list.data ? (
           <Loading />
@@ -95,7 +95,7 @@ export function SessionChanges({
             </button>
           ))
         )}
-        <LoadMore query={list} />
+        <LoadMore query={list} label="session changes" />
         {requestedTool && list.data && !requested && (
           <p role="note">
             This tool call has no available full diff in the returned file list.

@@ -50,8 +50,8 @@ export function changeRoutes(
           await changes.sessionFileDiff(fileId);
         if (!response) return c.json({ error: 'File change not found' }, 404);
         const final = fitFileDiff(redactStrings(response), budget);
-        warnPageBudget('changes/file', final, budget);
-        return c.json(final);
+        const text = warnPageBudget('changes/file', final, budget);
+        return c.body(text, 200, { 'content-type': 'application/json' });
       }
       const files = redactStrings(changes.files);
       const envelope = { files: [], truncated: true, nextCursor: null };
@@ -66,8 +66,8 @@ export function changeRoutes(
         truncated: changes.truncated,
         nextCursor: page.nextCursor,
       };
-      warnPageBudget('changes', response, budget);
-      return c.json(response);
+      const text = warnPageBudget('changes', response, budget);
+      return c.body(text, 200, { 'content-type': 'application/json' });
     });
   }
   return app;

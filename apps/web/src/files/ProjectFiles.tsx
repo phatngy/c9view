@@ -29,8 +29,15 @@ export function ProjectFiles({
   });
   return (
     <div className="grid min-w-0 gap-4 md:grid-cols-[240px_minmax(0,1fr)]">
-      <div className={`panel ${path ? 'hidden md:block' : ''}`}>
-        <LoadMore query={status} />
+      <div
+        data-page-list
+        tabIndex={-1}
+        className={`panel ${path ? 'hidden md:block' : ''}`}
+      >
+        {status.error && !status.data && (
+          <FileFailure error={status.error} retry={status.refetch} />
+        )}
+        <LoadMore query={status} label="changed files" />
         <FileTree
           key={projectId}
           projectId={projectId}
@@ -44,7 +51,7 @@ export function ProjectFiles({
             Back to tree
           </button>
         )}
-        {file.error ? (
+        {file.error && !file.data ? (
           file.error instanceof HttpError && file.error.status === 400 ? (
             <FileViewer denied={file.error.message} />
           ) : (

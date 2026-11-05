@@ -143,12 +143,19 @@ function pagedFetch(all: Message[], size = 1) {
     const params = new URL(url, 'http://localhost').searchParams;
     let body: unknown = projectDetail;
     if (params.has('from') || params.has('cursor')) {
-      const cursor = params.has('from')
-        ? Math.max(0, all.length - size)
+      const requestedLimit = Number(params.get('limit') ?? size);
+      const before = Number(params.get('before') ?? all.length);
+      const start = params.has('from')
+        ? Math.max(0, Math.min(all.length, before) - requestedLimit)
         : Number(params.get('cursor'));
-      const count = params.has('from')
-        ? size
-        : Number(params.get('limit') ?? size);
+      const end = Math.min(start + requestedLimit, all.length, before);
+      // Model a byte-limited server: backward windows return their tail, even
+      // when the client requests more messages than fit on one page.
+      const cursor =
+        params.has('from') || params.get('fill') === 'end'
+          ? Math.max(start, end - size)
+          : start;
+      const count = Math.min(size, end - cursor);
       body = {
         ...detail(all.slice(cursor, cursor + count)),
         cursor,

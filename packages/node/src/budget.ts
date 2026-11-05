@@ -193,13 +193,15 @@ export function fitHunks<T extends Hunk>(
   return { hunks: kept, cut: false };
 }
 
-/** Check the final wire payload; envelopes and indivisible items may exceed the budget. */
+/** Serialize once for measurement and sending; indivisible items may exceed the budget. */
 export function warnPageBudget(
   route: string,
   response: unknown,
   budgetBytes: number,
-): void {
-  const bytes = encodedBytes(response);
+): string {
+  const text = JSON.stringify(response);
+  const bytes = Buffer.byteLength(text, 'utf8');
   if (bytes > budgetBytes)
     console.warn(`${route}: ${bytes} bytes > ${budgetBytes} bytes`);
+  return text;
 }

@@ -272,6 +272,7 @@ export const useSession = (projectId: string, sessionId: string) => {
         ...data,
         // Pin end-filled windows to the range actually returned. Reusing the
         // larger requested window after growth could shift the tail past a gap.
+        // Earlier navigation independently requests a full SESSION_PAGE_SIZE window.
         pageParams: data.pageParams.map((param, index) => {
           if (param !== 'end' && param.fill !== 'end') return param;
           const page = data.pages[index]!;

@@ -18,20 +18,25 @@ export function ProjectChanges({ projectId }: { projectId: string }) {
     (pages) => ({ ...pages[0]!, files: pages.flatMap((page) => page.files) }),
     !!selected,
   );
-  if (status.error)
+  if (status.error && !status.data)
     return <FileFailure error={status.error} retry={status.refetch} />;
   if (!status.data) return <Loading />;
   if (!status.data.isRepo)
     return <Empty>This project is not a Git repository.</Empty>;
   return (
-    <section className="min-w-0 space-y-3" aria-label="Working tree changes">
+    <section
+      data-page-list
+      tabIndex={-1}
+      className="min-w-0 space-y-3"
+      aria-label="Working tree changes"
+    >
       <p className="font-mono text-small">
         ⑂ {status.data.branch} · {status.data.ahead} ahead ·{' '}
         {status.data.behind} behind
       </p>
       {!status.data.files.length && <Empty>No uncommitted changes.</Empty>}
       {status.data.files.map((file) => (
-        <div className="panel" key={file.path}>
+        <div data-page-list tabIndex={-1} className="panel" key={file.path}>
           <button
             className="w-full text-left break-all font-mono text-small"
             aria-expanded={selected === file.path}
@@ -40,7 +45,7 @@ export function ProjectChanges({ projectId }: { projectId: string }) {
             {file.path} <span className="badge">{file.status}</span>
           </button>
           {selected === file.path &&
-            (diff.error ? (
+            (diff.error && !diff.data ? (
               <FileFailure error={diff.error} retry={diff.refetch} />
             ) : !diff.data ? (
               <Loading />
@@ -65,10 +70,12 @@ export function ProjectChanges({ projectId }: { projectId: string }) {
             ) : (
               <Empty>No text diff available (untracked or binary file).</Empty>
             ))}
-          {selected === file.path && <LoadMore query={diff} />}
+          {selected === file.path && (
+            <LoadMore query={diff} label="file diffs" />
+          )}
         </div>
       ))}
-      <LoadMore query={status} />
+      <LoadMore query={status} label="changed files" />
     </section>
   );
 }
