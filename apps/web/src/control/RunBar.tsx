@@ -68,7 +68,15 @@ export function RunBar({
           data-testid="run-dot"
           className={`size-2 shrink-0 rounded-full ${info.dot} ${info.pulse ? 'animate-pulse motion-reduce:animate-none' : ''}`}
         />
-        <span className="min-w-0 truncate font-medium text-ink">{label}</span>
+        <span
+          title={label}
+          className="flex min-w-0 items-baseline gap-1 font-medium text-ink"
+        >
+          <span className="truncate">{info.label}</span>
+          {run.queued > 0 && (
+            <span className="shrink-0">· {run.queued} queued</span>
+          )}
+        </span>
         <span className="sr-only" role="status" aria-live="polite">
           {announcement}
         </span>
@@ -85,7 +93,7 @@ export function RunBar({
               className="inline-flex min-h-11 items-center px-1 underline decoration-dotted lg:min-h-9"
               href="#api-equivalent-cost"
               title="API-equivalent cost estimate"
-              aria-label={`About ${run.costUsd} dollars, API-equivalent cost`}
+              aria-label={`About ${money(run.costUsd)}, API-equivalent cost`}
             >
               {money(run.costUsd)}
             </a>
@@ -100,23 +108,25 @@ export function RunBar({
               Interrupt
             </Button>
           )}
-          <Menu
-            trigger={
-              <IconButton
-                label="Run options"
-                icon={MoreHorizontal}
-                size="sm"
-                disabled={pending}
-              />
-            }
-            items={[
-              {
-                label: 'Stop run',
-                disabled: pending || ended,
-                onSelect: () => void act(onStop),
-              },
-            ]}
-          />
+          {!ended && (
+            <Menu
+              trigger={
+                <IconButton
+                  label="Run options"
+                  icon={MoreHorizontal}
+                  size="sm"
+                  disabled={pending}
+                />
+              }
+              items={[
+                {
+                  label: 'Stop run',
+                  disabled: pending,
+                  onSelect: () => void act(onStop),
+                },
+              ]}
+            />
+          )}
         </span>
       </div>
       {(error || run.error) && (

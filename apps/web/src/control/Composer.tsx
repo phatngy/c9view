@@ -469,7 +469,10 @@ export function Composer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [receipt.data, receipt.error, waiting?.id]);
   /* eslint-enable react-hooks/set-state-in-effect */
-  async function action(task: () => Promise<CommandReceipt>) {
+  async function action(
+    task: () => Promise<CommandReceipt>,
+    after?: 'composer',
+  ) {
     if (actionLock.current || busy.current || waiting)
       throw new Error('Another command is pending.');
     actionLock.current = true;
@@ -479,6 +482,8 @@ export function Composer({
       if (value.status === 'failed')
         throw new Error(value.error ?? 'Command failed.');
       refresh();
+      // The control that was used is now disabled; hand focus to the reply box.
+      if (after) focusNext(after);
     } catch (error) {
       failure(error, 'action');
       if (error instanceof ControlError && error.kind === 'uncertain') {
@@ -538,9 +543,11 @@ export function Composer({
             run={run}
             needsInput={requests.length > 0}
             onInterrupt={() =>
-              action(() => control.service.interrupt(run.runId))
+              action(() => control.service.interrupt(run.runId), 'composer')
             }
-            onStop={() => action(() => control.service.stop(run.runId))}
+            onStop={() =>
+              action(() => control.service.stop(run.runId), 'composer')
+            }
           />
         )}
         <p role="status" aria-live="polite" className="sr-only">
@@ -716,8 +723,9 @@ export function Composer({
                     title="Stop response"
                     disabled={pending || !!waiting}
                     onClick={() =>
-                      void action(() =>
-                        control.service.interrupt(run!.runId),
+                      void action(
+                        () => control.service.interrupt(run!.runId),
+                        'composer',
                       ).catch(() => {})
                     }
                     className={`${roundButton} bg-ink text-page`}
