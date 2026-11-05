@@ -342,7 +342,7 @@ it('T051 shows state, linked cost and badges and locks run actions while pending
       onStop={stopped}
     />,
   );
-  expect(screen.getByText('running · 2 queued')).toBeVisible();
+  expect(screen.getByText('Working… · 2 queued')).toBeVisible();
   expect(screen.getByRole('link', { name: /API-equivalent/ })).toHaveAttribute(
     'href',
     '#api-equivalent-cost',
@@ -350,14 +350,15 @@ it('T051 shows state, linked cost and badges and locks run actions while pending
   expect(screen.getByText('Driven by c9view')).toBeVisible();
   expect(screen.getByText('Bypass')).toBeVisible();
   fireEvent.click(screen.getByRole('button', { name: 'Interrupt' }));
-  expect(screen.getByRole('button', { name: 'Stop' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Run options' })).toBeDisabled();
   fireEvent.click(screen.getByRole('button', { name: 'Interrupt' }));
   expect(interrupted).toHaveBeenCalledTimes(1);
   finish();
   await waitFor(() =>
-    expect(screen.getByRole('button', { name: 'Stop' })).toBeEnabled(),
+    expect(screen.getByRole('button', { name: 'Run options' })).toBeEnabled(),
   );
-  fireEvent.click(screen.getByRole('button', { name: 'Stop' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Run options' }));
+  fireEvent.click(await screen.findByRole('menuitem', { name: 'Stop run' }));
   await waitFor(() => expect(stopped).toHaveBeenCalledTimes(1));
 });
 it('T046 recovers an uncertain trust command then retries the previously refused reply', async () => {

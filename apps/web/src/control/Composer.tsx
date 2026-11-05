@@ -536,6 +536,7 @@ export function Composer({
         {run && (
           <RunBar
             run={run}
+            needsInput={requests.length > 0}
             onInterrupt={() =>
               action(() => control.service.interrupt(run.runId))
             }
