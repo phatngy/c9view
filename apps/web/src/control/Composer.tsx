@@ -278,7 +278,13 @@ export function Composer({
         composer.current?.focus();
       } else if (event.code === 'KeyC' || event.key.toLowerCase() === 'c') {
         // Leave the browser's copy alone when text is selected.
-        if (window.getSelection()?.toString()) return;
+        // Firefox reports no window selection inside a text field.
+        const field = document.activeElement;
+        const fieldSelection =
+          (field instanceof HTMLTextAreaElement ||
+            field instanceof HTMLInputElement) &&
+          field.selectionStart !== field.selectionEnd;
+        if (window.getSelection()?.toString() || fieldSelection) return;
         event.preventDefault();
         const value = lastResponseRef.current;
         window.clearTimeout(timer);
