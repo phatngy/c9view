@@ -140,6 +140,7 @@ export function Composer({
   const focusedRequest = useRef<string | undefined>(undefined);
   const [elapsed, setElapsed] = useState(0);
   const [copyNote, setCopyNote] = useState('');
+  const [, setFocusTick] = useState(0);
   const mac = isMac();
   const modKey = mac ? '⌘' : 'Ctrl';
   const lastResponseRef = useRef(lastResponse);
@@ -556,10 +557,14 @@ export function Composer({
             status={status}
             lastAt={lastAt}
             needsInput={requests.length > 0}
+            onStopped={() => {
+              // The dialog is gone and pending has cleared: restore focus.
+              focusNext('composer');
+              setFocusTick((n) => n + 1);
+            }}
             onStop={
               run
-                ? () =>
-                    action(() => control.service.stop(run.runId), 'composer')
+                ? () => action(() => control.service.stop(run.runId))
                 : undefined
             }
           />

@@ -337,15 +337,34 @@ it('Stop failure closes the dialog, shows the error, refocuses Run options and a
   fireEvent.click(within(again).getByRole('button', { name: 'Stop' }));
   await waitFor(() => expect(stop).toHaveBeenCalledTimes(2));
 });
-it('Stop success leaves focus on the enabled reply box', async () => {
-  const box = document.createElement('textarea');
-  box.id = 'session-reply';
-  document.body.append(box);
-  const { dialog } = await openConfirm();
+async function confirmStop(stop: () => Promise<void>, onStopped = vi.fn()) {
+  render(
+    <RunBar
+      run={{ ...base, state: 'idle' }}
+      onStop={stop}
+      onStopped={onStopped}
+    />,
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Run options' }));
+  fireEvent.click(await screen.findByRole('menuitem', { name: 'Stop' }));
+  const dialog = await screen.findByRole('alertdialog');
   fireEvent.click(within(dialog).getByRole('button', { name: 'Stop' }));
-  await waitFor(() => expect(box).toHaveFocus());
-  expect(box).toBeEnabled();
-  box.remove();
+  return onStopped;
+}
+it('calls onStopped once after a successful stop, when the dialog has closed', async () => {
+  const onStopped = await confirmStop(vi.fn(async () => {}));
+  await waitFor(() => expect(onStopped).toHaveBeenCalledTimes(1));
+  expect(screen.queryByRole('alertdialog')).toBeNull();
+});
+it('does not call onStopped when the stop fails', async () => {
+  const onStopped = await confirmStop(
+    vi.fn(async () => {
+      throw new Error('nope');
+    }),
+  );
+  await screen.findByRole('alert');
+  await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+  expect(onStopped).not.toHaveBeenCalled();
 });
 it('Escape while Stop is pending closes the dialog without a second stop', async () => {
   let finish!: () => void;
