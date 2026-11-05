@@ -170,7 +170,7 @@ PRs 6.0a and 6.0b land before Step 6, so session control is written once, in its
 - **6.0c, response budgets**.
   - Owns `packages/node/src/budget.ts` (new): measures encoded JSON after redaction and stops a page at the budget.
   - Edits the node's session, search, files, git and changes routes to return byte-budgeted pages with continuation cursors (R8).
-  - Session number cursors stay because the web computes earlier pages from them; trimming backward pages from the start keeps pages contiguous. An oversized item is cut with a marker, but paging through the rest of that item has no cursor yet, so R8's per-item cursor is still open.
+  - Session number cursors stay because the web computes earlier pages from them; trimming backward pages from the start keeps pages contiguous. An oversized item is cut with a marker, but paging through the rest of that item has no cursor yet, accepted as a follow-up on 2026-11-05 (see R8).
   - Web: `apps/web/src/session/paging.ts` follows returned cursors instead of counting messages; partial-content notices in the file viewer and diffs.
 - **7a, merged endpoints**.
   - Owns `apps/hub/src/aggregate.ts` (new): merges Overview, projects and usage over every transport, with `partial` (R17).
@@ -237,6 +237,7 @@ PRs 6.0a and 6.0b land before Step 6, so session control is written once, in its
    - Session pages, search results, directory listings, git status and changes, and diffs: at most 1 MiB per page. The node stops before the budget and returns a continuation cursor; it never cuts JSON.
    - A file view: at most 8 MiB. A larger file returns metadata and an explicit notice instead of content.
    - A single item larger than its page budget (a huge message or hunk) is returned truncated with a marker and a cursor to page its full content.
+     - _Amended 2026-11-05 (maintainer):_ 6.0c cuts such an item with a marker and returns no cursor for the rest of it; the per-item cursor is accepted as a follow-up, to be reviewed by the maintainer.
    - The web follows returned cursors, keeps order, and shows a partial-content notice with a way to continue.
 9. **R9** PR 6.0a changes no behaviour: every existing test passes after moving with its code, and every `/api/*` response is unchanged.
 
