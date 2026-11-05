@@ -2,8 +2,15 @@ import { expect, request, type FullConfig } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
 
 export default async function setup(config: FullConfig) {
+  const baseURLs = new Set(
+    config.projects.map((project) => project.use.baseURL!),
+  );
+  await Promise.all([...baseURLs].map(waitForIndex));
+}
+
+async function waitForIndex(baseURL: string) {
   const api = await request.newContext({
-    baseURL: config.projects[0]!.use.baseURL!,
+    baseURL,
   });
   try {
     // /api/m/local/health is also 200 while building (or after an index error).
@@ -20,7 +27,7 @@ export default async function setup(config: FullConfig) {
           );
           return health.index?.state;
         },
-        { timeout: 30_000, message: 'Synthetic fixture index must be ready' },
+        { timeout: 30_000, message: `${baseURL} fixture index must be ready` },
       )
       .toBe('ready');
   } finally {
