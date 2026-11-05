@@ -69,6 +69,10 @@ const machineGet = <T>(
   path: string,
   signal?: AbortSignal,
 ) => get<T>(machinePath(machineId, path), signal);
+const cursorQuery = (cursor: string | undefined, hasQuery = false) =>
+  cursor === undefined
+    ? ''
+    : `${hasQuery ? '&' : '?'}cursor=${encodeURIComponent(cursor)}`;
 const projectPath = (id: string) => `/projects/${encodeURIComponent(id)}`;
 export const fileQueryOptions = {
   staleTime: 30_000,
@@ -88,7 +92,8 @@ export interface UsageFilters {
   projectId: string;
 }
 export const SESSION_PAGE_SIZE = 50;
-export type SessionPageParam = 'end' | { cursor: number; limit: number };
+export type SessionPageParam =
+  'end' | { cursor: number; limit: number; fill?: 'end' };
 export const api = {
   usage: (machineId: MachineId, filters: UsageFilters, signal?: AbortSignal) =>
     machineGet<UsageResponse>(
@@ -118,10 +123,11 @@ export const api = {
     id: string,
     path: string,
     signal?: AbortSignal,
+    cursor?: string,
   ) =>
     machineGet<FileListResponse>(
       machineId,
-      `${projectPath(id)}/files?path=${encodeURIComponent(path)}`,
+      `${projectPath(id)}/files?path=${encodeURIComponent(path)}${cursorQuery(cursor, true)}`,
       signal,
     ),
   file: (
@@ -135,10 +141,15 @@ export const api = {
       `${projectPath(id)}/file?path=${encodeURIComponent(path)}`,
       signal,
     ),
-  gitStatus: (machineId: MachineId, id: string, signal?: AbortSignal) =>
+  gitStatus: (
+    machineId: MachineId,
+    id: string,
+    signal?: AbortSignal,
+    cursor?: string,
+  ) =>
     machineGet<GitStatusResponse>(
       machineId,
-      `${projectPath(id)}/git/status`,
+      `${projectPath(id)}/git/status${cursorQuery(cursor)}`,
       signal,
     ),
   gitDiff: (
@@ -146,10 +157,11 @@ export const api = {
     id: string,
     path: string,
     signal?: AbortSignal,
+    cursor?: string,
   ) =>
     machineGet<GitDiffResponse>(
       machineId,
-      `${projectPath(id)}/git/diff?path=${encodeURIComponent(path)}`,
+      `${projectPath(id)}/git/diff?path=${encodeURIComponent(path)}${cursorQuery(cursor, true)}`,
       signal,
     ),
   changes: (
@@ -157,10 +169,11 @@ export const api = {
     id: string,
     sid: string,
     signal?: AbortSignal,
+    cursor?: string,
   ) =>
     machineGet<SessionChangesResponse>(
       machineId,
-      `${projectPath(id)}/sessions/${encodeURIComponent(sid)}/changes`,
+      `${projectPath(id)}/sessions/${encodeURIComponent(sid)}/changes${cursorQuery(cursor)}`,
       signal,
     ),
   change: (
@@ -197,7 +210,7 @@ export const api = {
           ? `from=end&limit=${SESSION_PAGE_SIZE}`
           : typeof page === 'number'
             ? `cursor=${page}&limit=${SESSION_PAGE_SIZE}`
-            : `cursor=${page.cursor}&limit=${page.limit}`
+            : `cursor=${page.cursor}&limit=${page.limit}${page.fill ? `&fill=${page.fill}` : ''}`
       }`,
       signal,
     ),
@@ -257,11 +270,17 @@ export const useSession = (projectId: string, sessionId: string) => {
       >;
       return replaceEqualDeep(previous, {
         ...data,
-        pageParams: data.pageParams.map((param, index) =>
-          param === 'end'
-            ? { cursor: data.pages[index]!.cursor, limit: SESSION_PAGE_SIZE }
-            : param,
-        ),
+        // Pin end-filled windows to the range actually returned. Reusing the
+        // larger requested window after growth could shift the tail past a gap.
+        pageParams: data.pageParams.map((param, index) => {
+          if (param !== 'end' && param.fill !== 'end') return param;
+          const page = data.pages[index]!;
+          return {
+            cursor: page.cursor,
+            limit: page.messages.length || SESSION_PAGE_SIZE,
+            ...(param !== 'end' ? { fill: param.fill } : {}),
+          };
+        }),
       });
     },
     queryFn: ({ pageParam, signal }) =>

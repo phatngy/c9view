@@ -106,7 +106,7 @@ export function FileViewer({
         <p role="note">
           Binary file ({file.language}); content is unavailable.
         </p>
-      ) : file.tooLarge ? (
+      ) : file.tooLarge || file.notice === 'too-large' ? (
         <p role="note">
           File is too large to display ({file.size.toLocaleString()} bytes).
         </p>

@@ -5,12 +5,8 @@ export function previousSessionPage(
   first: SessionDetailResponse,
 ): SessionPageParam | undefined {
   if (first.prevCursor === null || first.cursor <= 0) return undefined;
-  const cursor = Math.max(
-    0,
-    first.prevCursor,
-    first.cursor - SESSION_PAGE_SIZE,
-  );
-  return { cursor, limit: first.cursor - cursor };
+  const cursor = Math.max(0, first.prevCursor);
+  return { cursor, limit: first.cursor - cursor, fill: 'end' };
 }
 
 export function nextSessionPage(

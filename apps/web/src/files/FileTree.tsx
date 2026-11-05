@@ -1,10 +1,11 @@
 import { queryKeys } from '../queryKeys.js';
 import { useMachineId } from '../machine.js';
 import { useRef, useState, type KeyboardEvent } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import type { GitStatusResponse, ProjectFileEntry } from '@c9view/api';
-import { api, fileQueryOptions } from '../api.js';
+import { api } from '../api.js';
 import { EmptyState, Skeleton } from '../kit/index.js';
+import { LoadMore } from './LoadMore.js';
+import { useCursorList } from './paging.js';
 import { FileFailure } from './shared.js';
 
 function saved(projectId: string): Set<string> {
@@ -123,11 +124,14 @@ function Directory({
   badges: Map<string, string>;
 }) {
   const machineId = useMachineId();
-  const query = useQuery({
-    queryKey: queryKeys.files(machineId, projectId, path),
-    queryFn: ({ signal }) => api.files(machineId, projectId, path, signal),
-    ...fileQueryOptions,
-  });
+  const query = useCursorList(
+    queryKeys.files(machineId, projectId, path),
+    (signal, cursor) => api.files(machineId, projectId, path, signal, cursor),
+    (pages) => ({
+      ...pages[0]!,
+      entries: pages.flatMap((page) => page.entries),
+    }),
+  );
   const [reason, setReason] = useState<string>();
   if (query.error)
     return <FileFailure error={query.error} retry={query.refetch} />;
@@ -235,6 +239,11 @@ function Directory({
           </li>
         );
       })}
+      {query.hasNextPage && (
+        <li>
+          <LoadMore query={query} />
+        </li>
+      )}
       {query.data?.entries.length === 0 && (
         <li>
           <EmptyState compact title="Empty folder" />

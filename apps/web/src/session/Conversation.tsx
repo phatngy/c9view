@@ -134,6 +134,7 @@ export function Conversation({
   );
   const renders = useCallback(
     (message: Message) => {
+      if (message.truncated) return true;
       if (!displayedBlocks(message).length) return false;
       if (message.role === 'assistant') return true;
       return (
@@ -334,6 +335,11 @@ export function Conversation({
         tabIndex={-1}
         className={`relative min-w-0 ${inGroup ? '' : 'space-y-2.5'} ${message.role === 'assistant' && !inGroup ? 'pl-11' : ''} ${kind === 'prompt' ? 'ml-auto' : ''}`}
       >
+        {message.truncated && (
+          <SystemNote>
+            <p role="note">This message was cut to fit the page size.</p>
+          </SystemNote>
+        )}
         {message.role === 'assistant' &&
         (kind === 'note' || kind === 'task-notification') &&
         !blocks.some((block) => block.type !== 'text') ? (

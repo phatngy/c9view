@@ -416,3 +416,164 @@ it('shows a kit empty state before a file is selected', () => {
     screen.getByText('Choose a file to view its contents.'),
   ).toBeInTheDocument();
 });
+
+it('appends directory pages using the returned opaque cursor and refetches loaded pages in order', async () => {
+  const { refreshMachine } = await import('../live/index.js');
+  const { act } = await import('@testing-library/react');
+  const first = { name: 'first.ts', path: 'first.ts', type: 'file' as const };
+  const last = { name: 'last.ts', path: 'last.ts', type: 'file' as const };
+  let refreshed = false;
+  const fetcher = vi.fn(async (url: string) => {
+    const cursor = new URL(url, 'http://localhost').searchParams.get('cursor');
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        path: '',
+        entries: [cursor ? last : first],
+        nextCursor: cursor
+          ? null
+          : refreshed
+            ? 'fresh/cursor'
+            : 'opaque+cursor',
+      }),
+    };
+  });
+  vi.stubGlobal('fetch', fetcher);
+  open(<FileTree projectId="p" onOpen={vi.fn()} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Load more' }));
+  await screen.findByRole('button', { name: /last.ts/ });
+  expect(
+    screen.getAllByRole('button').map((button) => button.textContent),
+  ).toEqual([
+    expect.stringContaining('first.ts'),
+    expect.stringContaining('last.ts'),
+  ]);
+  expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull();
+  expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
+    `${base}/files?path=`,
+    `${base}/files?path=&cursor=opaque%2Bcursor`,
+  ]);
+  refreshed = true;
+  fetcher.mockClear();
+  await act(async () => {
+    await refreshMachine(clients[0]!, 'local');
+  });
+  expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
+    `${base}/files?path=`,
+    `${base}/files?path=&cursor=fresh%2Fcursor`,
+  ]);
+  expect(screen.getAllByRole('button')).toHaveLength(2);
+});
+
+it('appends working tree status pages and paged per-file diffs, with cut notices', async () => {
+  if (!status.isRepo) throw new Error('Expected fixture repository');
+  mock({
+    [`${base}/git/status`]: { ...status, nextCursor: 'status-next' },
+    [`${base}/git/status?cursor=status-next`]: {
+      ...status,
+      files: [{ ...status.files[0]!, path: 'second.ts' }],
+      nextCursor: null,
+    },
+    [`${base}/git/diff?path=demo.ts`]: {
+      ...patch,
+      files: [{ ...patch.files[0]!, truncated: true }],
+      nextCursor: 'diff-next',
+    },
+    [`${base}/git/diff?path=demo.ts&cursor=diff-next`]: {
+      ...patch,
+      files: [{ ...patch.files[0]!, path: 'renamed.ts' }],
+      nextCursor: null,
+    },
+  });
+  open(<ProjectChanges projectId="p" />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Load more' }));
+  await screen.findByRole('button', { name: /second.ts/ });
+  fireEvent.click(screen.getByRole('button', { name: /demo.ts/ }));
+  expect(
+    await screen.findByText('Diff cut to fit the page size.'),
+  ).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Load more' }));
+  await screen.findByRole('region', { name: 'Diff for renamed.ts' });
+  expect(
+    screen
+      .getAllByRole('region', { name: /^Diff for/ })
+      .map((region) => region.getAttribute('aria-label')),
+  ).toEqual(['Diff for demo.ts', 'Diff for renamed.ts']);
+  expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull();
+});
+
+it('appends session change pages and warns when the selected file diff was cut', async () => {
+  const changed = {
+    fileId: 'first',
+    filePath: 'first.ts',
+    relPath: 'first.ts',
+    kind: 'update' as const,
+    additions: 1,
+    deletions: 1,
+    toolUseIds: [],
+    firstAt: null,
+    lastAt: null,
+  };
+  mock({
+    [`${base}/sessions/s/changes`]: { files: [changed], nextCursor: 'next' },
+    [`${base}/sessions/s/changes?cursor=next`]: {
+      files: [
+        {
+          ...changed,
+          fileId: 'second',
+          filePath: 'second.ts',
+          relPath: 'second.ts',
+        },
+      ],
+      nextCursor: null,
+    },
+    [`${base}/sessions/s/changes/second`]: {
+      fileId: 'second',
+      filePath: 'second.ts',
+      additions: 1,
+      deletions: 1,
+      hunks: patch.files[0]!.hunks,
+      steps: [],
+      source: 'tool-hunks',
+      truncated: true,
+      tooLarge: false,
+      partial: false,
+    },
+  });
+  HTMLDialogElement.prototype.showModal = function () {
+    this.setAttribute('open', '');
+  };
+  open(
+    <SessionChanges
+      projectId="p"
+      sessionId="s"
+      dismiss={vi.fn()}
+      jump={vi.fn()}
+    />,
+  );
+  fireEvent.click(await screen.findByRole('button', { name: 'Load more' }));
+  fireEvent.click(await screen.findByRole('button', { name: /second.ts/ }));
+  expect(
+    await screen.findByText('Diff cut to fit the page size.'),
+  ).toBeInTheDocument();
+  expect(screen.getByText('2 files')).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull();
+});
+
+it('uses the existing too-large state and byte size for a budget notice', () => {
+  render(
+    <FileViewer
+      file={{
+        ...file,
+        notice: 'too-large',
+        size: 1234567,
+        content: 'must not show',
+      }}
+    />,
+  );
+  expect(screen.getByRole('note')).toHaveTextContent(
+    'File is too large to display (1,234,567 bytes).',
+  );
+  expect(screen.queryByText('must not show')).toBeNull();
+});

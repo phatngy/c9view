@@ -193,7 +193,8 @@ it.each([10, 60])(
       wrapper: Wrapper,
     });
     const cursor = Math.max(0, count - 50);
-    const pageParams = [{ cursor, limit: 50 }];
+    const limit = Math.min(count, 50);
+    const pageParams = [{ cursor, limit }];
     await waitFor(() =>
       expect(result.current.data?.pageParams).toEqual(pageParams),
     );
@@ -231,7 +232,7 @@ it.each([10, 60])(
     );
     expect(pageRequests(fetcher).map(([url]) => url.split('?')[1])).toEqual([
       'from=end&limit=50',
-      `cursor=${cursor}&limit=50`,
+      `cursor=${cursor}&limit=${limit}`,
     ]);
   },
 );
@@ -2516,4 +2517,18 @@ it('resumes outline observer updates after the 600 ms jump fallback', () => {
   } finally {
     vi.useRealTimers();
   }
+});
+
+it('shows a partial-content notice for truncated text and paired tool-result messages', () => {
+  const result = { ...fixtures[2]!, truncated: true };
+  const { rerender } = render(
+    <Conversation messages={[{ ...message('cut'), truncated: true }]} />,
+  );
+  expect(screen.getByRole('note')).toHaveTextContent(
+    'This message was cut to fit the page size.',
+  );
+  rerender(<Conversation messages={[...fixtures.slice(0, 2), result]} />);
+  expect(
+    screen.getByText('This message was cut to fit the page size.'),
+  ).toBeInTheDocument();
 });

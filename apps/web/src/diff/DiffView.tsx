@@ -131,9 +131,7 @@ export function DiffView(props: DiffViewProps) {
       {mode === 'split' && !wide && (
         <p className="p-2 text-xs text-muted">Unified view on small screens</p>
       )}
-      {props.truncated && (
-        <p role="note">Truncated diff. Some changes are omitted.</p>
-      )}
+      {props.truncated && <p role="note">Diff cut to fit the page size.</p>}
       {props.tooLarge && <p role="note">This diff is too large to display.</p>}
       {props.partial && (
         <p role="note">Partial diff: complete file history is unavailable.</p>

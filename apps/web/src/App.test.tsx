@@ -415,7 +415,7 @@ describe('dashboard', () => {
     mockApi({
       '/api/m/local/projects/project-1/sessions/session-0?from=end&limit=50':
         second,
-      '/api/m/local/projects/project-1/sessions/session-0?cursor=0&limit=2':
+      '/api/m/local/projects/project-1/sessions/session-0?cursor=0&limit=2&fill=end':
         first,
     });
     open('/m/local/projects/project-1/sessions/session-0');

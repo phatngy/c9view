@@ -631,3 +631,15 @@ it('silently drops malformed envelopes and mismatched hint types', async () => {
   });
   expect(invalidate).not.toHaveBeenCalled();
 });
+
+it('preserves the backward fill and requested cursor when refreshing a short newest page', async () => {
+  const value = client();
+  const param = { cursor: 2, limit: 38, fill: 'end' as const };
+  value.setQueryData(queryKeys.session('local', 'p', 's'), {
+    pages: [{ ...sessionDetail, cursor: 35 }],
+    pageParams: [param],
+  });
+  const request = vi.spyOn(api, 'session').mockResolvedValue(sessionDetail);
+  await refreshNewestPage(value, 'local', 'p', 's');
+  expect(request).toHaveBeenCalledExactlyOnceWith('local', 'p', 's', param);
+});

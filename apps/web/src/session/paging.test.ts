@@ -20,10 +20,11 @@ describe('previousSessionPage', () => {
   it('uses absolute offsets without overlapping the next page', () => {
     expect(
       previousSessionPage(page({ cursor: 1538, prevCursor: 1488 })),
-    ).toEqual({ cursor: 1488, limit: 50 });
+    ).toEqual({ cursor: 1488, limit: 50, fill: 'end' });
     expect(previousSessionPage(page({ cursor: 38, prevCursor: 0 }))).toEqual({
       cursor: 0,
       limit: 38,
+      fill: 'end',
     });
   });
   it('stops at the beginning or without a preceding page', () => {
@@ -107,4 +108,47 @@ it('animates user navigation unless reduced motion is requested', () => {
   expect(media).toHaveBeenCalledWith('(prefers-reduced-motion: reduce)');
   media.mockReturnValue({ matches: true });
   expect(smoothScrollBehavior()).toBe('instant');
+});
+
+it('follows short forward pages and end-filled backward pages without gaps', () => {
+  const total = 123;
+  const serve = (param: SessionPageParam): SessionDetailResponse => {
+    const limit = param === 'end' ? SESSION_PAGE_SIZE : param.limit;
+    const start = param === 'end' ? Math.max(0, total - limit) : param.cursor;
+    const end = Math.min(total, start + limit);
+    const backwards = param === 'end' || param.fill === 'end';
+    const cursor = backwards ? Math.max(start, end - 7) : start;
+    const count = Math.min(7, end - cursor);
+    return page({
+      cursor,
+      prevCursor: cursor > 0 ? Math.max(0, cursor - limit) : null,
+      nextCursor: cursor + count < total ? cursor + count : null,
+      totalMessages: total,
+      truncated: true,
+      messages: Array.from({ length: count }, (_, index) => ({
+        ...messages[0]!,
+        uuid: String(cursor + index),
+      })),
+    });
+  };
+  const expected = Array.from({ length: total }, (_, index) => String(index));
+  const forward = [serve({ cursor: 0, limit: 50 })];
+  while (forward.at(-1)!.nextCursor !== null)
+    forward.push(serve(nextSessionPage(forward.at(-1)!, undefined)!));
+  expect(forward.flatMap((item) => item.messages.map((m) => m.uuid))).toEqual(
+    expected,
+  );
+  const backward = [serve('end')];
+  while (backward[0]!.prevCursor !== null) {
+    const param = previousSessionPage(backward[0]!)!;
+    expect(param).toMatchObject({ fill: 'end' });
+    const previous = serve(param);
+    expect(previous.cursor + previous.messages.length).toBe(
+      backward[0]!.cursor,
+    );
+    backward.unshift(previous);
+  }
+  expect(backward.flatMap((item) => item.messages.map((m) => m.uuid))).toEqual(
+    expected,
+  );
 });

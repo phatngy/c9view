@@ -75,10 +75,14 @@ async function readNewestPage(client: QueryClient, query: Query) {
   const param = cached.pageParams.at(-1);
   if (!last) return;
   const [machineId, , projectId, sessionId] = query.queryKey as string[];
-  const page = await api.session(machineId!, projectId!, sessionId!, {
-    cursor: last.cursor,
-    limit: typeof param === 'object' ? param.limit : SESSION_PAGE_SIZE,
-  });
+  const page = await api.session(
+    machineId!,
+    projectId!,
+    sessionId!,
+    typeof param === 'object'
+      ? param
+      : { cursor: last.cursor, limit: SESSION_PAGE_SIZE },
+  );
   client.setQueryData(query.queryKey, (current: unknown) =>
     current === cached
       ? { ...cached, pages: [...cached.pages.slice(0, -1), page] }
