@@ -36,28 +36,13 @@ const announced = new Set([
   labels.need_input,
 ]);
 
-/** Focus the reply box once it is enabled, unless the user moved on. */
-function focusReply(attempt = 0) {
-  window.setTimeout(() => {
-    const box = document.getElementById('session-reply');
-    const active = document.activeElement;
-    if (
-      active &&
-      active !== document.body &&
-      !active.closest('[role="alertdialog"]')
-    )
-      return;
-    if (box instanceof HTMLTextAreaElement && !box.disabled) box.focus();
-    else if (attempt < 20) focusReply(attempt + 1);
-  }, 50);
-}
-
 export function RunBar({
   run,
   status,
   lastAt = null,
   needsInput = false,
   onStop,
+  onStopped,
 }: {
   /** The c9view run, if any. Without one the session's own status shows. */
   run?: RunSummary | undefined;
@@ -66,12 +51,15 @@ export function RunBar({
   /** A permission or question request is pending for this run. */
   needsInput?: boolean;
   onStop?: (() => Promise<void>) | undefined;
+  /** Called once after a successful stop, when the dialog is fully closed. */
+  onStopped?: (() => void) | undefined;
 }) {
   const busy = useRef(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
   const section = useRef<HTMLElement>(null);
   const stopped = useRef(false);
+  const dialogMounted = useRef(false);
   const [confirming, setConfirming] = useState(false);
   async function act(action: () => Promise<void>): Promise<boolean> {
     if (busy.current) return false;
@@ -174,6 +162,7 @@ export function RunBar({
                   disabled: pending,
                   onSelect: () => {
                     stopped.current = false;
+                    dialogMounted.current = true;
                     setConfirming(true);
                   },
                 },
@@ -189,16 +178,20 @@ export function RunBar({
               confirmLabel="Stop"
               destructive
               pending={pending}
+              onClosed={() => {
+                dialogMounted.current = false;
+                if (stopped.current) onStopped?.();
+              }}
               onConfirm={() =>
                 void act(onStop).then((ok) => {
                   stopped.current = ok;
                   setConfirming(false);
-                  if (ok) focusReply();
+                  if (ok && !dialogMounted.current) onStopped?.();
                 })
               }
               finalFocus={() =>
-                // After a successful stop the reply box takes focus once it
-                // is enabled again (see focusReply); otherwise the trigger.
+                // After a successful stop the composer takes focus (onStopped);
+                // otherwise focus returns to the trigger.
                 stopped.current
                   ? false
                   : (section.current?.querySelector<HTMLElement>(

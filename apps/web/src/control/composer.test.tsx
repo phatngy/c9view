@@ -5,6 +5,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, expect, it, vi } from 'vitest';
@@ -485,4 +486,24 @@ it('ignores shortcuts that start inside an alert dialog', () => {
   });
   expect(box()).not.toHaveFocus();
   dialog.remove();
+});
+
+it('after a confirmed Stop the reply box is enabled and focused', async () => {
+  const fetcher = mount(run('running'));
+  const trigger = await screen.findByRole('button', { name: 'Run options' });
+  trigger.focus();
+  fireEvent.click(trigger);
+  fireEvent.click(await screen.findByRole('menuitem', { name: 'Stop' }));
+  const dialog = await screen.findByRole('alertdialog');
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Stop' }));
+  await waitFor(() =>
+    expect(
+      fetcher.mock.calls.some(([url]) =>
+        String(url).endsWith('/control/runs/r/stop'),
+      ),
+    ).toBe(true),
+  );
+  await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+  await waitFor(() => expect(box()).toHaveFocus());
+  expect(box()).toBeEnabled();
 });

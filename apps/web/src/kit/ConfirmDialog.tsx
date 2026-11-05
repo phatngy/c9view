@@ -15,6 +15,8 @@ export interface ConfirmDialogProps {
   /** Disables Confirm (and Cancel) while the confirmed work is pending. */
   pending?: boolean;
   onConfirm: () => void;
+  /** Fires once the dialog has fully closed and unmounted. */
+  onClosed?: () => void;
   /** Where focus goes on close (false: leave it to the caller); defaults to the element focused before open. */
   finalFocus?: () => HTMLElement | boolean | null;
 }
@@ -33,11 +35,18 @@ export function ConfirmDialog({
   destructive = false,
   pending = false,
   onConfirm,
+  onClosed,
   finalFocus,
 }: ConfirmDialogProps) {
   const cancel = useRef<HTMLButtonElement | null>(null);
   return (
-    <AlertDialog.Root open={open} onOpenChange={onOpenChange}>
+    <AlertDialog.Root
+      open={open}
+      onOpenChange={onOpenChange}
+      onOpenChangeComplete={(next) => {
+        if (!next) onClosed?.();
+      }}
+    >
       <AlertDialog.Portal>
         <AlertDialog.Backdrop className="fixed inset-0 z-50 bg-ink/40" />
         <AlertDialog.Popup
