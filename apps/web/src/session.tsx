@@ -93,6 +93,18 @@ function SessionView({
     ],
     [query.data],
   );
+  const lastResponse = useMemo(() => {
+    const reply = messages.findLast(
+      (m) =>
+        m.role === 'assistant' &&
+        !m.isSidechain &&
+        !m.isMeta &&
+        m.blocks.some((b) => b.type === 'text' && b.text.trim()),
+    );
+    return reply?.blocks
+      .flatMap((b) => (b.type === 'text' ? [b.text] : []))
+      .join('\n\n');
+  }, [messages]);
   const searchIndex = useMemo(() => buildSearchIndex(messages), [messages]);
   const matches = useMemo(
     () =>
@@ -539,7 +551,11 @@ function SessionView({
               },
             }}
           />
-          <Composer projectId={projectId} sessionId={sessionId} />
+          <Composer
+            projectId={projectId}
+            sessionId={sessionId}
+            lastResponse={lastResponse}
+          />
         </div>
         <aside
           aria-label="Session rail"

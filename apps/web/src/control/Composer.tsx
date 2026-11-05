@@ -1,9 +1,17 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import {
+  ArrowUp,
+  CircleHelp,
+  ClipboardList,
+  Pencil,
+  ShieldCheck,
+  Square,
+} from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import type { CommandReceipt, PermissionMode, TrustSummary } from '@c9view/api';
-import { Button, Select } from '../kit/index.js';
-import { focusRing } from '../kit/classes.js';
+import { Button, Popover, Select, Kbd } from '../kit/index.js';
+import { focusRing, target as targetSize } from '../kit/classes.js';
 import { HttpError } from '../api.js';
 import { useMachineId } from '../machine.js';
 import { queryKeys } from '../queryKeys.js';
@@ -23,12 +31,55 @@ type Waiting = {
   operation: 'reply' | 'trust' | 'action';
   startedAt: number;
 };
+const LIMIT = 20_000;
+const COUNTER_FROM = 18_000;
+const MODE_ICONS = {
+  default: ShieldCheck,
+  acceptEdits: Pencil,
+  plan: ClipboardList,
+} as const;
+
+function isMac() {
+  if (typeof navigator === 'undefined') return false;
+  const nav = navigator as Navigator & {
+    userAgentData?: { platform?: string };
+  };
+  return /mac|iphone|ipad/i.test(
+    nav.userAgentData?.platform || nav.platform || '',
+  );
+}
+function isComposing(event: KeyboardEvent | React.KeyboardEvent) {
+  const native = 'nativeEvent' in event ? event.nativeEvent : event;
+  return native.isComposing || event.keyCode === 229;
+}
+function coarsePointer() {
+  return (
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(pointer: coarse)').matches
+  );
+}
+function Shortcut({ keys, label }: { keys: string[]; label: string }) {
+  return (
+    <div className="flex items-center justify-between gap-6">
+      <dt>{label}</dt>
+      <dd className="flex gap-1">
+        {keys.map((key) => (
+          <Kbd key={key}>{key}</Kbd>
+        ))}
+      </dd>
+    </div>
+  );
+}
+
 export function Composer({
   projectId,
   sessionId,
+  lastResponse,
 }: {
   projectId: string;
   sessionId: string;
+  /** Plain text of the last assistant reply already shown on the page. */
+  lastResponse?: string | undefined;
 }) {
   const control = useControl();
   const machineId = useMachineId();
@@ -51,6 +102,11 @@ export function Composer({
   const focusEpoch = useRef(0);
   const focusedRequest = useRef<string | undefined>(undefined);
   const [elapsed, setElapsed] = useState(0);
+  const [copyNote, setCopyNote] = useState('');
+  const mac = isMac();
+  const modKey = mac ? '⌘' : 'Ctrl';
+  const lastResponseRef = useRef(lastResponse);
+  lastResponseRef.current = lastResponse;
   const pollAttempt = useRef(0);
   const recovery = useRef<{ resolve: (error?: Error) => void } | undefined>(
     undefined,
@@ -170,6 +226,59 @@ export function Composer({
         : undefined;
     (next ?? composer.current)?.focus();
   });
+  // Ctrl/Cmd+Shift shortcuts work anywhere on the page, including the
+  // composer. They only focus or copy; they never answer a request.
+  useEffect(() => {
+    if (!control.ready) return;
+    let timer: number | undefined;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || isComposing(event)) return;
+      const mod = mac
+        ? event.metaKey && !event.ctrlKey
+        : event.ctrlKey && !event.metaKey;
+      if (!mod || !event.shiftKey || event.altKey) return;
+      if (
+        event.target instanceof Element &&
+        event.target.closest('dialog[open]')
+      )
+        return;
+      if (
+        event.code === 'Semicolon' ||
+        event.key === ';' ||
+        event.key === ':'
+      ) {
+        event.preventDefault();
+        composer.current?.focus();
+      } else if (event.code === 'KeyC' || event.key.toLowerCase() === 'c') {
+        event.preventDefault();
+        const value = lastResponseRef.current;
+        window.clearTimeout(timer);
+        const announce = (note: string) => {
+          if (!mounted.current) return;
+          setCopyNote(note);
+          timer = window.setTimeout(() => setCopyNote(''), 3000);
+        };
+        if (!value) return announce('Nothing to copy');
+        navigator.clipboard.writeText(value).then(
+          () => announce('Copied'),
+          () => announce('Could not copy'),
+        );
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.clearTimeout(timer);
+    };
+  }, [control.ready, mac]);
+  // Grow from one line up to 40% of the viewport, then scroll.
+  useLayoutEffect(() => {
+    const element = composer.current;
+    if (!element) return;
+    const cap = Math.round(window.innerHeight * 0.4);
+    element.style.height = 'auto';
+    element.style.height = `${Math.min(element.scrollHeight, cap)}px`;
+  }, [text, control.ready]);
   function refresh() {
     void control.refresh();
   }
@@ -352,6 +461,7 @@ export function Composer({
       setPending(false);
     }
   }
+  const working = !!run && ['starting', 'running'].includes(run.state);
   if (!control.ready) return null;
   return (
     <div
@@ -384,138 +494,243 @@ export function Composer({
         ).closest<HTMLElement>('[data-control-request]')?.dataset
           .controlRequest;
       }}
-      className="sticky bottom-0 z-1 max-h-[60dvh] flex-none space-y-3 overflow-y-auto border-t border-line bg-page p-3"
+      className="pointer-events-none sticky bottom-0 z-1 -mt-6 flex-none bg-linear-to-t from-page from-60% to-transparent pt-6 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
       aria-label="Session control"
     >
-      {run && (
-        <RunBar
-          run={run}
-          onInterrupt={() => action(() => control.service.interrupt(run.runId))}
-          onStop={() => action(() => control.service.stop(run.runId))}
-        />
-      )}
-      <p role="status" aria-live="polite" className="sr-only">
-        {announcement}
-      </p>
-      {control.error && (
-        <p role="alert">
-          Could not refresh run controls: {control.error.message}
+      <div className="pointer-events-auto -m-1 max-h-[60dvh] space-y-2 overflow-y-auto p-1">
+        {run && (
+          <RunBar
+            run={run}
+            onInterrupt={() =>
+              action(() => control.service.interrupt(run.runId))
+            }
+            onStop={() => action(() => control.service.stop(run.runId))}
+          />
+        )}
+        <p role="status" aria-live="polite" className="sr-only">
+          {announcement}
         </p>
-      )}
-      {requests.map((request) => (
-        <div key={request.requestId} data-control-request={request.requestId}>
-          {request.kind === 'permission' ? (
-            <PermissionCard
-              key={request.requestId}
-              request={request}
-              layout="pinned"
-              onDecide={(decision) =>
-                action(() =>
-                  control.service.decide(request.requestId, decision),
-                )
-              }
-            />
-          ) : (
-            <QuestionCard
-              key={request.requestId}
-              request={request}
-              layout="pinned"
-              onDecide={(decision) =>
-                action(() =>
-                  control.service.decide(request.requestId, decision),
-                )
-              }
-            />
-          )}
-        </div>
-      ))}
-      {trust && (
-        <TrustCard
-          trust={trust}
-          changed={changed}
-          onTrust={trustFolder}
-          onCancel={() => {
-            setTrust(undefined);
-            setNotice('');
-          }}
-        />
-      )}
-      <form
-        onSubmit={(event) => {
-          event.preventDefault();
-          void send();
-        }}
-        className="space-y-2"
-      >
-        <label htmlFor="session-reply" className="block text-sm font-medium">
-          Reply to session
-        </label>
-        <textarea
-          ref={composer}
-          id="session-reply"
-          value={text}
-          onChange={(event) => setText(event.target.value.slice(0, 20_000))}
-          maxLength={20_000}
-          rows={3}
-          disabled={pending || !!waiting || !!trust}
-          aria-describedby="reply-count reply-status"
-          className={`block max-h-48 min-h-22 w-full resize-y rounded-md border border-line bg-raised p-3 text-ink ${focusRing}`}
-        />
-        <div className="flex flex-wrap items-center gap-2">
-          {control.bypass ? (
-            <BypassBadge />
-          ) : (
-            <Select
-              label="Permission mode"
-              value={
-                run?.mode === 'bypassPermissions'
-                  ? 'default'
-                  : (run?.mode ?? 'default')
-              }
-              options={[
-                { value: 'default', label: 'Default' },
-                { value: 'acceptEdits', label: 'Accept edits' },
-                { value: 'plan', label: 'Plan' },
-              ]}
-              disabled={!run || pending || !!waiting}
-              onValueChange={(value) => {
-                if (run)
-                  void action(() =>
-                    control.service.mode(run.runId, value as PermissionMode),
-                  ).catch(() => {});
+        <p role="status" aria-live="polite" className="sr-only">
+          {copyNote}
+        </p>
+        {control.error && (
+          <p role="alert">
+            Could not refresh run controls: {control.error.message}
+          </p>
+        )}
+        {requests.map((request) => (
+          <div
+            key={request.requestId}
+            data-control-request={request.requestId}
+            className="[&>*]:rounded-2xl!"
+          >
+            {request.kind === 'permission' ? (
+              <PermissionCard
+                key={request.requestId}
+                request={request}
+                layout="pinned"
+                onDecide={(decision) =>
+                  action(() =>
+                    control.service.decide(request.requestId, decision),
+                  )
+                }
+              />
+            ) : (
+              <QuestionCard
+                key={request.requestId}
+                request={request}
+                layout="pinned"
+                onDecide={(decision) =>
+                  action(() =>
+                    control.service.decide(request.requestId, decision),
+                  )
+                }
+              />
+            )}
+          </div>
+        ))}
+        {trust && (
+          <div className="[&>*]:rounded-2xl!">
+            <TrustCard
+              trust={trust}
+              changed={changed}
+              onTrust={trustFolder}
+              onCancel={() => {
+                setTrust(undefined);
+                setNotice('');
               }}
             />
-          )}
-          <span id="reply-count" className="text-xs text-muted">
-            {text.length.toLocaleString()} / 20,000
-          </span>
-          <Button
-            type="submit"
-            variant="primary"
-            disabled={!text.trim() || pending || !!waiting || !!trust}
-          >
-            Send
-          </Button>
-          {conflict && (
-            <Button
-              disabled={pending || !!waiting}
-              onClick={() => void send(true, true)}
-            >
-              Fork and reply
-            </Button>
-          )}
-        </div>
-        {waiting && (
-          <div className="flex flex-wrap items-center gap-2">
-            <p role="status">Still checking whether it was sent…</p>
-            <span aria-hidden="true">{elapsed}s elapsed</span>
-            <Button onClick={stopWaiting}>Stop waiting</Button>
           </div>
         )}
-        <p id="reply-status" role="status" aria-live="polite">
-          {notice}
-        </p>
-      </form>
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            void send();
+          }}
+          className="space-y-1.5"
+        >
+          <div className="rounded-3xl border border-line bg-raised shadow-sm transition-shadow focus-within:border-line-strong focus-within:shadow-md focus-within:ring-2 focus-within:ring-accent/30">
+            <textarea
+              ref={composer}
+              id="session-reply"
+              aria-label="Reply to session"
+              aria-keyshortcuts={`${mac ? 'Meta' : 'Control'}+Shift+;`}
+              placeholder="Reply to Claude…"
+              value={text}
+              onChange={(event) => setText(event.target.value.slice(0, LIMIT))}
+              onKeyDown={(event) => {
+                if (
+                  event.key !== 'Enter' ||
+                  event.shiftKey ||
+                  event.ctrlKey ||
+                  event.metaKey ||
+                  event.altKey ||
+                  isComposing(event) ||
+                  coarsePointer()
+                )
+                  return;
+                event.preventDefault();
+                void send();
+              }}
+              maxLength={LIMIT}
+              rows={1}
+              disabled={pending || !!waiting || !!trust}
+              aria-describedby={`${text.length >= COUNTER_FROM ? 'reply-count ' : ''}reply-status`}
+              className="block max-h-[40dvh] w-full resize-none overflow-y-auto bg-transparent px-4 pt-3.5 pb-1 text-base text-ink outline-none placeholder:text-muted disabled:opacity-60"
+            />
+            <div className="flex items-center justify-between gap-2 px-2 pb-2">
+              <div className="flex min-w-0 items-center gap-1">
+                {control.bypass ? (
+                  <BypassBadge />
+                ) : (
+                  <Select
+                    variant="pill"
+                    label="Permission mode"
+                    icon={<ModeIcon mode={run?.mode} />}
+                    value={
+                      run?.mode === 'bypassPermissions'
+                        ? 'default'
+                        : (run?.mode ?? 'default')
+                    }
+                    options={[
+                      { value: 'default', label: 'Default' },
+                      { value: 'acceptEdits', label: 'Accept edits' },
+                      { value: 'plan', label: 'Plan' },
+                    ]}
+                    disabled={!run || pending || !!waiting}
+                    onValueChange={(value) => {
+                      if (run)
+                        void action(() =>
+                          control.service.mode(
+                            run.runId,
+                            value as PermissionMode,
+                          ),
+                        ).catch(() => {});
+                    }}
+                  />
+                )}
+                <div className="hidden sm:block">
+                  <Popover
+                    label="Keyboard shortcuts"
+                    trigger={
+                      <button
+                        type="button"
+                        aria-label="Keyboard shortcuts"
+                        className={`${targetSize} ${focusRing} inline-flex items-center justify-center rounded-full text-muted hover:bg-surface hover:text-ink`}
+                      >
+                        <CircleHelp size={16} aria-hidden="true" />
+                      </button>
+                    }
+                  >
+                    <h2 className="mb-2 text-sm font-semibold">
+                      Keyboard shortcuts
+                    </h2>
+                    <dl className="space-y-2 text-sm">
+                      <Shortcut label="Send" keys={['Enter']} />
+                      <Shortcut label="New line" keys={['Shift', 'Enter']} />
+                      <Shortcut
+                        label="Focus the reply box"
+                        keys={[modKey, 'Shift', ';']}
+                      />
+                      <Shortcut
+                        label="Copy last response"
+                        keys={[modKey, 'Shift', 'C']}
+                      />
+                      <Shortcut label="Search" keys={[modKey, 'K']} />
+                    </dl>
+                  </Popover>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {text.length >= COUNTER_FROM && (
+                  <span id="reply-count" className="text-xs text-muted">
+                    {text.length.toLocaleString()} / 20,000
+                  </span>
+                )}
+                {working && !text.trim() ? (
+                  <button
+                    key="interrupt"
+                    type="button"
+                    aria-label="Interrupt"
+                    disabled={pending || !!waiting}
+                    onClick={() =>
+                      void action(() =>
+                        control.service.interrupt(run!.runId),
+                      ).catch(() => {})
+                    }
+                    className={`${roundButton} bg-ink text-page`}
+                  >
+                    <Square size={14} fill="currentColor" aria-hidden="true" />
+                  </button>
+                ) : (
+                  <button
+                    key="send"
+                    type="submit"
+                    aria-label="Send"
+                    aria-keyshortcuts="Enter"
+                    disabled={!text.trim() || pending || !!waiting || !!trust}
+                    className={`${roundButton} bg-accent text-page`}
+                  >
+                    <ArrowUp size={18} aria-hidden="true" />
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 px-2 text-xs text-muted empty:hidden">
+            {waiting && (
+              <>
+                <p role="status">Still checking whether it was sent…</p>
+                <span aria-hidden="true">{elapsed}s elapsed</span>
+                <Button onClick={stopWaiting}>Stop waiting</Button>
+              </>
+            )}
+            {conflict && (
+              <Button
+                disabled={pending || !!waiting}
+                onClick={() => void send(true, true)}
+              >
+                Fork and reply
+              </Button>
+            )}
+          </div>
+          <p
+            id="reply-status"
+            role="status"
+            aria-live="polite"
+            className="px-2 text-xs text-muted empty:hidden"
+          >
+            {notice}
+          </p>
+        </form>
+      </div>
     </div>
   );
+}
+
+const roundButton = `${targetSize} ${focusRing} inline-flex shrink-0 items-center justify-center rounded-full transition-colors disabled:cursor-not-allowed disabled:bg-surface disabled:text-muted disabled:opacity-60 enabled:hover:opacity-90`;
+
+function ModeIcon({ mode }: { mode: string | undefined }) {
+  const Icon = MODE_ICONS[mode as keyof typeof MODE_ICONS] ?? ShieldCheck;
+  return <Icon size={15} aria-hidden="true" />;
 }

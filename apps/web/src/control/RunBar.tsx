@@ -34,7 +34,7 @@ export function RunBar({
   return (
     <section
       aria-label="Run controls"
-      className="flex flex-none flex-wrap items-center gap-2 border-b border-line bg-raised p-3 text-sm"
+      className="flex flex-none flex-wrap items-center gap-2 rounded-2xl border border-line bg-raised p-3 text-sm"
     >
       <span role="status">
         {run.state}

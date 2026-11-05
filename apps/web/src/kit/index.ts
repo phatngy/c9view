@@ -12,3 +12,4 @@ export * from './Badge.js';
 export * from './EmptyState.js';
 export * from './Skeleton.js';
 export * from './Kbd.js';
+export * from './Popover.js';

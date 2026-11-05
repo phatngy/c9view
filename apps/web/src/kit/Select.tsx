@@ -1,4 +1,5 @@
 import { Select as BaseSelect } from '@base-ui/react/select';
+import type { ReactNode } from 'react';
 import { ChevronDown, Check } from 'lucide-react';
 import { cx, focusRing, target, popup, option } from './classes.js';
 export interface SelectOption {
@@ -17,6 +18,9 @@ export interface SelectProps {
   className?: string;
   name?: string;
   labelledBy?: string;
+  /** `pill` is a compact ghost trigger for toolbars; menu opens upward. */
+  variant?: 'field' | 'pill';
+  icon?: ReactNode;
 }
 export function Select({
   label,
@@ -25,8 +29,11 @@ export function Select({
   onValueChange,
   placeholder = 'Select…',
   className,
+  variant = 'field',
+  icon,
   ...props
 }: SelectProps) {
+  const pill = variant === 'pill';
   return (
     <BaseSelect.Root
       {...props}
@@ -42,17 +49,31 @@ export function Select({
         className={cx(
           target,
           focusRing,
-          'inline-flex items-center justify-between gap-3 rounded-md border border-line bg-raised px-3 text-sm text-ink disabled:opacity-40',
+          'inline-flex items-center text-sm disabled:opacity-40',
+          pill
+            ? 'justify-center gap-1.5 rounded-full border border-transparent bg-transparent px-3 text-muted hover:bg-surface hover:text-ink'
+            : 'justify-between gap-3 rounded-md border border-line bg-raised px-3 text-ink',
           className,
         )}
       >
+        {icon}
         <BaseSelect.Value placeholder={placeholder} />
         <BaseSelect.Icon>
           <ChevronDown size={14} aria-hidden="true" />
         </BaseSelect.Icon>
       </BaseSelect.Trigger>
       <BaseSelect.Portal>
-        <BaseSelect.Positioner sideOffset={4} className="z-50">
+        <BaseSelect.Positioner
+          sideOffset={4}
+          className="z-50"
+          {...(pill
+            ? {
+                side: 'top' as const,
+                align: 'start' as const,
+                alignItemWithTrigger: false,
+              }
+            : {})}
+        >
           <BaseSelect.Popup
             className={cx(popup, 'min-w-[var(--anchor-width)]')}
           >
