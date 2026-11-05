@@ -540,6 +540,9 @@ it('invalidates tail pages after growth while preserving absolute history cursor
   expect(history.messages.map((m) => m.uuid)).toEqual(['growth-6', 'growth-7']);
   expect(history).toMatchObject({ cursor: 6, prevCursor: 4, nextCursor: 8 });
 });
+// 1002 records are the minimum that exercises the 1000-message maximum limit.
+// The test takes about 1 s alone (index build ~0.6 s, then the pages). The 20 s
+// timeout leaves room for a loaded CI runner; it does not cover a regression.
 it('keeps file and indexed pagination identical at the default and maximum limits', async () => {
   await writeFile(
     join(store.config.claudeDir, 'projects/-fixture-alpha/large.jsonl'),
@@ -578,7 +581,7 @@ it('keeps file and indexed pagination identical at the default and maximum limit
   await runtime.ready;
   for (const [i, query] of queries.entries())
     expect(await json(path + query)).toEqual(before[i]);
-});
+}, 20_000);
 
 it('advances ordinal cursors across selected rows that cannot map to messages', async () => {
   const file = join(
