@@ -128,6 +128,23 @@ export function createControlService(
   const liveness =
     dependencies.liveness ?? createLiveness(store.config.claudeDir);
   let closed = false;
+  // Replies to one session are accepted in call order: each reply's checks and
+  // run join wait for the previous reply of that session to settle (pass or
+  // fail). Other sessions are never serialised behind it.
+  const replyTails = new Map<string, Promise<unknown>>();
+  const inOrder = <T>(key: string, work: () => Promise<T>): Promise<T> => {
+    const previous = replyTails.get(key) ?? Promise.resolve();
+    const result = previous.then(work);
+    const tail = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    replyTails.set(key, tail);
+    void tail.then(() => {
+      if (replyTails.get(key) === tail) replyTails.delete(key);
+    });
+    return result;
+  };
   const reserve = (
     operation: string,
     body: { clientRequestId: string },
@@ -277,7 +294,12 @@ export function createControlService(
         operation,
         body,
         boot,
-        () => begin(projectId, body, operation, sessionId),
+        // The action starts in call order (receipts.run schedules it at once),
+        // so the ticket is taken before any async liveness or trust check.
+        () =>
+          inOrder(`${projectId}\0${sessionId}`, () =>
+            begin(projectId, body, operation, sessionId),
+          ),
         { projectId, sessionId },
       );
     },
