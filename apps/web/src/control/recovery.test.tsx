@@ -67,6 +67,14 @@ async function mount(
 ) {
   vi.useFakeTimers();
   const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+    if (url === '/api/machines')
+      return json([
+        {
+          machineId: 'fixture',
+          bootId: 'boot',
+          capabilities: { control: { state: 'ready' }, bypass: false },
+        },
+      ]);
     if (url.endsWith('/control/runs'))
       return json(cards ? snapshot : { runs: [], requests: [] });
     if (init?.method === 'POST')
@@ -129,7 +137,7 @@ it('backs off receipt reads at 1, 2, 4, 8, then 10 seconds and caps waiting at t
   expect(times.slice(1).map((time, index) => time - times[index]!)).toEqual([
     1000, 2000, 4000, 8000, 10000,
   ]);
-  expect(screen.getByText(/Still checking… 31s elapsed/)).toBeVisible();
+  expect(screen.getByText('31s elapsed')).toBeVisible();
   await tick(89_000);
   expect(screen.queryByRole('button', { name: 'Stop waiting' })).toBeNull();
   expect(screen.getByText(/This may have been sent/)).toBeVisible();
@@ -159,7 +167,9 @@ it('Stop waiting unlocks the card and ignores a late receipt without reposting',
   expect(
     screen.getByRole('combobox', { name: 'Permission mode' }),
   ).toBeEnabled();
-  expect(allow).toHaveFocus();
+  expect(
+    screen.getByRole('region', { name: 'Permission for first' }),
+  ).toHaveFocus();
   finish(json(receipt));
   await tick();
   expect(screen.queryByText('Command received.')).toBeNull();
@@ -229,7 +239,9 @@ it('focuses the next card after the focused card disappears and the composer aft
     });
   });
   await tick();
-  expect(screen.getByRole('button', { name: 'Allow' })).toHaveFocus();
+  expect(
+    screen.getByRole('region', { name: 'Permission for second' }),
+  ).toHaveFocus();
   await act(async () => {
     client.setQueryData(queryKeys.controlRuns('fixture'), {
       ...snapshot,
@@ -254,7 +266,7 @@ it('keeps draft focus during a background request removal', async () => {
 });
 
 it.each([false, true])(
-  'focuses the composer or pending card after a clean failure (cards: %s)',
+  'focuses the composer after a clean reply failure (cards: %s)',
   async (cards) => {
     await mount(
       () => json(receipt),
@@ -265,9 +277,7 @@ it.each([false, true])(
     await tick();
     expect(screen.getByText('Clean refusal')).toBeVisible();
     expect(
-      cards
-        ? screen.getAllByRole('button', { name: 'Allow' })[0]
-        : screen.getByRole('textbox'),
+      screen.getByRole('textbox', { name: 'Reply to session' }),
     ).toHaveFocus();
   },
 );
@@ -386,7 +396,9 @@ it.each(['remove', 'disable'] as const)(
       });
     });
     await tick();
-    expect(screen.getByRole('button', { name: 'Allow' })).toHaveFocus();
+    expect(
+      screen.getByRole('region', { name: 'Permission for second' }),
+    ).toHaveFocus();
   },
 );
 
@@ -404,7 +416,9 @@ it('does not let deferred blur clear a newly focused card', async () => {
     });
   });
   await tick();
-  expect(first).toHaveFocus();
+  expect(
+    screen.getByRole('region', { name: 'Permission for first' }),
+  ).toHaveFocus();
 });
 
 it('focuses the next card after a successful decision removes its card', async () => {
@@ -427,5 +441,135 @@ it('focuses the next card after a successful decision removes its card', async (
     });
   });
   await tick();
-  expect(screen.getByRole('button', { name: 'Allow' })).toHaveFocus();
+  expect(
+    screen.getByRole('region', { name: 'Permission for second' }),
+  ).toHaveFocus();
+});
+
+it('a failed reply with pending permissions keeps Enter away from a decision', async () => {
+  const { fetcher } = await mount(
+    () => json(receipt),
+    true,
+    () => json({ error: 'Reply refused' }, 400),
+  );
+  const composer = screen.getByRole('textbox', { name: 'Reply to session' });
+  composer.focus();
+  reply();
+  await tick();
+  expect(composer).toHaveFocus();
+  fireEvent.keyDown(document.activeElement!, { key: 'Enter', code: 'Enter' });
+  await tick();
+  expect(
+    fetcher.mock.calls.filter(
+      ([url, init]) =>
+        url.includes('/control/requests/') && init?.method === 'POST',
+    ),
+  ).toHaveLength(0);
+});
+
+it('keeps the live recovery status stable as the visual elapsed time advances', async () => {
+  await mount(() => new Promise<Response>(() => {}));
+  reply();
+  await tick();
+  const status = screen.getByText('Still checking whether it was sent…');
+  expect(status).toHaveAttribute('role', 'status');
+  const announcements: MutationRecord[] = [];
+  const observer = new MutationObserver((records) =>
+    announcements.push(...records),
+  );
+  observer.observe(status, {
+    childList: true,
+    characterData: true,
+    subtree: true,
+  });
+  await tick(5000);
+  expect(status).toHaveTextContent('Still checking whether it was sent…');
+  expect(screen.getByText('5s elapsed')).toHaveAttribute('aria-hidden', 'true');
+  expect(announcements).toHaveLength(0);
+  observer.disconnect();
+});
+
+it.each(['stop', 'deadline'] as const)(
+  '%s refreshes machines and runs after unknown recovery',
+  async (end) => {
+    const { fetcher, client } = await mount(
+      () => new Promise<Response>(() => {}),
+    );
+    const invalidation = vi.spyOn(client, 'invalidateQueries');
+    reply();
+    await tick();
+    const runsBefore = fetcher.mock.calls.filter(([url]) =>
+      url.endsWith('/control/runs'),
+    ).length;
+    if (end === 'stop')
+      fireEvent.click(screen.getByRole('button', { name: 'Stop waiting' }));
+    else await tick(120_000);
+    await tick();
+    expect(invalidation).toHaveBeenCalledWith({
+      queryKey: queryKeys.machines(),
+    });
+    expect(invalidation).toHaveBeenCalledWith({
+      queryKey: queryKeys.controlRuns('fixture'),
+    });
+    expect(
+      fetcher.mock.calls.filter(([url]) => url.endsWith('/control/runs'))
+        .length,
+    ).toBeGreaterThan(runsBefore);
+    expect(fetcher.mock.calls.some(([url]) => url === '/api/machines')).toBe(
+      true,
+    );
+    expect(
+      fetcher.mock.calls.filter(([, init]) => init?.method === 'POST'),
+    ).toHaveLength(1);
+  },
+);
+
+it.each(['deadline', 'failed receipt', '404', 'late receipt'] as const)(
+  'preserves typing in another permission card through %s',
+  async (end) => {
+    let finish!: (response: Response) => void;
+    await mount(
+      () =>
+        new Promise<Response>((resolve) => {
+          finish = resolve;
+        }),
+      true,
+    );
+    fireEvent.click(
+      screen.getAllByRole('button', { name: 'Deny with a message' })[1]!,
+    );
+    fireEvent.click(screen.getAllByRole('button', { name: 'Allow' })[0]!);
+    await tick();
+    const message = screen.getByRole('textbox', { name: 'Message to Claude' });
+    message.focus();
+    fireEvent.change(message, { target: { value: 'Still writing a reason' } });
+    if (end === 'deadline') await tick(120_000);
+    else if (end === 'late receipt') {
+      fireEvent.click(screen.getByRole('button', { name: 'Stop waiting' }));
+      await tick();
+      finish(json(receipt));
+    } else
+      finish(
+        end === '404'
+          ? json({}, 404)
+          : json({ ...receipt, status: 'failed', error: 'Refused' }),
+      );
+    await tick();
+    expect(message).toHaveFocus();
+    expect(message).toHaveValue('Still writing a reason');
+  },
+);
+
+it('preserves focus outside session control through the recovery deadline', async () => {
+  const { container } = await mount(() => new Promise<Response>(() => {}));
+  const elsewhere = document.createElement('textarea');
+  elsewhere.setAttribute('aria-label', 'Elsewhere draft');
+  container.append(elsewhere);
+  reply();
+  await tick();
+  elsewhere.focus();
+  elsewhere.value = 'Keep writing';
+  await tick(120_000);
+  expect(elsewhere).toHaveFocus();
+  expect(elsewhere).toHaveValue('Keep writing');
 });

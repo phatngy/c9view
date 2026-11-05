@@ -47,7 +47,7 @@ export function Composer({
   const container = useRef<HTMLDivElement>(null);
   const composer = useRef<HTMLTextAreaElement>(null);
   const previousRequests = useRef<string[]>([]);
-  const focusRequested = useRef(false);
+  const focusRequested = useRef<'card' | 'composer' | undefined>(undefined);
   const focusEpoch = useRef(0);
   const focusedRequest = useRef<string | undefined>(undefined);
   const [elapsed, setElapsed] = useState(0);
@@ -87,8 +87,8 @@ export function Composer({
         ? false
         : Math.min(1000 * 2 ** Math.max(0, pollAttempt.current - 1), 10_000),
   });
-  function focusNext() {
-    focusRequested.current = true;
+  function focusNext(target: 'card' | 'composer' = 'card') {
+    focusRequested.current = target;
   }
   function beginWaiting(value: Omit<Waiting, 'startedAt'>) {
     if (waiting?.id === value.id) return;
@@ -105,7 +105,9 @@ export function Composer({
     setTrust(undefined);
     if (waiting?.fork) setConflict(true);
     setNotice(`This may have been sent. ${unknownOutcome}`);
-    focusNext();
+    focusNext(waiting?.operation === 'reply' ? 'composer' : 'card');
+    void client.invalidateQueries({ queryKey: queryKeys.machines() });
+    refresh();
   }
   useEffect(() => {
     mounted.current = true;
@@ -148,10 +150,24 @@ export function Composer({
   });
   useEffect(() => {
     if (!focusRequested.current || pending || waiting) return;
-    focusRequested.current = false;
-    const next = container.current?.querySelector<HTMLElement>(
-      '[data-control-request] button:not(:disabled), [data-control-request] input:not(:disabled), [data-control-request] textarea:not(:disabled)',
-    );
+    const target = focusRequested.current;
+    focusRequested.current = undefined;
+    const active = document.activeElement;
+    // Recovery can finish while the user is typing elsewhere. Only restore
+    // focus when its previous control was removed or disabled by the action.
+    if (
+      active instanceof HTMLElement &&
+      active !== document.body &&
+      active.isConnected &&
+      !active.matches(':disabled')
+    )
+      return;
+    const next =
+      target === 'card'
+        ? container.current?.querySelector<HTMLElement>(
+            '[data-control-request] [role="region"][tabindex="-1"]',
+          )
+        : undefined;
     (next ?? composer.current)?.focus();
   });
   function refresh() {
@@ -162,7 +178,7 @@ export function Composer({
     if (value.status === 'failed') {
       setNotice(value.error ?? 'Command failed.');
       setWaiting(undefined);
-      focusNext();
+      focusNext('composer');
       return;
     }
     if (fork && (!value.sessionId || value.sessionId === sessionId)) {
@@ -207,7 +223,7 @@ export function Composer({
       }
     }
     setNotice(error instanceof Error ? error.message : 'Request failed.');
-    focusNext();
+    focusNext(operation === 'reply' ? 'composer' : 'card');
   }
   async function send(fork = false, retry = false) {
     if (busy.current || actionLock.current || waiting || !control.ready) return;
@@ -275,7 +291,7 @@ export function Composer({
         recovery.current = undefined;
         setNotice(unknownOutcome);
         setWaiting(undefined);
-        focusNext();
+        focusNext(waiting.operation === 'reply' ? 'composer' : 'card');
         void client.invalidateQueries({ queryKey: queryKeys.machines() });
         refresh();
       }
@@ -287,7 +303,7 @@ export function Composer({
       recovery.current = undefined;
       setNotice(value.error ?? 'Command failed.');
       setWaiting(undefined);
-      focusNext();
+      focusNext(waiting.operation === 'reply' ? 'composer' : 'card');
       refresh();
       return;
     }
@@ -491,7 +507,8 @@ export function Composer({
         </div>
         {waiting && (
           <div className="flex flex-wrap items-center gap-2">
-            <p role="status">Still checking… {elapsed}s elapsed</p>
+            <p role="status">Still checking whether it was sent…</p>
+            <span aria-hidden="true">{elapsed}s elapsed</span>
             <Button onClick={stopWaiting}>Stop waiting</Button>
           </div>
         )}

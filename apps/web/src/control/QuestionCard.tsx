@@ -33,9 +33,10 @@ function QuestionDecision({ request, onDecide, layout }: QuestionCardProps) {
   return (
     <Card
       role="region"
+      tabIndex={-1}
       aria-label={`Questions: ${request.questions.map(({ question }) => question).join('; ')}`}
       data-layout={layout}
-      className={layout === 'pinned' ? 'p-3! text-sm' : 'p-4! text-sm'}
+      className={`${layout === 'pinned' ? 'p-3! text-sm' : 'p-4! text-sm'} ${focusRing}`}
     >
       <form
         onSubmit={(event) => {
