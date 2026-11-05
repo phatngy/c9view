@@ -129,6 +129,14 @@ export async function invalidateLiveEvent(
         const [machine, kind, projectId, sessionId] = query.queryKey;
         if (machine !== machineId) return false;
         switch (event.type) {
+          case 'control.run':
+          case 'control.request':
+          case 'control.request.resolved':
+            return kind === 'control-runs';
+          case 'control.project':
+            return (
+              kind === 'control-receipt' && projectId === event.clientRequestId
+            );
           case 'project':
             return (
               ['usage', 'overview', 'projects'].includes(String(kind)) ||
@@ -238,6 +246,10 @@ function start() {
     'config',
     'index',
     'machine',
+    'control.run',
+    'control.request',
+    'control.request.resolved',
+    'control.project',
   ]) {
     current.addEventListener(type, (message) => {
       if (source !== current) return;

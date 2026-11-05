@@ -1,3 +1,5 @@
+import { useControl } from '../control/useControl.js';
+import { PermissionCard } from '../control/cards.js';
 import { act, cleanup, render, screen } from '@testing-library/react';
 import {
   QueryClient,
@@ -642,4 +644,163 @@ it('preserves the backward fill and requested cursor when refreshing a short new
   const request = vi.spyOn(api, 'session').mockResolvedValue(sessionDetail);
   await refreshNewestPage(value, 'local', 'p', 's');
   expect(request).toHaveBeenCalledExactlyOnceWith('local', 'p', 's', param);
+});
+
+it.each(['control.request', 'control.run', 'control.request.resolved'])(
+  'T045 refetches runs for %s hints only on the matching machine',
+  async (type) => {
+    const value = client();
+    const read = vi.fn(async () => ({
+      runs: [],
+      requests: [{ requestId: 'from-get' }],
+    }));
+    const local = new QueryObserver(value, {
+      queryKey: ['local', 'control-runs'],
+      queryFn: read,
+    });
+    const remote = new QueryObserver(value, {
+      queryKey: ['remote', 'control-runs'],
+      queryFn: async () => ({ runs: [], requests: [] }),
+    });
+    const stopLocal = local.subscribe(() => {});
+    const stopRemote = remote.subscribe(() => {});
+    await local.refetch();
+    await remote.refetch();
+    read.mockClear();
+    await invalidateLiveEvent(value, {
+      machineId: 'local',
+      event: { type, requestId: 'hint-only', runId: 'r', sessionId: 's' },
+    });
+    expect(read).toHaveBeenCalledTimes(1);
+    expect(value.getQueryData(['local', 'control-runs'])).toEqual({
+      runs: [],
+      requests: [{ requestId: 'from-get' }],
+    });
+    expect(value.getQueryState(['remote', 'control-runs'])?.isInvalidated).toBe(
+      false,
+    );
+    stopLocal();
+    stopRemote();
+  },
+);
+it('T045 SSE reconnect refetches control runs and pending receipts', async () => {
+  vi.stubGlobal('EventSource', MockSource);
+  const value = client();
+  const runs = vi.fn(async () => ({ runs: [], requests: [] }));
+  const receipt = vi.fn(async () => ({ status: 'accepted' }));
+  const runObserver = new QueryObserver(value, {
+    queryKey: ['local', 'control-runs'],
+    queryFn: runs,
+  });
+  const receiptObserver = new QueryObserver(value, {
+    queryKey: ['local', 'control-receipt', 'c'],
+    queryFn: receipt,
+  });
+  const stopRun = runObserver.subscribe(() => {});
+  const stopReceipt = receiptObserver.subscribe(() => {});
+  await runObserver.refetch();
+  await receiptObserver.refetch();
+  render(
+    <QueryClientProvider client={value}>
+      <LiveProvider>
+        <span>Control</span>
+      </LiveProvider>
+    </QueryClientProvider>,
+  );
+  await act(async () => {
+    MockSource.instances[0]!.open();
+  });
+  runs.mockClear();
+  receipt.mockClear();
+  await act(async () => {
+    MockSource.instances[0]!.open();
+  });
+  expect(runs).toHaveBeenCalledTimes(1);
+  expect(receipt).toHaveBeenCalledTimes(1);
+  stopRun();
+  stopReceipt();
+});
+
+it('T045 renders the permission card read from GET after an SSE request hint', async () => {
+  vi.stubGlobal('EventSource', MockSource);
+  let pending = false;
+  const fetcher = vi.fn(
+    async (url: string) =>
+      new Response(
+        JSON.stringify(
+          url.endsWith('/machines')
+            ? [
+                {
+                  machineId: 'local',
+                  bootId: 'boot',
+                  capabilities: { control: { state: 'ready' }, bypass: false },
+                },
+              ]
+            : {
+                runs: [],
+                requests: pending
+                  ? [
+                      {
+                        requestId: 'from-get',
+                        runId: 'run',
+                        sessionId: 's',
+                        kind: 'permission',
+                        toolName: 'Read',
+                        summary: 'Read fixture file',
+                        createdAt: '2026-11-01',
+                        expiresAt: '2026-11-02',
+                      },
+                    ]
+                  : [],
+              },
+        ),
+        { headers: { 'Content-Type': 'application/json' } },
+      ),
+  );
+  vi.stubGlobal('fetch', fetcher);
+  const value = client();
+  function Requests() {
+    const query = useControl();
+    return (
+      <>
+        {query.data?.requests.map(
+          (request) =>
+            request.kind === 'permission' && (
+              <PermissionCard
+                key={request.requestId}
+                request={request}
+                layout="pinned"
+                onDecide={async () => {}}
+              />
+            ),
+        )}
+      </>
+    );
+  }
+  render(
+    <QueryClientProvider client={value}>
+      <LiveProvider>
+        <Requests />
+      </LiveProvider>
+    </QueryClientProvider>,
+  );
+  await act(async () => {
+    await value.fetchQuery({
+      queryKey: ['local', 'control-runs'],
+      queryFn: async () => ({ runs: [], requests: [] }),
+    });
+  });
+  pending = true;
+  await act(async () => {
+    MockSource.instances[0]!.emit('control.request', {
+      requestId: 'hint-id',
+      runId: 'run',
+      sessionId: 's',
+    });
+  });
+  expect(await screen.findByText('Read fixture file')).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Allow' })).toBeVisible();
+  expect(
+    fetcher.mock.calls.some(([url]) => url === '/api/m/local/control/runs'),
+  ).toBe(true);
 });
