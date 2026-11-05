@@ -66,6 +66,42 @@ it('T019 keeps replies in call order when the first check is slower', async () =
     await t.close();
   }
 });
+it('T019 a repeated clientRequestId joins the queued reply and keeps order', async () => {
+  let calls = 0;
+  const t = await setupControl(
+    {},
+    {
+      liveness: async () => {
+        if (calls++ === 0) await new Promise((r) => setTimeout(r, 150));
+      },
+    },
+  );
+  try {
+    const a = { ...t.body(), text: 'first' };
+    const b = { ...t.body(), text: 'second' };
+    const [ra, ra2, rb] = await Promise.all([
+      t.service.reply('project', 'session', a, t.bootId),
+      t.service.reply('project', 'session', a, t.bootId),
+      t.service.reply('project', 'session', b, t.bootId),
+    ]);
+    expect(ra2).toEqual(ra);
+    expect(rb.runId).toBe(ra.runId);
+    await tick();
+    // One check for A's reply plus the run's own launch preflight; neither
+    // A' nor B ran a check of its own.
+    expect(calls).toBe(2);
+    expect(t.sdk.runs).toHaveLength(1);
+    const run = t.sdk.runs[0]!;
+    run.init('session');
+    await tick();
+    expect(run.inputs.map((input) => input.message.content)).toEqual([
+      'first',
+      'second',
+    ]);
+  } finally {
+    await t.close();
+  }
+});
 it('T019 a failed reply does not block the replies queued behind it', async () => {
   let calls = 0;
   const t = await setupControl(
