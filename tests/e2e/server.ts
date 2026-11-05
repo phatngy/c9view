@@ -11,7 +11,7 @@ const server = spawn(
     'packages/cli/dist/main.js',
     'start',
     '--port',
-    '7791',
+    process.env.C9VIEW_E2E_PORT ?? '7791',
     '--host',
     '127.0.0.1',
     '--auth',
