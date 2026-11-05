@@ -113,18 +113,18 @@ description: 'Task list for Components and Multiple Machines'
 
 ### Tests
 
-- [ ] T038 [P] [US3] `packages/node/src/budget.test.ts`: a page stops under `C9VIEW_PAGE_BUDGET_BYTES` measured after redaction and JSON encoding; never cuts JSON; an oversized single item is truncated with a marker and a cursor
-- [ ] T039 [P] [US3] `packages/node/src/routes/sessions.test.ts`: a fixture session with large tool output stops under 1 MiB with a cursor; following cursors yields every message in order
-- [ ] T040 [P] [US3] `packages/node/src/routes/files.test.ts`: a file over `C9VIEW_FILE_BUDGET_BYTES` returns metadata and `notice: 'too-large'`
-- [ ] T041 [P] [US3] `apps/web/src/session/paging.test.ts` and `apps/web/src/files/files.test.tsx`: cursors followed in order; partial-content notices with "Load more" in the session page, file viewer and diffs
+- [x] T038 [P] [US3] `packages/node/src/budget.test.ts`: a page stops under `C9VIEW_PAGE_BUDGET_BYTES` measured after redaction and JSON encoding; never cuts JSON; an oversized single item is truncated with a marker and a cursor
+- [x] T039 [P] [US3] `packages/node/src/routes/sessions.test.ts`: a fixture session with large tool output stops under 1 MiB with a cursor; following cursors yields every message in order
+- [x] T040 [P] [US3] `packages/node/src/routes/files.test.ts`: a file over `C9VIEW_FILE_BUDGET_BYTES` returns metadata and `notice: 'too-large'`
+- [x] T041 [P] [US3] `apps/web/src/session/paging.test.ts` and `apps/web/src/files/files.test.tsx`: cursors followed in order; partial-content notices with "Load more" in the session page, file viewer and diffs
 
 ### Implementation
 
-- [ ] T042 [US3] `packages/node/src/budget.ts`: page builder per [research.md](research.md#r4-response-budgets)
-- [ ] T043 [US3] Session route `packages/node/src/routes/sessions.ts`: byte-budgeted pages with cursors
-- [ ] T044 [US3] Search, files (listing and view), git status, changes and diff routes in `packages/node/src/routes/search.ts`, `files.ts`, `changes.ts`: budgets and cursors
-- [ ] T045 [US3] `apps/web/src/session/paging.ts`: follow returned cursors instead of counting messages
-- [ ] T046 [US3] `apps/web/src/files/FileViewer.tsx`, `apps/web/src/files/SessionChanges.tsx`, `apps/web/src/files/ProjectChanges.tsx`, `apps/web/src/diff/DiffView.tsx`: partial-content notice with "Load more"
+- [x] T042 [US3] `packages/node/src/budget.ts`: page builder per [research.md](research.md#r4-response-budgets)
+- [x] T043 [US3] Session route `packages/node/src/routes/sessions.ts`: byte-budgeted pages with cursors
+- [x] T044 [US3] Search, files (listing and view), git status, changes and diff routes in `packages/node/src/routes/search.ts`, `files.ts`, `changes.ts`: budgets and cursors
+- [x] T045 [US3] `apps/web/src/session/paging.ts`: follow returned cursors instead of counting messages
+- [x] T046 [US3] `apps/web/src/files/FileViewer.tsx`, `apps/web/src/files/SessionChanges.tsx`, `apps/web/src/files/ProjectChanges.tsx`, `apps/web/src/diff/DiffView.tsx`: partial-content notice with "Load more"
 - [ ] T047 [US3] Measure the budgets on real sessions (maintainer, locally, no data committed) and record the numbers and any changed defaults in [design-notes.md](design-notes.md) and `packages/node/src/limits.ts`
 
 ---
