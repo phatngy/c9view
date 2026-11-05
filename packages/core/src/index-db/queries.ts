@@ -63,12 +63,16 @@ export async function readRawRecords(
       (info.size === session.fileSize && info.mtimeMs !== session.fileMtimeMs)
     )
       return [];
+    // One prepared statement for the whole page; building an ORM query per
+    // record dominated the cost of large indexed pages.
+    const locate = db.sqlite.prepare<
+      [string, string],
+      { byteOffset: number; byteLength: number }
+    >(
+      'SELECT byteOffset, byteLength FROM messages WHERE sessionId = ? AND uuid = ?',
+    );
     for (const uuid of uuids) {
-      const row = db.orm
-        .select()
-        .from(messages)
-        .where(and(eq(messages.sessionId, sessionId), eq(messages.uuid, uuid)))
-        .get();
+      const row = locate.get(sessionId, uuid);
       if (!row) continue;
       const buffer = Buffer.alloc(row.byteLength);
       const { bytesRead } = await handle.read(
