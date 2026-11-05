@@ -102,22 +102,22 @@ description: 'Task list for Session Control'
 
 ## Phase 4: User Stories 2, 3, 5, 8 (web) — PR 6b
 
-- [ ] T041 [P] [US2] `apps/web/src/control/control.test.tsx`: composer hidden when control is not `ready`; Send posts `ReplyBody` with the guard header, `clientRequestId` and `X-C9view-Boot-Id`; queued state shown
-- [ ] T042 [P] [US2] `control.test.tsx`: a 409 `live-elsewhere`/`liveness-unknown` offers "Fork and reply" and navigates to the fork
-- [ ] T043 [P] [US2] `control.test.tsx`: after a timeout or 503 the UI shows "This may have been sent" and resolves it through the receipt; `unknown-outcome` says it may or may not have run
-- [ ] T044 [P] [US3] `control.test.tsx`: permission and question cards work from the keyboard, send the right bodies, and announce new requests in a live region
-- [ ] T045 [P] [US3] `apps/web/src/live/live.test.tsx`: a `control.request` event refetches runs and shows the card from the GET; after a reconnect the runs are refetched
-- [ ] T046 [P] [US5] `control.test.tsx`: `untrusted-folder` shows the trust card; "Trust this folder" posts `TrustBody`; `settings-changed` shows the new summary
-- [ ] T047 [P] [US8] `control.test.tsx`: with bypass the mode menu is a badge; "Bypass" badge has text, not colour alone
-- [ ] T048 [US2] `apps/web/src/control/api.ts`: mutations through 6.0b's machine-scoped helper with `clientRequestId`, guard and boot headers
-- [ ] T049 [US2] `apps/web/src/control/useControl.ts`: runs and requests from `GET …/control/runs` with 6.0b's query keys
-- [ ] T050 [US2] `apps/web/src/control/Composer.tsx`: sticky footer, textarea capped at 20,000 characters, Send, mode menu (`default`, `acceptEdits`, `plan`)
-- [ ] T051 [US2] `apps/web/src/control/RunBar.tsx`: state, "≈ API-equivalent" cost linked to the billing note, Interrupt, Stop
-- [ ] T052 [US3] `apps/web/src/control/PermissionCard.tsx` and `QuestionCard.tsx`: tool-row summary, Allow, Deny, Deny with a message (≤ 2,000); radio or checkbox options with "Other"; 44 px targets below 1024 px; pinned above the composer and inline at the tool row
-- [ ] T053 [US5] `apps/web/src/control/TrustCard.tsx`
-- [ ] T054 [US8] `apps/web/src/control/BypassBadge.tsx`; badges in the run bar, session header and board cards of c9view-owned runs; "Driven by c9view" badge in `apps/web/src/session/header/`
-- [ ] T055 [US2] Mount points in `apps/web/src/session.tsx` and the phone Chat tab; `control.*` invalidation in `apps/web/src/live/index.tsx`
-- [ ] T056 [US2] Maintainer renders at 1440×900 and 390×844, keyboard and screen reader
+- [x] T041 [P] [US2] `apps/web/src/control/control.test.tsx`: composer hidden when control is not `ready`; Send posts `ReplyBody` with the guard header, `clientRequestId` and `X-C9view-Boot-Id`; queued state shown
+- [x] T042 [P] [US2] `control.test.tsx`: a 409 `live-elsewhere`/`liveness-unknown` offers "Fork and reply" and navigates to the fork
+- [x] T043 [P] [US2] `control.test.tsx`: after a timeout or 503 the UI shows "This may have been sent" and resolves it through the receipt; `unknown-outcome` says it may or may not have run
+- [x] T044 [P] [US3] `control.test.tsx`: permission and question cards work from the keyboard, send the right bodies, and announce new requests in a live region
+- [x] T045 [P] [US3] `apps/web/src/live/live.test.tsx`: a `control.request` event refetches runs and shows the card from the GET; after a reconnect the runs are refetched
+- [x] T046 [P] [US5] `control.test.tsx`: `untrusted-folder` shows the trust card; "Trust this folder" posts `TrustBody`; `settings-changed` shows the new summary
+- [x] T047 [P] [US8] `control.test.tsx`: with bypass the mode menu is a badge; "Bypass" badge has text, not colour alone
+- [x] T048 [US2] `apps/web/src/control/api.ts`: mutations through 6.0b's machine-scoped helper with `clientRequestId`, guard and boot headers
+- [x] T049 [US2] `apps/web/src/control/useControl.ts`: runs and requests from `GET …/control/runs` with 6.0b's query keys
+- [x] T050 [US2] `apps/web/src/control/Composer.tsx`: sticky footer, textarea capped at 20,000 characters, Send, mode menu (`default`, `acceptEdits`, `plan`)
+- [x] T051 [US2] `apps/web/src/control/RunBar.tsx`: state, "≈ API-equivalent" cost linked to the billing note, Interrupt, Stop
+- [x] T052 [US3] `apps/web/src/control/PermissionCard.tsx` and `QuestionCard.tsx`: tool-row summary, Allow, Deny, Deny with a message (≤ 2,000); radio or checkbox options with "Other"; 44 px targets below 1024 px; pinned above the composer and inline at the tool row
+- [x] T053 [US5] `apps/web/src/control/TrustCard.tsx`
+- [x] T054 [US8] `apps/web/src/control/BypassBadge.tsx`; badges in the run bar, session header and board cards of c9view-owned runs; "Driven by c9view" badge in `apps/web/src/session/header/`
+- [x] T055 [US2] Mount points in `apps/web/src/session.tsx` and the phone Chat tab; `control.*` invalidation in `apps/web/src/live/index.tsx`
+- [x] T056 [US2] Maintainer renders at 1440×900 and 390×844, keyboard and screen reader
 
 ---
 
