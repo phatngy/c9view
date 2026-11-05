@@ -62,10 +62,13 @@ it.each([1538, 17])(
       { cursor: cursor + 50, limit: 50 },
       expect.any(AbortSignal),
     );
-    expect(result.current.data?.pages.map((page) => page.cursor)).toEqual([
-      cursor,
-      cursor + 50,
-    ]);
+    // fetchNextPage resolves before the hook re-renders on slow CI runners.
+    await waitFor(() =>
+      expect(result.current.data?.pages.map((page) => page.cursor)).toEqual([
+        cursor,
+        cursor + 50,
+      ]),
+    );
     expect(result.current.data?.pageParams).toEqual([
       { cursor, limit: 50 },
       { cursor: cursor + 50, limit: 50 },
