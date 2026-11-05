@@ -8,7 +8,7 @@ import { HttpError } from '../api.js';
 import { useMachineId } from '../machine.js';
 import { queryKeys } from '../queryKeys.js';
 import { ControlError, unknownOutcome } from './api.js';
-import { controlKeys, useControl } from './useControl.js';
+import { useControl } from './useControl.js';
 import {
   BypassBadge,
   PermissionCard,
@@ -21,6 +21,7 @@ type Waiting = {
   id: string;
   fork: boolean;
   operation: 'reply' | 'trust' | 'action';
+  startedAt: number;
 };
 export function Composer({
   projectId,
@@ -42,9 +43,18 @@ export function Composer({
   const [changed, setChanged] = useState(false);
   const [waiting, setWaiting] = useState<Waiting>();
   const actionLock = useRef(false);
-  const recovery = useRef<
-    { resolve: () => void; reject: (error: Error) => void } | undefined
-  >(undefined);
+  const mounted = useRef(true);
+  const container = useRef<HTMLDivElement>(null);
+  const composer = useRef<HTMLTextAreaElement>(null);
+  const previousRequests = useRef<string[]>([]);
+  const focusRequested = useRef(false);
+  const focusEpoch = useRef(0);
+  const focusedRequest = useRef<string | undefined>(undefined);
+  const [elapsed, setElapsed] = useState(0);
+  const pollAttempt = useRef(0);
+  const recovery = useRef<{ resolve: (error?: Error) => void } | undefined>(
+    undefined,
+  );
   const attempted = useRef({ text: '', fork: false });
   const runs = control.ready
     ? (control.data?.runs.filter(
@@ -65,14 +75,84 @@ export function Composer({
     ? `${requests.length} pending ${requests.length === 1 ? 'request' : 'requests'} from Claude. ${requests.map((request) => (request.kind === 'permission' ? request.summary : request.questions.map((question) => question.header).join(', '))).join('; ')}`
     : '';
   const receipt = useQuery({
-    queryKey: controlKeys.receipt(machineId, waiting?.id ?? ''),
-    queryFn: ({ signal }) => control.service.receipt(waiting!.id, signal),
+    queryKey: queryKeys.controlReceipt(machineId, waiting?.id ?? ''),
+    queryFn: ({ signal }) => {
+      pollAttempt.current += 1;
+      return control.service.receipt(waiting!.id, signal);
+    },
     enabled: !!waiting && control.ready,
     retry: false,
     refetchInterval: (query) =>
       query.state.error instanceof HttpError && query.state.error.status === 404
         ? false
-        : 1000,
+        : Math.min(1000 * 2 ** Math.max(0, pollAttempt.current - 1), 10_000),
+  });
+  function focusNext() {
+    focusRequested.current = true;
+  }
+  function beginWaiting(value: Omit<Waiting, 'startedAt'>) {
+    if (waiting?.id === value.id) return;
+    pollAttempt.current = 0;
+    setElapsed(0);
+    setWaiting((current) =>
+      current?.id === value.id ? current : { ...value, startedAt: Date.now() },
+    );
+  }
+  function stopWaiting() {
+    recovery.current?.resolve(new Error(unknownOutcome));
+    recovery.current = undefined;
+    setWaiting(undefined);
+    setTrust(undefined);
+    if (waiting?.fork) setConflict(true);
+    setNotice(`This may have been sent. ${unknownOutcome}`);
+    focusNext();
+  }
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      recovery.current?.resolve(new Error(unknownOutcome));
+      recovery.current = undefined;
+    };
+  }, []);
+  useEffect(() => {
+    if (!waiting) return;
+    const update = () =>
+      setElapsed(Math.floor((Date.now() - waiting.startedAt) / 1000));
+    const ticker = window.setInterval(update, 1000);
+    const deadline = window.setTimeout(
+      stopWaiting,
+      Math.max(0, 120_000 - (Date.now() - waiting.startedAt)),
+    );
+    return () => {
+      window.clearInterval(ticker);
+      window.clearTimeout(deadline);
+      void client.cancelQueries({
+        queryKey: queryKeys.controlReceipt(machineId, waiting.id),
+      });
+    };
+    // Keep the original deadline even as the node disconnects and returns.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [waiting?.id, client, machineId]);
+  useEffect(() => {
+    const ids = requests.map((request) => request.requestId);
+    if (
+      focusedRequest.current &&
+      previousRequests.current.includes(focusedRequest.current) &&
+      !ids.includes(focusedRequest.current)
+    ) {
+      focusedRequest.current = undefined;
+      focusNext();
+    }
+    previousRequests.current = ids;
+  });
+  useEffect(() => {
+    if (!focusRequested.current || pending || waiting) return;
+    focusRequested.current = false;
+    const next = container.current?.querySelector<HTMLElement>(
+      '[data-control-request] button:not(:disabled), [data-control-request] input:not(:disabled), [data-control-request] textarea:not(:disabled)',
+    );
+    (next ?? composer.current)?.focus();
   });
   function refresh() {
     void control.refresh();
@@ -82,11 +162,12 @@ export function Composer({
     if (value.status === 'failed') {
       setNotice(value.error ?? 'Command failed.');
       setWaiting(undefined);
+      focusNext();
       return;
     }
     if (fork && (!value.sessionId || value.sessionId === sessionId)) {
       setNotice('Starting fork…');
-      setWaiting({ id: value.clientRequestId, fork, operation: 'reply' });
+      beginWaiting({ id: value.clientRequestId, fork, operation: 'reply' });
       return;
     }
     setWaiting(undefined);
@@ -113,7 +194,7 @@ export function Composer({
     if (error instanceof ControlError) {
       if (error.kind === 'uncertain') {
         setNotice('This may have been sent');
-        setWaiting({ id: error.clientRequestId, fork, operation });
+        beginWaiting({ id: error.clientRequestId, fork, operation });
         return;
       }
       if (error.reason === 'unknown-outcome')
@@ -126,6 +207,7 @@ export function Composer({
       }
     }
     setNotice(error instanceof Error ? error.message : 'Request failed.');
+    focusNext();
   }
   async function send(fork = false, retry = false) {
     if (busy.current || actionLock.current || waiting || !control.ready) return;
@@ -163,9 +245,14 @@ export function Composer({
       } catch (error) {
         failure(error, 'trust');
         if (error instanceof ControlError && error.kind === 'uncertain') {
-          await new Promise<void>((resolve, reject) => {
-            recovery.current = { resolve, reject };
-          });
+          if (!mounted.current)
+            throw new Error(unknownOutcome, { cause: error });
+          const recoveryError = await new Promise<Error | undefined>(
+            (resolve) => {
+              recovery.current = { resolve };
+            },
+          );
+          if (recoveryError) throw recoveryError;
         } else throw error;
       }
       setTrust(undefined);
@@ -184,10 +271,11 @@ export function Composer({
     if (!value && !receipt.error) return;
     if (receipt.error) {
       if (receipt.error instanceof HttpError && receipt.error.status === 404) {
-        recovery.current?.reject(new Error(unknownOutcome));
+        recovery.current?.resolve(new Error(unknownOutcome));
         recovery.current = undefined;
         setNotice(unknownOutcome);
         setWaiting(undefined);
+        focusNext();
         void client.invalidateQueries({ queryKey: queryKeys.machines() });
         refresh();
       }
@@ -195,10 +283,11 @@ export function Composer({
     }
     if (!value) return;
     if (value.status === 'failed') {
-      recovery.current?.reject(new Error(value.error ?? 'Command failed.'));
+      recovery.current?.resolve(new Error(value.error ?? 'Command failed.'));
       recovery.current = undefined;
       setNotice(value.error ?? 'Command failed.');
       setWaiting(undefined);
+      focusNext();
       refresh();
       return;
     }
@@ -233,10 +322,14 @@ export function Composer({
     } catch (error) {
       failure(error, 'action');
       if (error instanceof ControlError && error.kind === 'uncertain') {
+        if (!mounted.current) throw new Error(unknownOutcome, { cause: error });
         // Keep the card locked until GET confirms its outcome.
-        await new Promise<void>((resolve, reject) => {
-          recovery.current = { resolve, reject };
-        });
+        const recoveryError = await new Promise<Error | undefined>(
+          (resolve) => {
+            recovery.current = { resolve };
+          },
+        );
+        if (recoveryError) throw recoveryError;
       } else throw error;
     } finally {
       actionLock.current = false;
@@ -246,6 +339,35 @@ export function Composer({
   if (!control.ready) return null;
   return (
     <div
+      ref={container}
+      onBlurCapture={(event) => {
+        if (event.relatedTarget instanceof HTMLElement) {
+          if (!event.relatedTarget.closest('[data-control-request]'))
+            focusedRequest.current = undefined;
+          return;
+        }
+        const target = event.target as HTMLElement;
+        const requestId = focusedRequest.current;
+        const epoch = focusEpoch.current;
+        // Browsers can blur a control when React removes or disables it. Keep
+        // its card identity until the removal effect can move focus forward.
+        queueMicrotask(() => {
+          if (
+            focusEpoch.current !== epoch ||
+            focusedRequest.current !== requestId
+          )
+            return;
+          if (target.isConnected && !target.matches(':disabled'))
+            focusedRequest.current = undefined;
+        });
+      }}
+      onFocusCapture={(event) => {
+        focusEpoch.current += 1;
+        focusedRequest.current = (
+          event.target as HTMLElement
+        ).closest<HTMLElement>('[data-control-request]')?.dataset
+          .controlRequest;
+      }}
       className="sticky bottom-0 z-1 max-h-[60dvh] flex-none space-y-3 overflow-y-auto border-t border-line bg-page p-3"
       aria-label="Session control"
     >
@@ -264,27 +386,33 @@ export function Composer({
           Could not refresh run controls: {control.error.message}
         </p>
       )}
-      {requests.map((request) =>
-        request.kind === 'permission' ? (
-          <PermissionCard
-            key={request.requestId}
-            request={request}
-            layout="pinned"
-            onDecide={(decision) =>
-              action(() => control.service.decide(request.requestId, decision))
-            }
-          />
-        ) : (
-          <QuestionCard
-            key={request.requestId}
-            request={request}
-            layout="pinned"
-            onDecide={(decision) =>
-              action(() => control.service.decide(request.requestId, decision))
-            }
-          />
-        ),
-      )}
+      {requests.map((request) => (
+        <div key={request.requestId} data-control-request={request.requestId}>
+          {request.kind === 'permission' ? (
+            <PermissionCard
+              key={request.requestId}
+              request={request}
+              layout="pinned"
+              onDecide={(decision) =>
+                action(() =>
+                  control.service.decide(request.requestId, decision),
+                )
+              }
+            />
+          ) : (
+            <QuestionCard
+              key={request.requestId}
+              request={request}
+              layout="pinned"
+              onDecide={(decision) =>
+                action(() =>
+                  control.service.decide(request.requestId, decision),
+                )
+              }
+            />
+          )}
+        </div>
+      ))}
       {trust && (
         <TrustCard
           trust={trust}
@@ -307,6 +435,7 @@ export function Composer({
           Reply to session
         </label>
         <textarea
+          ref={composer}
           id="session-reply"
           value={text}
           onChange={(event) => setText(event.target.value.slice(0, 20_000))}
@@ -360,6 +489,12 @@ export function Composer({
             </Button>
           )}
         </div>
+        {waiting && (
+          <div className="flex flex-wrap items-center gap-2">
+            <p role="status">Still checking… {elapsed}s elapsed</p>
+            <Button onClick={stopWaiting}>Stop waiting</Button>
+          </div>
+        )}
         <p id="reply-status" role="status" aria-live="polite">
           {notice}
         </p>

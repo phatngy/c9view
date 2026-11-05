@@ -20,6 +20,9 @@ export const queryKeys = {
     [machineId, 'search', filters] as const,
   usage: (machineId: MachineId, filters: UsageFilters) =>
     [machineId, 'usage', filters] as const,
+  controlRuns: (machineId: MachineId) => [machineId, 'control-runs'] as const,
+  controlReceipt: (machineId: MachineId, id: string) =>
+    [machineId, 'control-receipt', id] as const,
   files: (machineId: MachineId, projectId: string, path: string) =>
     [machineId, 'files', projectId, path] as const,
   file: (machineId: MachineId, projectId: string, path: string) =>

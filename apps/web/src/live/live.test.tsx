@@ -655,11 +655,11 @@ it.each(['control.request', 'control.run', 'control.request.resolved'])(
       requests: [{ requestId: 'from-get' }],
     }));
     const local = new QueryObserver(value, {
-      queryKey: ['local', 'control-runs'],
+      queryKey: queryKeys.controlRuns('local'),
       queryFn: read,
     });
     const remote = new QueryObserver(value, {
-      queryKey: ['remote', 'control-runs'],
+      queryKey: queryKeys.controlRuns('remote'),
       queryFn: async () => ({ runs: [], requests: [] }),
     });
     const stopLocal = local.subscribe(() => {});
@@ -672,13 +672,13 @@ it.each(['control.request', 'control.run', 'control.request.resolved'])(
       event: { type, requestId: 'hint-only', runId: 'r', sessionId: 's' },
     });
     expect(read).toHaveBeenCalledTimes(1);
-    expect(value.getQueryData(['local', 'control-runs'])).toEqual({
+    expect(value.getQueryData(queryKeys.controlRuns('local'))).toEqual({
       runs: [],
       requests: [{ requestId: 'from-get' }],
     });
-    expect(value.getQueryState(['remote', 'control-runs'])?.isInvalidated).toBe(
-      false,
-    );
+    expect(
+      value.getQueryState(queryKeys.controlRuns('remote'))?.isInvalidated,
+    ).toBe(false);
     stopLocal();
     stopRemote();
   },
@@ -689,11 +689,11 @@ it('T045 SSE reconnect refetches control runs and pending receipts', async () =>
   const runs = vi.fn(async () => ({ runs: [], requests: [] }));
   const receipt = vi.fn(async () => ({ status: 'accepted' }));
   const runObserver = new QueryObserver(value, {
-    queryKey: ['local', 'control-runs'],
+    queryKey: queryKeys.controlRuns('local'),
     queryFn: runs,
   });
   const receiptObserver = new QueryObserver(value, {
-    queryKey: ['local', 'control-receipt', 'c'],
+    queryKey: queryKeys.controlReceipt('local', 'c'),
     queryFn: receipt,
   });
   const stopRun = runObserver.subscribe(() => {});
@@ -786,7 +786,7 @@ it('T045 renders the permission card read from GET after an SSE request hint', a
   );
   await act(async () => {
     await value.fetchQuery({
-      queryKey: ['local', 'control-runs'],
+      queryKey: queryKeys.controlRuns('local'),
       queryFn: async () => ({ runs: [], requests: [] }),
     });
   });
