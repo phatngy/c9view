@@ -555,6 +555,8 @@ function SessionView({
             projectId={projectId}
             sessionId={sessionId}
             lastResponse={lastResponse}
+            status={poll.data?.status ?? data.session.status}
+            lastAt={poll.data?.lastAt ?? data.session.lastAt}
           />
         </div>
         <aside

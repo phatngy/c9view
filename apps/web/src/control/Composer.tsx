@@ -9,7 +9,12 @@ import {
 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
-import type { CommandReceipt, PermissionMode, TrustSummary } from '@c9view/api';
+import type {
+  CommandReceipt,
+  PermissionMode,
+  SessionStatus,
+  TrustSummary,
+} from '@c9view/api';
 import { Button, Popover, Select, Kbd } from '../kit/index.js';
 import { focusRing, target as targetSize } from '../kit/classes.js';
 import { HttpError } from '../api.js';
@@ -102,11 +107,16 @@ export function Composer({
   projectId,
   sessionId,
   lastResponse,
+  status,
+  lastAt,
 }: {
   projectId: string;
   sessionId: string;
   /** Plain text of the last assistant reply already shown on the page. */
   lastResponse?: string | undefined;
+  /** The session's own status, shown when c9view has no run. */
+  status?: SessionStatus | undefined;
+  lastAt?: string | null | undefined;
 }) {
   const control = useControl();
   const machineId = useMachineId();
@@ -266,7 +276,9 @@ export function Composer({
       if (!mod || !event.shiftKey || event.altKey) return;
       if (
         event.target instanceof Element &&
-        event.target.closest('dialog[open], [role="dialog"]')
+        event.target.closest(
+          'dialog[open], [role="dialog"], [role="alertdialog"]',
+        )
       )
         return;
       if (
@@ -538,15 +550,17 @@ export function Composer({
       aria-label="Session control"
     >
       <div className="pointer-events-auto -m-1 max-h-[60dvh] space-y-2 overflow-y-auto p-1">
-        {run && (
+        {(run || status) && (
           <RunBar
             run={run}
+            status={status}
+            lastAt={lastAt}
             needsInput={requests.length > 0}
-            onInterrupt={() =>
-              action(() => control.service.interrupt(run.runId), 'composer')
-            }
-            onStop={() =>
-              action(() => control.service.stop(run.runId), 'composer')
+            onStop={
+              run
+                ? () =>
+                    action(() => control.service.stop(run.runId), 'composer')
+                : undefined
             }
           />
         )}

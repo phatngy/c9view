@@ -130,7 +130,7 @@ it('turns the round button into Stop response while a run is working', async () 
     name: 'Stop response',
   });
   expect(button).toHaveLength(1);
-  expect(screen.getByRole('button', { name: 'Interrupt' })).toBeVisible();
+  expect(screen.queryByRole('button', { name: 'Interrupt' })).toBeNull();
   expect(screen.queryByRole('button', { name: 'Send' })).toBeNull();
   fireEvent.click(button[0]!);
   await waitFor(() =>
@@ -451,20 +451,38 @@ it('ignores shortcuts that start inside a dialog', () => {
   dialog.remove();
 });
 
-it('moves focus to the reply box after a successful Interrupt, never onto a button', async () => {
+it('moves focus to the reply box after a successful Stop response, never onto a button', async () => {
   mount(run('running'));
-  const bar = await screen.findByRole('button', { name: 'Interrupt' });
+  const bar = await screen.findByRole('button', { name: 'Stop response' });
   fireEvent.click(bar);
   await waitFor(() => expect(box()).toHaveFocus());
 });
-it('does not steal focus from another field after Interrupt', async () => {
+it('does not steal focus from another field after Stop response', async () => {
   mount(run('running'));
   const other = document.createElement('input');
   document.body.append(other);
-  const bar = await screen.findByRole('button', { name: 'Interrupt' });
+  const bar = await screen.findByRole('button', { name: 'Stop response' });
   fireEvent.click(bar);
   other.focus();
   await new Promise((r) => setTimeout(r, 50));
   expect(other).toHaveFocus();
   other.remove();
+});
+
+it('ignores shortcuts that start inside an alert dialog', () => {
+  setPlatform('Linux x86_64');
+  mount();
+  const dialog = document.createElement('div');
+  dialog.setAttribute('role', 'alertdialog');
+  const field = document.createElement('button');
+  dialog.append(field);
+  document.body.append(dialog);
+  fireEvent.keyDown(field, {
+    key: ':',
+    code: 'Semicolon',
+    ctrlKey: true,
+    shiftKey: true,
+  });
+  expect(box()).not.toHaveFocus();
+  dialog.remove();
 });

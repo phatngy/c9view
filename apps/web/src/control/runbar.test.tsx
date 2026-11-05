@@ -1,6 +1,8 @@
 import type { RunState, RunSummary } from '@c9view/api';
 import {
+  act,
   cleanup,
+  within,
   fireEvent,
   render,
   screen,
@@ -28,7 +30,6 @@ function bar(
   const props = {
     run: { ...base, ...over },
     needsInput,
-    onInterrupt: vi.fn(async () => {}),
     onStop: stop,
   };
   const view = render(<RunBar {...props} />);
@@ -65,17 +66,13 @@ it('shows Waiting for you when a request is pending, and pulses only while activ
     'motion-reduce:animate-none',
   );
 });
-it.each<[RunState, boolean]>([
-  ['starting', true],
-  ['running', true],
-  ['waiting', false],
-  ['idle', false],
-  ['ended', false],
-  ['failed', false],
-])('Interrupt for %s is %s', (state, shown) => {
-  bar({ state });
-  expect(!!screen.queryByRole('button', { name: 'Interrupt' })).toBe(shown);
-});
+it.each<RunState>(['starting', 'running', 'waiting', 'idle'])(
+  'has no Interrupt button for %s',
+  (state) => {
+    bar({ state });
+    expect(screen.queryByRole('button', { name: 'Interrupt' })).toBeNull();
+  },
+);
 it('reaches Stop through the Run options menu and calls it', async () => {
   const { onStop } = bar({ state: 'idle' });
   const trigger = screen.getByRole('button', { name: 'Run options' });
@@ -83,6 +80,10 @@ it('reaches Stop through the Run options menu and calls it', async () => {
   fireEvent.keyDown(trigger, { key: 'Enter' });
   fireEvent.click(trigger);
   fireEvent.click(await screen.findByRole('menuitem', { name: 'Stop' }));
+  const dialog = await screen.findByRole('alertdialog', {
+    name: 'Stop this run?',
+  });
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Stop' }));
   await waitFor(() => expect(onStop).toHaveBeenCalledTimes(1));
 });
 it('shows no cost and styles Stop with the danger token', async () => {
@@ -144,6 +145,10 @@ it('opens Run options from the keyboard and selects Stop with ArrowDown and Ente
   fireEvent.keyDown(item, { key: 'ArrowDown' });
   fireEvent.keyDown(item, { key: 'Enter' });
   fireEvent.click(item);
+  const dialog = await screen.findByRole('alertdialog', {
+    name: 'Stop this run?',
+  });
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Stop' }));
   await waitFor(() => expect(onStop).toHaveBeenCalledTimes(1));
 });
 it('closes the menu on Escape, returns focus to the trigger and does not stop', async () => {
@@ -161,11 +166,156 @@ it('keeps one line on phones: badges hide first, text truncates, targets stay 44
   bar({ state: 'running', mode: 'bypassPermissions' });
   expect(screen.getByTestId('run-badges')).toHaveClass('max-sm:hidden');
   expect(screen.getByText('Working…')).toHaveClass('truncate');
-  expect(screen.getByRole('button', { name: 'Interrupt' })).toHaveClass(
-    'min-h-11',
-  );
   expect(screen.getByRole('button', { name: 'Run options' })).toHaveClass(
     'min-h-11',
     'min-w-11',
   );
+});
+
+const sessionStatus = (column: string) =>
+  ({ column, reason: '', source: 'none', observedAt: null }) as never;
+function bare(column: string, lastAt: string | null = null) {
+  const view = render(
+    <RunBar status={sessionStatus(column)} lastAt={lastAt} />,
+  );
+  return {
+    view,
+    rerender: (next: string, at: string | null = lastAt) =>
+      view.rerender(<RunBar status={sessionStatus(next)} lastAt={at} />),
+  };
+}
+it.each([
+  ['inactive', 'Inactive'],
+  ['need_input', 'Need input'],
+  ['in_progress', 'In progress'],
+  ['in_review', 'In review'],
+])('without a run shows the session status %s as "%s"', (column, text) => {
+  bare(column, '2026-11-05T11:57:00Z');
+  expect(screen.getByRole('region', { name: 'Session status' })).toBeVisible();
+  expect(screen.getByText(text)).toBeVisible();
+  expect(screen.getByTestId('run-dot')).toHaveAttribute('aria-hidden', 'true');
+  expect(screen.queryByTestId('run-badges')).toBeNull();
+});
+it('without a run has no Run options menu', () => {
+  bare('in_progress');
+  expect(screen.queryByRole('button', { name: 'Run options' })).toBeNull();
+});
+it('shows last active from a fixed clock and refreshes each minute without announcing', () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-11-05T12:00:00Z'));
+  try {
+    bare('inactive', '2026-11-05T11:57:00Z');
+    expect(screen.getByTestId('last-active')).toHaveTextContent(
+      '· last active 3m ago',
+    );
+    expect(screen.getByTestId('last-active')).toHaveClass('truncate');
+    act(() => {
+      vi.advanceTimersByTime(120_000);
+    });
+    expect(screen.getByTestId('last-active')).toHaveTextContent(
+      '· last active 5m ago',
+    );
+    expect(
+      screen
+        .getAllByRole('status')
+        .map((n) => n.textContent)
+        .join(''),
+    ).toBe('');
+  } finally {
+    vi.useRealTimers();
+  }
+});
+it('shows No activity when the session has no timestamp', () => {
+  bare('inactive', null);
+  expect(screen.getByTestId('last-active')).toHaveTextContent('No activity');
+});
+it('shows the run state, not the session state, when a run exists', () => {
+  render(
+    <RunBar
+      run={{ ...base, state: 'running' }}
+      status={sessionStatus('inactive')}
+      lastAt="2026-11-05T11:57:00Z"
+      onStop={vi.fn(async () => {})}
+    />,
+  );
+  expect(screen.getByText('Working…')).toBeVisible();
+  expect(screen.queryByText('Inactive')).toBeNull();
+  expect(screen.queryByTestId('last-active')).toBeNull();
+  expect(screen.getByRole('button', { name: 'Run options' })).toBeVisible();
+});
+it('announces only a change into Need input, not on refetch', () => {
+  const live = () =>
+    screen
+      .getAllByRole('status')
+      .map((n) => n.textContent)
+      .join('');
+  const { rerender } = bare('inactive', '2026-11-05T11:57:00Z');
+  rerender('inactive', '2026-11-05T11:58:00Z');
+  expect(live()).toBe('');
+  rerender('in_progress');
+  expect(live()).toBe('');
+  rerender('need_input');
+  expect(live()).toBe('Need input');
+  rerender('need_input', '2026-11-05T11:59:00Z');
+  expect(live()).toBe('Need input');
+  rerender('in_review');
+  expect(live()).toBe('');
+});
+
+async function openConfirm(stop = vi.fn(async () => {})) {
+  const view = bar({ state: 'idle' }, false, stop);
+  const trigger = screen.getByRole('button', { name: 'Run options' });
+  trigger.focus();
+  fireEvent.click(trigger);
+  fireEvent.click(await screen.findByRole('menuitem', { name: 'Stop' }));
+  const dialog = await screen.findByRole('alertdialog', {
+    name: 'Stop this run?',
+  });
+  return { ...view, stop, trigger, dialog };
+}
+it('opens a labelled confirmation with initial focus on Cancel and stops nothing yet', async () => {
+  const { stop, dialog } = await openConfirm();
+  expect(dialog).toHaveAccessibleDescription(/Claude stops working/);
+  await waitFor(() =>
+    expect(
+      within(dialog).getByRole('button', { name: 'Cancel' }),
+    ).toHaveFocus(),
+  );
+  expect(within(dialog).getByRole('button', { name: 'Stop' })).toHaveClass(
+    'bg-danger',
+    'min-h-11',
+  );
+  expect(stop).not.toHaveBeenCalled();
+});
+it('Cancel closes without stopping and returns focus to Run options', async () => {
+  const { stop, trigger, dialog } = await openConfirm();
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+  await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+  await waitFor(() => expect(trigger).toHaveFocus());
+  expect(stop).not.toHaveBeenCalled();
+});
+it('Escape closes without stopping and returns focus to Run options', async () => {
+  const { stop, trigger, dialog } = await openConfirm();
+  fireEvent.keyDown(dialog, { key: 'Escape' });
+  await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+  await waitFor(() => expect(trigger).toHaveFocus());
+  expect(stop).not.toHaveBeenCalled();
+});
+it('Confirm stops once even on a double click, and is disabled while pending', async () => {
+  let finish!: () => void;
+  const stop = vi.fn(
+    () =>
+      new Promise<void>((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const { dialog } = await openConfirm(stop);
+  const confirm = within(dialog).getByRole('button', { name: 'Stop' });
+  fireEvent.click(confirm);
+  fireEvent.click(confirm);
+  expect(stop).toHaveBeenCalledTimes(1);
+  await waitFor(() => expect(confirm).toBeDisabled());
+  finish();
+  await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+  expect(stop).toHaveBeenCalledTimes(1);
 });

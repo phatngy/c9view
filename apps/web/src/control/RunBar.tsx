@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { MoreHorizontal } from 'lucide-react';
-import type { RunState, RunSummary } from '@c9view/api';
-import { Button, IconButton, Menu } from '../kit/index.js';
+import type {
+  KanbanColumn,
+  RunState,
+  RunSummary,
+  SessionStatus,
+} from '@c9view/api';
+import { ConfirmDialog, IconButton, Menu } from '../kit/index.js';
+import { labels, relative } from '../ui.js';
 import { BypassBadge, DrivenBadge } from './cards.js';
 
 /** Human text and a token colour for every run state. */
@@ -16,41 +22,73 @@ export const stateInfo: Record<
   ended: { label: 'Ended', dot: 'bg-inactive' },
   failed: { label: 'Failed', dot: 'bg-danger' },
 };
-const announced = new Set(['Waiting for you', 'Ended', 'Failed']);
+/** The session's own column, with the app's existing names, when no run. */
+const columnDot: Record<KanbanColumn, string> = {
+  inactive: 'bg-inactive',
+  need_input: 'bg-need-input',
+  in_progress: 'bg-in-progress',
+  in_review: 'bg-in-review',
+};
+const announced = new Set([
+  'Waiting for you',
+  'Ended',
+  'Failed',
+  labels.need_input,
+]);
 
 export function RunBar({
   run,
+  status,
+  lastAt = null,
   needsInput = false,
-  onInterrupt,
   onStop,
 }: {
-  run: RunSummary;
+  /** The c9view run, if any. Without one the session's own status shows. */
+  run?: RunSummary | undefined;
+  status?: SessionStatus | undefined;
+  lastAt?: string | null | undefined;
   /** A permission or question request is pending for this run. */
   needsInput?: boolean;
-  onInterrupt: () => Promise<void>;
-  onStop: () => Promise<void>;
+  onStop?: (() => Promise<void>) | undefined;
 }) {
   const busy = useRef(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
-  async function act(action: () => Promise<void>) {
-    if (busy.current) return;
+  const section = useRef<HTMLElement>(null);
+  const stopped = useRef(false);
+  const [confirming, setConfirming] = useState(false);
+  async function act(action: () => Promise<void>): Promise<boolean> {
+    if (busy.current) return false;
     busy.current = true;
     setPending(true);
     setError('');
     try {
       await action();
+      return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Request failed.');
+      return false;
     } finally {
       busy.current = false;
       setPending(false);
     }
   }
-  const ended = ['ended', 'failed'].includes(run.state);
-  const working = ['starting', 'running'].includes(run.state);
-  const info = stateInfo[needsInput && !ended ? 'waiting' : run.state];
-  const label = `${info.label}${run.queued > 0 ? ` · ${run.queued} queued` : ''}`;
+  const ended = !!run && ['ended', 'failed'].includes(run.state);
+  const info: { label: string; dot: string; pulse?: boolean } = run
+    ? stateInfo[needsInput && !ended ? 'waiting' : run.state]
+    : {
+        label: labels[status?.column ?? 'inactive'],
+        dot: columnDot[status?.column ?? 'inactive'],
+      };
+  const queued = run?.queued ?? 0;
+  const label = `${info.label}${queued > 0 ? ` · ${queued} queued` : ''}`;
+  // Re-render each minute so "last active" stays current; it is not announced.
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    if (run) return;
+    const timer = window.setInterval(() => setTick((n) => n + 1), 60_000);
+    return () => window.clearInterval(timer);
+  }, [run]);
   // Announce only a change into a state that needs attention, once each.
   const previous = useRef(info.label);
   const [announcement, setAnnouncement] = useState('');
@@ -59,8 +97,13 @@ export function RunBar({
     previous.current = info.label;
     setAnnouncement(announced.has(info.label) ? info.label : '');
   }, [info.label]);
+  const lastActive = lastAt ? `last active ${relative(lastAt)}` : 'No activity';
   return (
-    <section aria-label="Run controls" className="flex-none text-xs text-muted">
+    <section
+      ref={section}
+      aria-label={run ? 'Run controls' : 'Session status'}
+      className="flex-none text-xs text-muted"
+    >
       <div className="flex min-h-11 flex-nowrap items-center gap-2 px-2 lg:min-h-9">
         <span
           aria-hidden="true"
@@ -68,36 +111,34 @@ export function RunBar({
           className={`size-2 shrink-0 rounded-full ${info.dot} ${info.pulse ? 'animate-pulse motion-reduce:animate-none' : ''}`}
         />
         <span
-          title={label}
+          title={run ? label : `${label} · ${lastActive}`}
           className="flex min-w-0 items-baseline gap-1 font-medium text-ink"
         >
-          <span className="truncate">{info.label}</span>
-          {run.queued > 0 && (
-            <span className="shrink-0">· {run.queued} queued</span>
+          <span className={run ? 'truncate' : 'shrink-0'}>{info.label}</span>
+          {queued > 0 && <span className="shrink-0">· {queued} queued</span>}
+          {!run && (
+            <span
+              data-testid="last-active"
+              className="min-w-0 truncate font-normal text-muted"
+            >
+              · {lastActive}
+            </span>
           )}
         </span>
         <span className="sr-only" role="status" aria-live="polite">
           {announcement}
         </span>
-        <span
-          data-testid="run-badges"
-          className="flex min-w-0 gap-1.5 max-sm:hidden"
-        >
-          <DrivenBadge compact />
-          {run.mode === 'bypassPermissions' && <BypassBadge compact />}
-        </span>
+        {run && (
+          <span
+            data-testid="run-badges"
+            className="flex min-w-0 gap-1.5 max-sm:hidden"
+          >
+            <DrivenBadge compact />
+            {run.mode === 'bypassPermissions' && <BypassBadge compact />}
+          </span>
+        )}
         <span className="ml-auto flex shrink-0 items-center gap-1">
-          {working && (
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={pending}
-              onClick={() => void act(onInterrupt)}
-            >
-              Interrupt
-            </Button>
-          )}
-          {!ended && (
+          {run && !ended && onStop && (
             <Menu
               trigger={
                 <IconButton
@@ -112,16 +153,40 @@ export function RunBar({
                   label: 'Stop',
                   destructive: true,
                   disabled: pending,
-                  onSelect: () => void act(onStop),
+                  onSelect: () => setConfirming(true),
                 },
               ]}
             />
           )}
+          {onStop && (
+            <ConfirmDialog
+              open={confirming}
+              onOpenChange={setConfirming}
+              title="Stop this run?"
+              description="Claude stops working on this session and the run ends. Reply later to start it again."
+              confirmLabel="Stop"
+              destructive
+              pending={pending}
+              onConfirm={() =>
+                void act(onStop).then((ok) => {
+                  stopped.current = ok;
+                  setConfirming(false);
+                })
+              }
+              finalFocus={() =>
+                stopped.current
+                  ? document.getElementById('session-reply')
+                  : (section.current?.querySelector<HTMLElement>(
+                      '[aria-label="Run options"]',
+                    ) ?? null)
+              }
+            />
+          )}
         </span>
       </div>
-      {(error || run.error) && (
+      {(error || run?.error) && (
         <p role="alert" className="px-2 text-danger">
-          {error || run.error}
+          {error || run?.error}
         </p>
       )}
     </section>
