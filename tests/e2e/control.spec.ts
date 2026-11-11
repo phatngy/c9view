@@ -42,7 +42,12 @@ for (const [name, button, outcome] of [
     await page.getByRole('button', { name: 'Send', exact: true }).click();
     const card = page.getByRole('region', { name: 'Permission for Bash' });
     await expect(card).toBeVisible();
-    await expect(card).toHaveAttribute('data-layout', 'pinned');
+    // Pinned above the composer: the card lives inside the session control area.
+    await expect(
+      page.locator('[aria-label="Session control"]').getByRole('region', {
+        name: 'Permission for Bash',
+      }),
+    ).toBeVisible();
     await expect(card).toContainText('echo synthetic-approval');
     await card.getByRole('button', { name: button, exact: true }).click();
     await expect(card).toHaveCount(0);
