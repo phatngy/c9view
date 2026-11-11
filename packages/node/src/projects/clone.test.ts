@@ -2,7 +2,7 @@ import { afterEach, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { mkdir, writeFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
-import { setupControl, tick } from '../control/test-support.js';
+import { setupControl, waitFor } from '../control/test-support.js';
 import type { GitWriter } from './git-write.js';
 
 const cleanups: (() => Promise<void>)[] = [];
@@ -76,8 +76,9 @@ it('T065 clone receipt goes cloning then ready, never trusted, never starts a se
   });
   const receipt = await t.service.createProject(request as never, t.bootId);
   expect(receipt.status).toBe('cloning');
-  await tick();
-  expect(t.service.receipt(request.clientRequestId)?.status).toBe('ready');
+  await waitFor(() =>
+    expect(t.service.receipt(request.clientRequestId)?.status).toBe('ready'),
+  );
   expect(calls[0]).toEqual({
     op: 'clone',
     args: [
@@ -106,10 +107,11 @@ it('T065 a failed clone is redacted, reported and removes what it created', asyn
     gitUrl: 'https://h.example/o/r.git',
   });
   await t.service.createProject(request as never, t.bootId);
-  await tick();
-  expect(t.service.receipt(request.clientRequestId)).toMatchObject({
-    status: 'failed',
-    error: 'git clone failed: denied',
-  });
+  await waitFor(() =>
+    expect(t.service.receipt(request.clientRequestId)).toMatchObject({
+      status: 'failed',
+      error: 'git clone failed: denied',
+    }),
+  );
   await expect(stat(join(t.work, 'q'))).rejects.toThrow();
 });

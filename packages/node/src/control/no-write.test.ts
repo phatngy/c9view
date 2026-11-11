@@ -2,7 +2,7 @@ import { expect, it } from 'vitest';
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { setupControl, tick } from './test-support.js';
+import { setupControl, waitFor } from './test-support.js';
 async function tree(path: string): Promise<unknown> {
   const info = await stat(path);
   if (!info.isDirectory())
@@ -40,12 +40,14 @@ it('T035 all control operations leave Claude data and project files unchanged', 
       t.body(),
       t.bootId,
     );
-    await tick();
+    await waitFor(() => expect(t.sdk.runs).toHaveLength(1));
     const run = t.sdk.runs[0]!;
     run.init('session');
-    await tick();
+    await waitFor(() =>
+      expect(t.service.snapshot().runs[0]?.state).toBe('running'),
+    );
     const permission = run.permission('Read', { path: 'synthetic.txt' });
-    await tick();
+    await waitFor(() => expect(t.service.snapshot().requests).toHaveLength(1));
     await t.service.decide(
       t.service.snapshot().requests[0]!.requestId,
       {
@@ -72,7 +74,7 @@ it('T035 all control operations leave Claude data and project files unchanged', 
       t.bootId,
     );
     await t.service.start('project', t.body(), t.bootId);
-    await tick();
+    await waitFor(() => expect(t.sdk.runs).toHaveLength(2));
     t.service.snapshot();
     t.service.receipt(receipt.clientRequestId);
     await t.service.close();

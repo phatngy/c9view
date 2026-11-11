@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest';
-import { setupControl, tick } from './test-support.js';
+import { setupControl, waitFor } from './test-support.js';
 it('T036 never logs prompts/tool inputs/answers and redacts SDK errors', async () => {
   const error = vi.spyOn(console, 'error').mockImplementation(() => {});
   const log = vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -21,7 +21,9 @@ it('T036 never logs prompts/tool inputs/answers and redacts SDK errors', async (
       t.body(),
       t.bootId,
     );
-    await tick();
+    await waitFor(() =>
+      expect(t.service.receipt(receipt.clientRequestId)?.status).toBe('failed'),
+    );
     expect(t.service.receipt(receipt.clientRequestId)?.error).not.toContain(
       'sk-ant-api03-abcdefghijklmnopqrstuvwxyz123456789',
     );
@@ -39,7 +41,7 @@ it('T036 tool input and question answers never enter logs', async () => {
   const log = vi.spyOn(console, 'log').mockImplementation(() => {});
   try {
     await t.service.start('project', t.body(), t.bootId);
-    await tick();
+    await waitFor(() => expect(t.sdk.runs).toHaveLength(1));
     const question = t.sdk.runs[0]!.permission('AskUserQuestion', {
       questions: [
         {
@@ -53,6 +55,7 @@ it('T036 tool input and question answers never enter logs', async () => {
         },
       ],
     });
+    await waitFor(() => expect(t.service.snapshot().requests).toHaveLength(1));
     const request = t.service.snapshot().requests[0]!;
     const { randomUUID } = await import('node:crypto');
     await t.service.decide(

@@ -7,8 +7,13 @@ import { EventHub } from '../data/events.js';
 import { FakeSdk } from './fake-sdk.js';
 import { loadControlConfig, type ControlConfig } from './config.js';
 import { createControlService } from './service.js';
-export const tick = () =>
-  new Promise<void>((resolve) => setTimeout(resolve, 75));
+import { vi } from 'vitest';
+/**
+ * Wait until `check` stops throwing. Use this instead of a fixed sleep before
+ * reading fake SDK or service state that is produced asynchronously.
+ */
+export const waitFor = (check: () => unknown) =>
+  vi.waitFor(check, { timeout: 5000, interval: 5 });
 export async function setupControl(
   overrides: Partial<ControlConfig> = {},
   options: {

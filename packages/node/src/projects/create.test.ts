@@ -2,7 +2,7 @@ import { afterEach, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { mkdir, realpath, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { setupControl, tick } from '../control/test-support.js';
+import { setupControl, waitFor } from '../control/test-support.js';
 import { FolderTrust } from '../control/trust.js';
 import type { GitWriter } from './git-write.js';
 
@@ -59,7 +59,7 @@ it('T066 opens an existing folder as is, without init, and starts after the user
     body({ location, name: 'n' }),
     t.bootId,
   );
-  await tick();
+  await waitFor(() => expect(t.sdk.runs).toHaveLength(1));
   expect(receipt).toMatchObject({
     status: 'accepted',
     projectId: summary!.path.replace(/[^A-Za-z0-9]/g, '-'),
