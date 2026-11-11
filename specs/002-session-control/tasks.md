@@ -151,7 +151,7 @@ description: 'Task list for Session Control'
 - [x] T074 [P] [US6] `apps/web/src/control/NewProjectDialog.test.tsx` and `FolderPicker.test.tsx`: validates the location, sends the optional git URL, shows clone progress, shows the trust summary and waits for "Trust this folder" before starting; machine field only with more than one machine; folder picker works from the keyboard
 - [x] T075 [US6] `apps/web/src/control/FolderPicker.tsx`: tree of the roots, one level at a time, path field kept in sync
 - [x] T076 [US6] `apps/web/src/control/NewProjectDialog.tsx`: Machine, Location with "Browse…", Git URL, "Initialize git" (on by default, only without a URL), session name, first prompt, permission mode; progress line; trust step
-- [x] T077 [US6] "New project" button on the Overview (`apps/web/src/overview.tsx`) and the project list (`apps/web/src/project/list.tsx`), only when control is `ready` and roots exist
+- [x] T077 [US6] "New project" button on the Overview (`apps/web/src/overview.tsx`) only, which is where the project list lives (`apps/web/src/project/list.tsx` is a per-project session table); only when control is `ready` and roots exist
 
 ### User Story 7 — labels (P3)
 
