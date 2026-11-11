@@ -22,7 +22,6 @@ import type {
   StatusHistoryResponse,
 } from '@c9view/api';
 import { routeTree } from '../router.js';
-import { queryKeys } from '../queryKeys.js';
 import { useSession } from '../api.js';
 import {
   projectDetail,
@@ -245,11 +244,13 @@ it.each([10, 60])(
   },
 );
 
-function openSession(sessionId = 'session-0') {
+function openSession(sessionId = 'session-0', newSession = false) {
   const router = createRouter({
     routeTree,
     history: createMemoryHistory({
-      initialEntries: [`/m/local/projects/project-1/sessions/${sessionId}`],
+      initialEntries: [
+        `/m/local/projects/project-1/sessions/${sessionId}${newSession ? '?newSession=true' : ''}`,
+      ],
     }),
     defaultPendingMinMs: 0,
   });
@@ -323,30 +324,72 @@ it('T062 shows Starting until a newly created session transcript is available', 
     };
   });
   vi.stubGlobal('fetch', fetcher);
-  openSession(sessionId);
+  openSession(sessionId, true);
   expect(await screen.findByText('Starting…')).toBeVisible();
   transcriptReady = true;
-  await act(async () => {
-    clients[0]!.setQueryData(
-      queryKeys.session('local', 'project-1', sessionId),
-      {
-        pages: [
-          {
-            ...sessionDetail,
-            session: {
-              ...sessionDetail.session,
-              id: sessionId,
-              title: 'New session',
-            },
-          },
-        ],
-        pageParams: [{ cursor: 0, limit: 50 }],
-      },
-    );
-    await Promise.resolve();
-  });
   await screen.findByRole('heading', { name: 'New session' });
+  expect(
+    fetcher.mock.calls.filter(([url]) =>
+      url.includes(`/sessions/${sessionId}?`),
+    ).length,
+  ).toBeGreaterThan(1);
   expect(screen.queryByText('Starting…')).toBeNull();
+});
+
+it('stops showing Starting after the new transcript wait cap', async () => {
+  const realSetTimeout = window.setTimeout.bind(window);
+  vi.spyOn(window, 'setTimeout').mockImplementation(((
+    handler: TimerHandler,
+    timeout?: number,
+    ...args: unknown[]
+  ) =>
+    realSetTimeout(
+      handler,
+      timeout === 120_000 ? 1500 : timeout,
+      ...args,
+    )) as typeof window.setTimeout);
+  const sessionId = 'expired-new-session';
+  const fetcher = vi.fn(async (url: string) => {
+    let body: unknown = {};
+    let status = 200;
+    if (url === '/api/machines')
+      body = [
+        {
+          machineId: 'local',
+          name: 'Local',
+          state: 'online',
+          lastSeenAt: null,
+          version: '1.0.0',
+          protocol: 1,
+          outdated: false,
+          bootId: 'boot',
+          capabilities: { control: { state: 'ready' }, bypass: false },
+        },
+      ];
+    else if (url.endsWith('/control/runs')) body = { runs: [], requests: [] };
+    else if (url.includes('/status/history')) body = { changes: [] };
+    else if (url.endsWith('/status'))
+      body = { status: 'running', totalMessages: 0, lastAt: null };
+    else if (url.endsWith('/changes')) body = { files: [] };
+    else if (url === '/api/m/local/projects/project-1') body = projectDetail;
+    else if (url.includes(`/sessions/${sessionId}?`)) {
+      status = 404;
+      body = { error: 'Not found' };
+    }
+    return {
+      ok: status >= 200 && status < 300,
+      status,
+      json: async () => body,
+    };
+  });
+  vi.stubGlobal('fetch', fetcher);
+  openSession(sessionId, true);
+  expect(await screen.findByText('Starting…')).toBeVisible();
+  const future = Date.now() + 120_001;
+  vi.spyOn(Date, 'now').mockImplementation(() => future);
+  await screen.findByRole('alert');
+  expect(screen.queryByText('Starting…')).toBeNull();
+  expect(screen.getByRole('alert')).toHaveTextContent('Unable to load data');
 });
 
 async function openSearch() {

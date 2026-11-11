@@ -21,6 +21,7 @@ import { SessionHeader } from './session/header/SessionHeader.js';
 import { SessionSearch } from './session/header/SessionSearch.js';
 import { contextUsage } from './session/context.js';
 import { useQueryClient } from '@tanstack/react-query';
+import { useLocation } from '@tanstack/react-router';
 import { useMachineId } from './machine.js';
 import { refreshSession } from './live/index.js';
 import { scrollConversationToBottom } from './session/WindowedMessages.js';
@@ -43,9 +44,16 @@ function SessionView({
   projectId: string;
   sessionId: string;
 }) {
+  const locationSearch = useLocation({ select: (location) => location.search });
+  const isNewSession =
+    !!locationSearch &&
+    typeof locationSearch === 'object' &&
+    'newSession' in locationSearch &&
+    locationSearch.newSession === true;
   const machineId = useMachineId();
   const control = useControl();
   const query = useSession(projectId, sessionId);
+  const { refetch } = query;
   const client = useQueryClient();
   const loadingOlder = useRef(false);
   const refreshedTotal = useRef<number | undefined>(undefined);
@@ -68,6 +76,47 @@ function SessionView({
   const [toolTarget, setToolTarget] = useState<string>();
   const [notice, setNotice] = useState('');
   const attempts = useRef(0);
+  const [newSessionTimedOut, setNewSessionTimedOut] = useState(false);
+  const startingPoll = useRef(0);
+  const startingSince = useRef(0);
+  /* eslint-disable react-hooks/set-state-in-effect -- Reset the bounded startup wait when navigating to a newly created session. */
+  useEffect(() => {
+    if (!isNewSession) {
+      startingPoll.current = 0;
+      startingSince.current = 0;
+      return;
+    }
+    startingSince.current = Date.now();
+    startingPoll.current = 0;
+    setNewSessionTimedOut(false);
+    const timeout = window.setTimeout(
+      () => setNewSessionTimedOut(true),
+      120_000,
+    );
+    return () => window.clearTimeout(timeout);
+  }, [isNewSession, sessionId]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (
+      !isNewSession ||
+      newSessionTimedOut ||
+      query.isFetching ||
+      !(query.error instanceof HttpError) ||
+      query.error.status !== 404 ||
+      Date.now() - startingSince.current >= 120_000
+    )
+      return;
+    const delay = Math.min(1000 * 2 ** startingPoll.current, 5000);
+    startingPoll.current += 1;
+    const timer = window.setTimeout(() => void refetch(), delay);
+    return () => window.clearTimeout(timer);
+  }, [
+    isNewSession,
+    newSessionTimedOut,
+    query.error,
+    query.isFetching,
+    refetch,
+  ]);
   const [mobileTab, setMobileTab] = useState<
     'chat' | 'outline' | 'files' | 'usage'
   >('chat');
@@ -413,6 +462,8 @@ function SessionView({
   }, []);
   if (error && !pages) {
     if (
+      isNewSession &&
+      !newSessionTimedOut &&
       (control.ready || !control.machine) &&
       error instanceof HttpError &&
       error.status === 404
@@ -425,14 +476,7 @@ function SessionView({
     return <Failure error={error} retry={query.refetch} />;
   }
   const data = pages?.pages.at(-1);
-  if (!data)
-    return control.ready ? (
-      <p className="p-6 text-sm text-muted" role="status">
-        Starting…
-      </p>
-    ) : (
-      <Loading />
-    );
+  if (!data) return <Loading />;
   const sidebar = (
     <>
       <div hidden={narrow && mobileTab !== 'outline'}>
