@@ -154,3 +154,25 @@ it('T025 maps redacted option labels back to the server-held originals', async (
     t.close();
   }
 });
+it('T095 builds a bounded tool-row summary from relevant fields, not raw JSON', async () => {
+  const t = await setup();
+  try {
+    void t.fake.runs[0]!.permission('Edit', {
+      file_path: '/synthetic/a.ts',
+      old_string: 'x',
+      new_string: Array.from({ length: 20 }, (_, i) => `line ${i}`).join('\n'),
+      secret: 'sk-ant-api03-abcdefghijklmnopqrstuvwxyz123456789',
+    });
+    void t.fake.runs[0]!.permission('Bash', { command: 'x'.repeat(5000) });
+    const [edit, bash] = t.requests.snapshot();
+    if (edit?.kind !== 'permission' || bash?.kind !== 'permission')
+      throw new Error('expected permission cards');
+    expect(edit.summary).toMatch(/^Edit: \/synthetic\/a\.ts\nline 0/);
+    expect(edit.summary).not.toContain('{');
+    expect(edit.summary).not.toContain('sk-ant');
+    expect(edit.summary).not.toContain('line 19');
+    expect(bash.summary.length).toBeLessThanOrEqual(600);
+  } finally {
+    t.close();
+  }
+});

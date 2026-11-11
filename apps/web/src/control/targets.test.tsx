@@ -75,12 +75,10 @@ it('keeps permission and question card small buttons at least 44px tall below lg
       <PermissionCard
         request={permission}
         onDecide={vi.fn().mockResolvedValue(undefined)}
-        layout="inline"
       />
       <QuestionCard
         request={question}
         onDecide={vi.fn().mockResolvedValue(undefined)}
-        layout="inline"
       />
     </>,
   );

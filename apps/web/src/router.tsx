@@ -100,6 +100,12 @@ const project = createRoute({
 const session = createRoute({
   getParentRoute: () => root,
   path: '/m/$machineId/projects/$projectId/sessions/$sessionId',
+  validateSearch: (search: Record<string, unknown> & SearchSchemaInput) => ({
+    newSession:
+      search.newSession === true || search.newSession === 'true'
+        ? (true as const)
+        : undefined,
+  }),
   component: () => {
     const params = session.useParams();
     return (

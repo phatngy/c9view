@@ -9,6 +9,7 @@ import type {
 import type { CanUseTool, ToolResult } from './sdk.js';
 import { redactStrings } from '../data/redaction.js';
 import { ControlError } from './errors.js';
+import { approvalSummary } from './summary.js';
 const questionsSchema = z.object({
   questions: z
     .array(
@@ -70,7 +71,7 @@ export class Requests {
             ...base,
             kind: 'permission',
             toolName: redactStrings(tool),
-            summary: redactStrings(JSON.stringify(input)),
+            summary: approvalSummary(tool, input),
           };
       return new Promise<ToolResult>((resolve) => {
         const finish = (result: ToolResult) => {

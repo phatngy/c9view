@@ -2,6 +2,7 @@ import { useControl } from '../control/useControl.js';
 import { useLabels } from '../control/useLabels.js';
 import { SessionTitle } from '../control/SessionLabel.js';
 import { BypassBadge, DrivenBadge } from '../control/cards.js';
+import { isActiveRun } from '../control/runState.js';
 import { useMachineId } from '../machine.js';
 import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
@@ -68,13 +69,15 @@ export function Kanban({
                   control.data?.runs.some(
                     (run) =>
                       run.projectId === projectId &&
-                      run.sessionId === session.id,
+                      run.sessionId === session.id &&
+                      isActiveRun(run),
                   ) && <DrivenBadge compact />}
                 {control.ready &&
                   control.data?.runs.some(
                     (run) =>
                       run.projectId === projectId &&
                       run.sessionId === session.id &&
+                      isActiveRun(run) &&
                       run.mode === 'bypassPermissions',
                   ) && <BypassBadge compact />}
                 {session.liveName && (

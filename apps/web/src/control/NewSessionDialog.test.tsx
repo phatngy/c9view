@@ -98,9 +98,10 @@ it('T057 posts a capped name and navigates to the returned session ID', async ()
   expect(JSON.parse(init!.body as string)).toMatchObject({
     text: 'Please inspect the project.',
     name: 'N'.repeat(80),
-    permissionMode: 'default',
     clientRequestId: expect.stringMatching(/^[\da-f-]{36}$/),
   });
+  // T100: "Project default" is selected, so the field is omitted.
+  expect(JSON.parse(init!.body as string)).not.toHaveProperty('permissionMode');
   finishPost(
     json(
       {
@@ -126,6 +127,25 @@ it('T057 posts a capped name and navigates to the returned session ID', async ()
   );
 });
 
+it('T100 sends permissionMode only when a specific mode is chosen', async () => {
+  const fetcher = mount(false, () => Promise.resolve(accepted()));
+  fireEvent.change(screen.getByRole('textbox', { name: /Prompt/ }), {
+    target: { value: 'Plan it.' },
+  });
+  fireEvent.click(screen.getByRole('combobox', { name: 'Permission mode' }));
+  const plan = await screen.findByRole('option', { name: 'Plan' });
+  fireEvent.pointerDown(plan, { pointerType: 'mouse' });
+  fireEvent.click(plan);
+  fireEvent.click(screen.getByRole('button', { name: 'Start session' }));
+  await waitFor(() => expect(navigate).toHaveBeenCalled());
+  const [, init] = fetcher.mock.calls.find(
+    ([, request]) => request?.method === 'POST',
+  )!;
+  expect(JSON.parse(init!.body as string)).toMatchObject({
+    permissionMode: 'plan',
+  });
+});
+
 function accepted(sessionId = 'session-returned') {
   return json(
     {
@@ -145,6 +165,7 @@ it('T057 shows the machine bypass banner and excludes bypass from the permission
     screen.getByText('This machine bypasses permission prompts for every run.'),
   ).toBeVisible();
   fireEvent.click(screen.getByRole('combobox', { name: 'Permission mode' }));
+  expect(screen.getByRole('option', { name: 'Project default' })).toBeVisible();
   expect(screen.getByRole('option', { name: 'Default' })).toBeVisible();
   expect(screen.getByRole('option', { name: 'Accept edits' })).toBeVisible();
   expect(screen.getByRole('option', { name: 'Plan' })).toBeVisible();

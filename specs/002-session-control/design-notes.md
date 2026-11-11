@@ -110,7 +110,7 @@ All control paths below are relative to `/api/m/:machineId`; the hub relays them
     - `Composer.tsx`;
     - `PermissionCard.tsx`;
     - `QuestionCard.tsx`;
-    - `RunBar.tsx`: state, Interrupt and Stop;
+    - `RunBar.tsx`: state and Stop (Interrupt is in the composer);
     - `TrustCard.tsx`: the R22 summary and "Trust this folder", shown when a reply or new session gets `untrusted-folder`.
   - Additive edits:
     - mount points in `apps/web/src/session.tsx` and in the phone layout's Chat tab;
@@ -233,7 +233,7 @@ All control paths below are relative to `/api/m/:machineId`; the hub relays them
     - The hub wraps each in `{ machineId, … }` from the transport it came through; the node never sends `machineId`.
     - On any `control.*` event, the web refetches `GET …/control/runs`, which returns the current runs (state, cost, error) and pending requests with their redacted cards. That GET is the only source of truth, so a missed or reordered event can only delay an update, never corrupt it.
 19. **R19** Cost.
-    - The run bar shows the run's `total_cost_usd`, labelled "≈ API-equivalent" and linked to the billing note.
+    - The run bar shows no cost; Interrupt lives in the composer's square button.
     - Session and project totals keep coming from the transcript, as today.
 
 **Multi-machine readiness** (so [multi-machine.md](../001-multi-machine/spec.md) needs no control rewrite)
@@ -356,8 +356,8 @@ All control paths below are relative to `/api/m/:machineId`; the hub relays them
 
 - **Session page:**
   - a composer under the conversation, as a sticky footer with a textarea, Send and a permission-mode menu;
-  - a run bar above it (state, ≈ cost, Interrupt, Stop);
-  - pending request cards pinned above the composer and also inline at the tool row they belong to;
+  - a run bar above it (state, Stop);
+  - pending request cards pinned above the composer only;
   - on phones, the composer stays in the Chat tab.
 - **Project header:** a "New session" button opens a dialog with the prompt, an optional name and the permission mode.
 - **New project dialog** (from the Overview and the project list):
