@@ -21,6 +21,11 @@ export const queryKeys = {
   usage: (machineId: MachineId, filters: UsageFilters) =>
     [machineId, 'usage', filters] as const,
   controlRuns: (machineId: MachineId) => [machineId, 'control-runs'] as const,
+  workspaceRoots: (machineId: MachineId) =>
+    [machineId, 'workspace-roots'] as const,
+  workspaceBrowse: (machineId: MachineId, path: string, hidden: boolean) =>
+    [machineId, 'workspace-browse', path, hidden] as const,
+  labels: (machineId: MachineId) => [machineId, 'labels'] as const,
   controlReceipt: (machineId: MachineId, id: string) =>
     [machineId, 'control-receipt', id] as const,
   files: (machineId: MachineId, projectId: string, path: string) =>

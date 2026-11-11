@@ -1,7 +1,9 @@
 import { useMachineId } from './machine.js';
 import { ProjectName } from './shell/ProjectName.js';
 import { useBreadcrumbs } from './shell/breadcrumbs.js';
-import { lazy, Suspense, useState } from 'react';
+import { lazy, Suspense, useRef, useState } from 'react';
+import { NewProjectDialog } from './control/NewProjectDialog.js';
+import { useWorkspaceRoots } from './control/useWorkspaceRoots.js';
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { useOverview, useProjects } from './api.js';
 import { Badge, Button, SegmentedControl, Select, Stat } from './kit/index.js';
@@ -47,6 +49,9 @@ function OverviewContent() {
   );
   const projectId = selectedProject?.id ?? '';
   const [search, setSearch] = useState('');
+  const { roots } = useWorkspaceRoots();
+  const [projectDialog, setProjectDialog] = useState(false);
+  const newProjectButton = useRef<HTMLButtonElement | null>(null);
   const [showAllProjects, setShowAllProjects] = useState(false);
   const usage = useRangeUsage(range, projectId);
   if (overview.error || projects.error)
@@ -125,6 +130,22 @@ function OverviewContent() {
           />
           {range === 366 && (
             <span className="text-xs text-muted">All = last 366 days</span>
+          )}
+          {roots.length > 0 && (
+            <>
+              <Button
+                variant="primary"
+                buttonRef={(button) => (newProjectButton.current = button)}
+                onClick={() => setProjectDialog(true)}
+              >
+                New project
+              </Button>
+              <NewProjectDialog
+                open={projectDialog}
+                onOpenChange={setProjectDialog}
+                finalFocus={() => newProjectButton.current}
+              />
+            </>
           )}
         </div>
       </header>

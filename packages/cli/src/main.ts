@@ -32,6 +32,7 @@ try {
       bypass: { type: 'boolean' },
       auth: { type: 'string' },
       'allowed-host': { type: 'string', multiple: true },
+      'workspace-root': { type: 'string', multiple: true },
       json: { type: 'boolean' },
       yes: { type: 'boolean' },
       db: { type: 'string' },
@@ -41,7 +42,7 @@ try {
   if (values.help) {
     console.log(`Usage:
   c9view [start] [--port 7777] [--host 127.0.0.1] [--auth none|token|password]
-    [--allowed-host hostname] [--control] [--bypass] [--open] [--db path] [--claude-dir path]
+    [--allowed-host hostname] [--workspace-root path] [--control] [--bypass] [--open] [--db path] [--claude-dir path]
   c9view scan [--json] [--db path] [--claude-dir path]
   c9view hooks install|uninstall [--yes] [--claude-dir path]
   c9view hooks status [--claude-dir path]

@@ -1,4 +1,6 @@
 import { useMachineId } from '../machine.js';
+import { useLabels } from '../control/useLabels.js';
+import { SessionTitle } from '../control/SessionLabel.js';
 import { Link } from '@tanstack/react-router';
 import type { SessionSummary } from '@c9view/api';
 import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react';
@@ -20,6 +22,7 @@ export function SessionList({
   onSort: (value: string) => void;
 }) {
   const machineId = useMachineId();
+  const { labelFor } = useLabels();
   return (
     <div
       className="project-list"
@@ -69,7 +72,12 @@ export function SessionList({
                   to="/m/$machineId/projects/$projectId/sessions/$sessionId"
                   params={{ machineId, projectId, sessionId: session.id }}
                 >
-                  {session.title || 'Untitled session'}
+                  <SessionTitle
+                    projectId={projectId}
+                    sessionId={session.id}
+                    title={session.title}
+                    label={labelFor(projectId, session.id)}
+                  />
                 </Link>
               </td>
               <td>

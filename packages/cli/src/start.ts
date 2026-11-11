@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadHub } from './hub-loader.js';
 
@@ -10,6 +11,7 @@ export interface StartOptions {
   'claude-dir'?: string;
   db?: string;
   'allowed-host'?: string[];
+  'workspace-root'?: string[];
   auth?: string;
   open?: boolean;
 }
@@ -37,6 +39,13 @@ export async function runStart(options: StartOptions) {
     ...(options.db ? { db: options.db } : {}),
     ...(options['allowed-host']
       ? { allowedHosts: options['allowed-host'] }
+      : {}),
+    ...(options['workspace-root']
+      ? {
+          workspaceRoots: options['workspace-root'].map((root) =>
+            root.startsWith('~') ? root : resolve(root),
+          ),
+        }
       : {}),
     ...(options.auth ? { auth: options.auth } : {}),
     // Repository layout fallback; deployed containers set C9VIEW_WEB_DIST.

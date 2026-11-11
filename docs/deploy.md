@@ -14,7 +14,7 @@ node packages/cli/dist/main.js start --open
 
 Once the npm release is published, use `npx c9view` (no command means `start`). The npm package is not published yet.
 
-The default is `http://127.0.0.1:7777`. Options: `--port`, `--host`, `--claude-dir`, `--db`, `--open`, repeatable `--allowed-host`, and `--auth none|token|password`. Environment equivalents are `PORT`, `HOST`, `C9VIEW_CLAUDE_DIR`, `C9VIEW_DB`, `C9VIEW_ALLOWED_HOSTS` (comma separated), `C9VIEW_AUTH`, and `C9VIEW_WORKSPACE_ROOTS` (extra workspace roots, separated by the platform path delimiter such as `:` on Linux/macOS, used to resolve projects; read by `packages/core/src/config/index.ts`). Flags override environment values; allowed hosts are combined. `C9VIEW_WEB_DIST` overrides the built web directory. Missing builds fail with instructions.
+The default is `http://127.0.0.1:7777`. Options: `--port`, `--host`, `--claude-dir`, `--db`, `--open`, repeatable `--allowed-host` and `--workspace-root`, and `--auth none|token|password`. Environment equivalents are `PORT`, `HOST`, `C9VIEW_CLAUDE_DIR`, `C9VIEW_DB`, `C9VIEW_ALLOWED_HOSTS` (comma separated), `C9VIEW_AUTH`, and `C9VIEW_WORKSPACE_ROOTS` (extra workspace roots, separated by the platform path delimiter such as `:` on Linux/macOS, used to resolve projects; read by `packages/core/src/config/index.ts`). Flags override environment values; allowed hosts are combined. `C9VIEW_WEB_DIST` overrides the built web directory. Missing builds fail with instructions.
 
 ```sh
 node packages/cli/dist/main.js --auth token
@@ -40,6 +40,12 @@ Sessions use the Claude login available to the OS user running the node, or that
 The node chooses `C9VIEW_CLAUDE_BIN` when set, otherwise `claude` on PATH, otherwise the Agent SDK's bundled binary. An invalid explicit binary or no available executable refuses startup; set `C9VIEW_CLAUDE_BIN` to an executable Claude Code binary. The node reports the binary/version it uses.
 
 `--bypass` or `C9VIEW_CONTROL_BYPASS=1` requires control. It applies to every c9view run on that node, including resumed and forked sessions, and runs cannot leave bypass mode. Every startup warns: **every c9view run skips tool permission approvals**. The browser cannot turn bypass on. Enable it only when you intend to allow those tools to run without approval.
+
+### Workspace roots and new projects
+
+"New project" is hidden until the node has at least one workspace root: set `C9VIEW_WORKSPACE_ROOTS` (absolute folders separated by the platform path delimiter, `~` expanded) or pass the repeatable `--workspace-root`. Roots must exist and be writable. With control on, the owner can then open, create (`git init` by default) or clone a project under a root and start its first session. Every location is resolved to a real path first: a location outside the roots, a `..` segment or a symlink that escapes a root is refused (`outside-roots`), only the last missing folders are created, and the root itself cannot be a project. The folder picker lists only directories under the roots.
+
+Cloning accepts only `https://`, `ssh://` and `user@host:path` URLs, with no password in the URL. It runs through a separate hardened git runner: no shell, no prompts, no `file`/`ext` protocols, no submodules or templates, no repository hooks, an environment built from scratch (`PATH`, `HOME`, `LANG`, `SSH_AUTH_SOCK`, `XDG_RUNTIME_DIR`, `DBUS_SESSION_BUS_ADDRESS` plus fixed `GIT_*` safety values), and a time limit of `C9VIEW_CLONE_TIMEOUT_MIN` minutes (default 10). Credentials come from your own credential helper or SSH agent; an unknown SSH host fails until you add it to `known_hosts`. A created or cloned folder is never trusted automatically: the owner reviews the trust summary and presses "Trust this folder" before the first session starts. Session labels are stored in the node state folder (`~/.claude/c9view/node/state.db`), only with control on.
 
 ## c9view state folder
 

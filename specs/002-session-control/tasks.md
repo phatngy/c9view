@@ -136,32 +136,32 @@ description: 'Task list for Session Control'
 
 ### User Story 6 — new or imported project (P3)
 
-- [ ] T063 [P] [US6] `packages/node/src/projects/roots.test.ts`: a location outside the roots, a `..` path and a symlink that escapes a root → 400 `outside-roots`; `~` expanded; without roots every project route → 404
-- [ ] T064 [P] [US6] `packages/node/src/projects/git-write.test.ts` with a fake `execFile`: no shell; env whitelist with `GIT_TERMINAL_PROMPT=0`; `protocol.file.allow=never`, `protocol.ext.allow=never`, `core.hooksPath=/dev/null`, `--no-recurse-submodules`, `--template=`; timeout `C9VIEW_CLONE_TIMEOUT_MIN`; env built from scratch with only `PATH`, `HOME`, `LANG`, `SSH_AUTH_SOCK`, `XDG_RUNTIME_DIR`, `DBUS_SESSION_BUS_ADDRESS`, `GIT_TERMINAL_PROMPT=0`, `GIT_ALLOW_PROTOCOL=https:ssh`, `GIT_CONFIG_NOSYSTEM=1` and `GIT_SSH_COMMAND='ssh -o BatchMode=yes -o StrictHostKeyChecking=yes'`; no inherited `GIT_*`; no `core.sshCommand=false`; `--` before the URL and the directory
-- [ ] T065 [P] [US6] `packages/node/src/projects/clone.test.ts`: `file://`, `ext::`, `git://`, `http://` and local paths → 400 `bad-url`; clone into a non-empty folder → 400 `not-empty`; receipt `cloning` → `ready` / `failed` with redacted git error
-- [ ] T066 [P] [US6] `packages/node/src/projects/create.test.ts`: an existing folder opens as is; a missing one is created (only the last segments under a root) with `git init` when `gitInit`; a cloned or created folder is never trusted automatically; the project ID matches Claude Code's rule (spike)
-- [ ] T067 [P] [US6] `packages/node/src/projects/browse.test.ts`: lists only directories under the roots, one level at a time, hidden folders only on request
-- [ ] T068 [P] [US6] `packages/node/src/projects/routes.test.ts`: every project route → 404 with control off; `createGit` is not used by any writer and `git-write.ts` is the only module that spawns writing git commands (import scan)
-- [ ] T069 [US6] `packages/node/src/projects/roots.ts`: roots from `C9VIEW_WORKSPACE_ROOTS` and the repeatable `--workspace-root` flag (added to `packages/cli/src/start.ts` and `main.ts`), location resolution per [research.md](research.md#r8-workspace-roots-and-locations)
-- [ ] T070 [US6] `packages/node/src/projects/git-write.ts`: hardened runner per [research.md](research.md#r7-hardened-git-runner-6d): process, config, environment and credential whitelist; URL check in `packages/node/src/projects/url.ts`
-- [ ] T071 [US6] `packages/node/src/projects/create.ts` and `clone.ts`
-- [ ] T072 [US6] `packages/node/src/projects/browse.ts`
-- [ ] T073 [US6] `packages/node/src/projects/routes.ts`: `GET /workspace/roots`, `GET /workspace/browse`, `POST /projects` through `ControlService` receipts and `control.project` hints; then trust (R22) and first session (FR-010); mount in `packages/node/src/app.ts` only with control on
-- [ ] T093 [P] [US6] `packages/node/src/projects/url.test.ts`: 400 `bad-url` for whitespace or control characters anywhere, `ssh://-oProxyCommand=x/y`, `-oProxyCommand=x@host:p`, `user@-host:p`, a user or host with characters outside the allowed set, `x:y` without `user@`, `./x:y`, `/x:y`, `C:\\x`, `fd::x`, `file://`, `ext::`, `git://`, `http://`; accepted: `https://host/o/r.git`, `ssh://git@host:22/o/r.git`, `git@host:o/r.git`, bracketed IPv6; the parsed URL is what reaches `git-write.ts`
-- [ ] T074 [P] [US6] `apps/web/src/control/NewProjectDialog.test.tsx` and `FolderPicker.test.tsx`: validates the location, sends the optional git URL, shows clone progress, shows the trust summary and waits for "Trust this folder" before starting; machine field only with more than one machine; folder picker works from the keyboard
-- [ ] T075 [US6] `apps/web/src/control/FolderPicker.tsx`: tree of the roots, one level at a time, path field kept in sync
-- [ ] T076 [US6] `apps/web/src/control/NewProjectDialog.tsx`: Machine, Location with "Browse…", Git URL, "Initialize git" (on by default, only without a URL), session name, first prompt, permission mode; progress line; trust step
-- [ ] T077 [US6] "New project" button on the Overview (`apps/web/src/overview.tsx`) and the project list (`apps/web/src/project/list.tsx`), only when control is `ready` and roots exist
+- [x] T063 [P] [US6] `packages/node/src/projects/roots.test.ts`: a location outside the roots, a `..` path and a symlink that escapes a root → 400 `outside-roots`; `~` expanded; without roots every project route → 404
+- [x] T064 [P] [US6] `packages/node/src/projects/git-write.test.ts` with a fake `execFile`: no shell; env whitelist with `GIT_TERMINAL_PROMPT=0`; `protocol.file.allow=never`, `protocol.ext.allow=never`, `core.hooksPath=/dev/null`, `--no-recurse-submodules`, `--template=`; timeout `C9VIEW_CLONE_TIMEOUT_MIN`; env built from scratch with only `PATH`, `HOME`, `LANG`, `SSH_AUTH_SOCK`, `XDG_RUNTIME_DIR`, `DBUS_SESSION_BUS_ADDRESS`, `GIT_TERMINAL_PROMPT=0`, `GIT_ALLOW_PROTOCOL=https:ssh`, `GIT_CONFIG_NOSYSTEM=1` and `GIT_SSH_COMMAND='ssh -o BatchMode=yes -o StrictHostKeyChecking=yes'`; no inherited `GIT_*`; no `core.sshCommand=false`; `--` before the URL and the directory
+- [x] T065 [P] [US6] `packages/node/src/projects/clone.test.ts`: `file://`, `ext::`, `git://`, `http://` and local paths → 400 `bad-url`; clone into a non-empty folder → 400 `not-empty`; receipt `cloning` → `ready` / `failed` with redacted git error
+- [x] T066 [P] [US6] `packages/node/src/projects/create.test.ts`: an existing folder opens as is; a missing one is created (only the last segments under a root) with `git init` when `gitInit`; a cloned or created folder is never trusted automatically; the project ID matches Claude Code's rule (spike)
+- [x] T067 [P] [US6] `packages/node/src/projects/browse.test.ts`: lists only directories under the roots, one level at a time, hidden folders only on request
+- [x] T068 [P] [US6] `packages/node/src/projects/routes.test.ts`: every project route → 404 with control off; `createGit` is not used by any writer and `git-write.ts` is the only module that spawns writing git commands (import scan)
+- [x] T069 [US6] `packages/node/src/projects/roots.ts`: roots from `C9VIEW_WORKSPACE_ROOTS` and the repeatable `--workspace-root` flag (added to `packages/cli/src/start.ts` and `main.ts`), location resolution per [research.md](research.md#r8-workspace-roots-and-locations)
+- [x] T070 [US6] `packages/node/src/projects/git-write.ts`: hardened runner per [research.md](research.md#r7-hardened-git-runner-6d): process, config, environment and credential whitelist; URL check in `packages/node/src/projects/url.ts`
+- [x] T071 [US6] `packages/node/src/projects/create.ts` and `clone.ts`
+- [x] T072 [US6] `packages/node/src/projects/browse.ts`
+- [x] T073 [US6] `packages/node/src/projects/routes.ts`: `GET /workspace/roots`, `GET /workspace/browse`, `POST /projects` through `ControlService` receipts and `control.project` hints; then trust (R22) and first session (FR-010); mount in `packages/node/src/app.ts` only with control on
+- [x] T093 [P] [US6] `packages/node/src/projects/url.test.ts`: 400 `bad-url` for whitespace or control characters anywhere, `ssh://-oProxyCommand=x/y`, `-oProxyCommand=x@host:p`, `user@-host:p`, a user or host with characters outside the allowed set, `x:y` without `user@`, `./x:y`, `/x:y`, `C:\\x`, `fd::x`, `file://`, `ext::`, `git://`, `http://`; accepted: `https://host/o/r.git`, `ssh://git@host:22/o/r.git`, `git@host:o/r.git`, bracketed IPv6; the parsed URL is what reaches `git-write.ts`
+- [x] T074 [P] [US6] `apps/web/src/control/NewProjectDialog.test.tsx` and `FolderPicker.test.tsx`: validates the location, sends the optional git URL, shows clone progress, shows the trust summary and waits for "Trust this folder" before starting; machine field only with more than one machine; folder picker works from the keyboard
+- [x] T075 [US6] `apps/web/src/control/FolderPicker.tsx`: tree of the roots, one level at a time, path field kept in sync
+- [x] T076 [US6] `apps/web/src/control/NewProjectDialog.tsx`: Machine, Location with "Browse…", Git URL, "Initialize git" (on by default, only without a URL), session name, first prompt, permission mode; progress line; trust step
+- [x] T077 [US6] "New project" button on the Overview (`apps/web/src/overview.tsx`) and the project list (`apps/web/src/project/list.tsx`), only when control is `ready` and roots exist
 
 ### User Story 7 — labels (P3)
 
-- [ ] T078 [P] [US7] `packages/node/src/labels/labels.test.ts`: a label survives an index rebuild and never touches the Claude dir outside `c9view/`; empty label removes it; label routes → 404 with control off
-- [ ] T079 [P] [US7] `apps/web/src/control/SessionLabel.test.tsx`: a label replaces the title with the "label in c9view" tooltip; not shown with control off; inline edit from the keyboard
-- [ ] T080 [US7] `packages/node/src/control/state.ts`: `session_labels` migration (`label` 1–80)
-- [ ] T081 [US7] `packages/node/src/labels/labels.ts` and `routes.ts`: `POST …/label`, `GET /labels`, through receipts; mounted only with control on
-- [ ] T082 [US7] `apps/web/src/control/SessionLabel.tsx` in the session header; label in place of the title on cards and lists
-- [ ] T083 [US7] Rename in Claude Code itself only if T002 found a supported way; otherwise record it as not supported in [spec.md](spec.md) Assumptions
-- [ ] T084 [US6] `AGENTS.md`: confirm the write rule covers create, init and clone under roots (already amended); `docs/deploy.md`: workspace roots
+- [x] T078 [P] [US7] `packages/node/src/labels/labels.test.ts`: a label survives an index rebuild and never touches the Claude dir outside `c9view/`; empty label removes it; label routes → 404 with control off
+- [x] T079 [P] [US7] `apps/web/src/control/SessionLabel.test.tsx`: a label replaces the title with the "label in c9view" tooltip; not shown with control off; inline edit from the keyboard
+- [x] T080 [US7] `packages/node/src/control/state.ts`: `session_labels` migration (`label` 1–80)
+- [x] T081 [US7] `packages/node/src/labels/labels.ts` and `routes.ts`: `POST …/label`, `GET /labels`, through receipts; mounted only with control on
+- [x] T082 [US7] `apps/web/src/control/SessionLabel.tsx` in the session header; label in place of the title on cards and lists
+- [x] T083 [US7] Rename in Claude Code itself only if T002 found a supported way; otherwise record it as not supported in [spec.md](spec.md) Assumptions
+- [x] T084 [US6] `AGENTS.md`: confirm the write rule covers create, init and clone under roots (already amended); `docs/deploy.md`: workspace roots
 - [ ] T085 [US6] Maintainer renders the dialogs at 1440×900 and 390×844
 
 ---

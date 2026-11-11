@@ -11,7 +11,12 @@ export const tick = () =>
   new Promise<void>((resolve) => setTimeout(resolve, 75));
 export async function setupControl(
   overrides: Partial<ControlConfig> = {},
-  options: { trusted?: boolean; liveness?: (id: string) => Promise<void> } = {},
+  options: {
+    trusted?: boolean;
+    liveness?: (id: string) => Promise<void>;
+    roots?: boolean;
+    git?: import('../projects/git-write.js').GitWriter;
+  } = {},
 ) {
   const root = await mkdtemp(join(tmpdir(), 'c9view-control-'));
   const claudeDir = join(root, '.claude');
@@ -25,10 +30,16 @@ export async function setupControl(
         projects: { [folder]: { hasTrustDialogAccepted: true } },
       }),
     );
+  const work = join(root, 'work');
+  if (options.roots) await mkdir(work);
   const sdk = new FakeSdk();
   const bootId = randomUUID();
   const store = {
-    config: { claudeDir, workspaceRoots: [], dbPath: join(root, 'index.db') },
+    config: {
+      claudeDir,
+      workspaceRoots: options.roots ? [work] : [],
+      dbPath: join(root, 'index.db'),
+    },
     events: new EventHub(),
     snapshot: async () => [{ project: { id: 'project', path: folder } }],
     findSession: async (project: string, session: string) =>
@@ -42,6 +53,7 @@ export async function setupControl(
     binary: '/fake/claude',
     stateDir: join(claudeDir, 'c9view'),
     env: {},
+    ...(options.git ? { git: options.git } : {}),
     ...(options.liveness ? { liveness: options.liveness } : {}),
   });
   const body = () => ({
@@ -50,6 +62,7 @@ export async function setupControl(
   });
   return {
     root,
+    work,
     claudeDir,
     folder,
     store,
