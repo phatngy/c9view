@@ -134,11 +134,14 @@ it('H1 two concurrent creates of the same missing location: the second is refuse
     .createProject(body({ location }), t.bootId)
     .catch((e: { status: number }) => e.status);
   await initStarted;
-  const second = await t.service
-    .createProject(body({ location }), t.bootId)
-    .catch((e: { status: number; reason: string }) => e.reason);
-  expect(second).toBe('run-exists');
-  open();
+  try {
+    const second = await t.service
+      .createProject(body({ location }), t.bootId)
+      .catch((e: { status: number; reason: string }) => e.reason);
+    expect(second).toBe('run-exists');
+  } finally {
+    open();
+  }
   expect(await first).toBe(409);
   expect((await stat(location)).isDirectory()).toBe(true);
 });
