@@ -58,3 +58,30 @@ it('T067 refuses paths outside the roots', async () => {
     status: 404,
   });
 });
+it('M5 answers identically for outside, missing and file paths', async () => {
+  const { base, root } = await setup();
+  const answers = [];
+  for (const path of [
+    join(base, 'outside'),
+    join(base, 'nope'),
+    join(root, 'file.txt'),
+    join(root, 'missing'),
+    '/etc/passwd',
+    '/nonexistent/x',
+  ])
+    answers.push(
+      await browse([root], path, false).catch(
+        (e: Error & { status: number; reason: string }) => [
+          e.status,
+          e.message,
+          e.reason,
+        ],
+      ),
+    );
+  for (const answer of answers)
+    expect(answer).toEqual([
+      400,
+      'Location is outside the workspace roots',
+      'outside-roots',
+    ]);
+});

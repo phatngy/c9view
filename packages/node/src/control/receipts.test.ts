@@ -66,3 +66,21 @@ it('fingerprints a nested question named clientRequestId', async () => {
     ),
   ).rejects.toMatchObject({ reason: 'payload-mismatch' });
 });
+it('M2 a cloning receipt does not expire, and its TTL counts from the last update', async () => {
+  let now = 0;
+  const receipts = new Receipts('boot', 1000, 100, () => now);
+  const id = 'c1';
+  await receipts.run('project', id, {}, 'boot', async () => ({
+    status: 'cloning',
+  }));
+  now = 10_000;
+  expect(receipts.get(id)?.status).toBe('cloning');
+  receipts.update('project', id, { status: 'ready' });
+  now = 10_900;
+  expect(receipts.get(id)?.status).toBe('ready');
+  receipts.update('project', id, { status: 'ready' });
+  now = 11_800;
+  expect(receipts.get(id)?.status).toBe('ready');
+  now = 13_000;
+  expect(receipts.get(id)).toBeUndefined();
+});

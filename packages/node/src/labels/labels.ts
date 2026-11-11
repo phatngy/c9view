@@ -3,8 +3,8 @@ import { ControlError } from '../control/errors.js';
 import type { LabelStore } from '../control/state.js';
 
 // Labels are one line of at most 80 characters, without control characters.
-// eslint-disable-next-line no-control-regex
-const forbidden = /[\x00-\x1f\x7f]/;
+// Control, format (bidi, zero-width) and line or paragraph separator characters.
+const forbidden = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
 
 export function normalizeLabel(value: string): string {
   const label = value.trim();

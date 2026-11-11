@@ -13,7 +13,8 @@ import { FolderPicker } from './FolderPicker.js';
 import { useControl } from './useControl.js';
 
 const LIMIT = 20_000;
-// A clone may take up to the node's 10-minute limit; receipts live 10 minutes after they settle.
+// A clone may take up to the node's 10-minute limit. The node keeps a `cloning`
+// receipt until its status changes, then for 10 minutes; this is the UI's own wait cap.
 const WAIT_LIMIT = 11 * 60_000;
 const modes = [
   { value: 'default', label: 'Default' },

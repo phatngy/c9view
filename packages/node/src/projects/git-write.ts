@@ -49,6 +49,20 @@ export function gitEnvironment(source: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   };
 }
 
+/** The last `fatal:` or `error:` line; git's first line is only "Cloning into ...". */
+export function failureLine(text: string): string {
+  const lines = text.split('\n').map((line) => line.trim());
+  return (
+    [...lines].reverse().find((line) => /^(fatal|error):/i.test(line)) ??
+    [...lines].reverse().find(Boolean) ??
+    ''
+  );
+}
+
+// The timeout and the abort signal kill only the git process, not helper
+// processes it spawned (ssh, credential helpers). Killing a process group needs
+// a detached child, which execFile does not offer without losing the output
+// limit; the helpers see their stdin closed and BatchMode makes ssh exit.
 /** The only module that runs git commands that write. It shares nothing with the read-only git helper. */
 export function createGitWriter(options: {
   timeoutMs: number;
@@ -77,9 +91,7 @@ export function createGitWriter(options: {
         },
         (error, _stdout, stderr) => {
           if (!error) return resolve();
-          const detail = redactText(
-            (stderr || error.message).split('\n').find((l) => l.trim()) ?? '',
-          )
+          const detail = redactText(failureLine(stderr || error.message))
             .split(directory)
             .join('<folder>')
             .slice(0, 300);

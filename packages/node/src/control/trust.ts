@@ -167,7 +167,11 @@ export class FolderTrust {
         throw new ControlError(404, 'Not found');
       throw error;
     }
-    const known = await Promise.all(knownFolders.map((path) => realpath(path)));
+    const known = (
+      await Promise.all(
+        knownFolders.map((path) => realpath(path).catch(() => undefined)),
+      )
+    ).filter((path): path is string => path !== undefined);
     if (!known.includes(folder)) throw new ControlError(404, 'Not found');
     const summary = await this.summary(folder);
     if (summary.fingerprint !== fingerprint)

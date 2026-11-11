@@ -84,3 +84,14 @@ it('T078 label routes answer 404 with control off', async () => {
   expect((await a.request('/labels')).status).toBe(404);
   expect((await label(a, randomUUID(), 'x')).status).toBe(404);
 });
+it('rejects Unicode control and format characters in labels', async () => {
+  const t = await setupControl();
+  cleanups.push(t.close);
+  const a = createNodeApp({
+    store: t.store,
+    control: t.service,
+    controlConfig: t.config,
+  } as unknown as NodeRuntime);
+  for (const bad of ['a‮b', 'a​b', 'a b', 'a\u0085b'])
+    expect((await label(a, t.bootId, bad)).status).toBe(400);
+});

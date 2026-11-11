@@ -1,6 +1,7 @@
 import { lstat, realpath } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { isAbsolute, join, relative, sep } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path';
+import { encodeProjectPath } from '@c9view/core';
 import { ControlError } from '../control/errors.js';
 
 const outside = () =>
@@ -45,7 +46,7 @@ export async function realRoots(roots: readonly string[]): Promise<string[]> {
 /** Splits a raw path, expands `~` and rejects `..`, `.`, empty segments and NUL. */
 export function segmentsOf(location: string): string[] {
   if (location.includes('\0') || location.length > 4096) throw outside();
-  let value = location.trim();
+  let value = location;
   if (value === '~' || value.startsWith('~/'))
     value = join(homedir(), value.slice(1));
   if (!isAbsolute(value)) throw outside();
@@ -63,6 +64,7 @@ export function segmentsOf(location: string): string[] {
 export async function resolveLocation(
   roots: readonly string[],
   location: string,
+  forbidden: readonly string[] = [],
 ): Promise<Location> {
   const real = await realRoots(roots);
   if (real.length === 0) throw new ControlError(404, 'Not found');
@@ -94,6 +96,11 @@ export async function resolveLocation(
   const path = join(base, ...missing);
   const root = real.find((candidate) => inside(candidate, path));
   if (!root) throw outside();
+  // c9view never creates or opens folders in or around Claude data or its state folder.
+  for (const folder of forbidden)
+    if (overlaps(await canonical(folder), path)) throw outside();
+  if (projectIdFor(path).length > MAX_PROJECT_ID)
+    throw new ControlError(400, 'Location path is too long');
   const firstMissing = missing[0] ? join(base, missing[0]) : undefined;
   return {
     path,
@@ -103,6 +110,30 @@ export async function resolveLocation(
   };
 }
 
-/** Claude Code names a project folder after its path with non-alphanumerics as "-". */
-export const projectIdFor = (path: string) =>
-  path.replace(/[^A-Za-z0-9]/g, '-');
+/**
+ * Claude Code names a project folder after its path with non-alphanumerics as
+ * "-" (core's rule). Claude Code hashes names longer than about 200 characters,
+ * which core does not model, so `resolveLocation` refuses such locations
+ * rather than computing a wrong project ID.
+ */
+export const projectIdFor = encodeProjectPath;
+export const MAX_PROJECT_ID = 200;
+
+/** Real path of the nearest existing ancestor plus the missing tail. */
+async function canonical(value: string): Promise<string> {
+  let path = value;
+  const tail: string[] = [];
+  for (;;) {
+    try {
+      return join(await realpath(path), ...tail);
+    } catch (error) {
+      const parent = dirname(path);
+      if (parent === path || (error as NodeJS.ErrnoException).code !== 'ENOENT')
+        return value;
+      tail.unshift(basename(path));
+      path = parent;
+    }
+  }
+}
+const overlaps = (a: string, b: string) =>
+  a === b || inside(a, b) || inside(b, a);

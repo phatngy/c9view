@@ -96,3 +96,48 @@ it('T063 expands ~ and answers 404 without roots', async () => {
 it('T066 project ID replaces non-alphanumerics with a dash', () => {
   expect(projectIdFor('/home/u/my_proj.v2')).toBe('-home-u-my-proj-v2');
 });
+it("T066 project ID is core's encodeProjectPath", async () => {
+  const { encodeProjectPath } = await import('@c9view/core');
+  for (const path of ['/home/u/my_proj.v2', '/é/中文', '/a b/c'])
+    expect(projectIdFor(path)).toBe(encodeProjectPath(path));
+});
+it('refuses locations whose project ID would be hashed by Claude Code (> 200 characters)', async () => {
+  const { root } = await setup();
+  await expect(
+    resolveLocation([root], join(root, 'a'.repeat(210))),
+  ).rejects.toMatchObject({ status: 400 });
+});
+it('M4 refuses locations inside or containing Claude data or the state folder', async () => {
+  const { base, root } = await setup();
+  const claudeDir = join(root, '.claude');
+  const stateDir = join(base, 'outside/state');
+  await mkdir(claudeDir);
+  const forbidden = [claudeDir, stateDir];
+  for (const location of [
+    join(claudeDir, 'foo'),
+    claudeDir,
+    join(claudeDir, 'c9view/x'),
+  ])
+    await expect(
+      resolveLocation([root], location, forbidden),
+    ).rejects.toMatchObject(outside);
+  // A state folder outside the root, and a root that contains it.
+  await expect(
+    resolveLocation([base], join(base, 'outside/state/p'), forbidden),
+  ).rejects.toMatchObject(outside);
+  await expect(
+    resolveLocation([base], join(base, 'outside'), forbidden),
+  ).rejects.toMatchObject(outside);
+  expect(
+    (await resolveLocation([root], join(root, 'ok'), forbidden)).path,
+  ).toBe(join(root, 'ok'));
+});
+it('does not trim folder names', async () => {
+  const { root } = await setup();
+  expect((await resolveLocation([root], join(root, ' a '))).path).toBe(
+    join(root, ' a '),
+  );
+  await expect(resolveLocation([root], ` ${root}/a`)).rejects.toMatchObject(
+    outside,
+  );
+});

@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { setupControl, tick } from './test-support.js';
 import type { ControlError } from './errors.js';
+import { FolderTrust } from './trust.js';
 const cleanups: (() => Promise<void>)[] = [];
 afterEach(async () => {
   for (const close of cleanups.splice(0)) await close();
@@ -179,4 +180,18 @@ it('accepts a known project symlink by realpath and ignores timestamp-only chang
   await expect(
     trust.accept(t.root, summary.fingerprint, [t.folder]),
   ).rejects.toMatchObject({ status: 404 });
+});
+it('accept refuses a known folder that no longer exists with the normal refusal', async () => {
+  const t = await setupControl();
+  try {
+    await expect(
+      new FolderTrust(t.claudeDir, {
+        trusted: () => false,
+        trust: () => {},
+        close: () => {},
+      } as never).accept(t.folder, 'a'.repeat(64), [join(t.root, 'gone')]),
+    ).rejects.toMatchObject({ status: 404 });
+  } finally {
+    await t.close();
+  }
 });
