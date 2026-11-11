@@ -2,7 +2,7 @@ import { afterEach, expect, it } from 'vitest';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { setupControl, tick } from './test-support.js';
+import { setupControl, waitFor } from './test-support.js';
 import type { ControlError } from './errors.js';
 import { FolderTrust } from './trust.js';
 const cleanups: (() => Promise<void>)[] = [];
@@ -63,8 +63,7 @@ it('T031 T032 untrusted folder summary is redacted, stale trust refused, changes
     t.bootId,
   );
   const receipt = await t.service.start('project', t.body(), t.bootId);
-  await tick();
-  expect(t.sdk.runs).toHaveLength(1);
+  await waitFor(() => expect(t.sdk.runs).toHaveLength(1));
   await t.service.stop(
     receipt.runId!,
     { clientRequestId: randomUUID() },
@@ -84,8 +83,7 @@ it('T031 reads Claude trust without modifying the file', async () => {
   const path = join(t.root, '.claude.json');
   const before = await readFile(path);
   await t.service.start('project', t.body(), t.bootId);
-  await tick();
-  expect(t.sdk.runs).toHaveLength(1);
+  await waitFor(() => expect(t.sdk.runs).toHaveLength(1));
   expect(await readFile(path)).toEqual(before);
 });
 

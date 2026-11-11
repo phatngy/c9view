@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
-import { setupControl, tick } from './test-support.js';
+import { setupControl, waitFor } from './test-support.js';
 it('T019 accepts simultaneous replies into one run and completes every queued receipt', async () => {
   const t = await setupControl();
   try {
@@ -13,22 +13,22 @@ it('T019 accepts simultaneous replies into one run and completes every queued re
         t.service.reply('project', 'session', body, t.bootId),
       ),
     );
-    await tick();
+    await waitFor(() => expect(t.sdk.runs).toHaveLength(1));
     expect(new Set(receipts.map((receipt) => receipt.runId)).size).toBe(1);
-    expect(t.sdk.runs).toHaveLength(1);
     const run = t.sdk.runs[0]!;
     run.init('session');
-    await tick();
+    await waitFor(() => expect(run.inputs).toHaveLength(2));
     expect(run.inputs.map((input) => input.message.content)).toEqual([
       'first',
       'second',
     ]);
     run.result();
     run.result();
-    await tick();
-    expect(
-      bodies.map((body) => t.service.receipt(body.clientRequestId)?.status),
-    ).toEqual(['done', 'done']);
+    await waitFor(() =>
+      expect(
+        bodies.map((body) => t.service.receipt(body.clientRequestId)?.status),
+      ).toEqual(['done', 'done']),
+    );
   } finally {
     await t.close();
   }
@@ -53,11 +53,11 @@ it('T019 keeps replies in call order when the first check is slower', async () =
         t.service.reply('project', 'session', body, t.bootId),
       ),
     );
-    await tick();
+    await waitFor(() => expect(t.sdk.runs).toHaveLength(1));
     expect(new Set(receipts.map((receipt) => receipt.runId)).size).toBe(1);
     const run = t.sdk.runs[0]!;
     run.init('session');
-    await tick();
+    await waitFor(() => expect(run.inputs).toHaveLength(2));
     expect(run.inputs.map((input) => input.message.content)).toEqual([
       'first',
       'second',
@@ -86,14 +86,13 @@ it('T019 a repeated clientRequestId joins the queued reply and keeps order', asy
     ]);
     expect(ra2).toEqual(ra);
     expect(rb.runId).toBe(ra.runId);
-    await tick();
+    await waitFor(() => expect(t.sdk.runs).toHaveLength(1));
     // One check for A's reply plus the run's own launch preflight; neither
     // A' nor B ran a check of its own.
     expect(calls).toBe(2);
-    expect(t.sdk.runs).toHaveLength(1);
     const run = t.sdk.runs[0]!;
     run.init('session');
-    await tick();
+    await waitFor(() => expect(run.inputs).toHaveLength(2));
     expect(run.inputs.map((input) => input.message.content)).toEqual([
       'first',
       'second',
@@ -181,11 +180,13 @@ it.each(['stop', 'shutdown'] as const)(
         first,
         t.bootId,
       );
-      await tick();
+      await waitFor(() => expect(t.sdk.runs).toHaveLength(1));
       const runner = t.sdk.runs[0]!;
       runner.init('session');
       runner.result();
-      await tick();
+      await waitFor(() =>
+        expect(t.service.receipt(first.clientRequestId)?.status).toBe('done'),
+      );
       const second = t.body();
       await t.service.reply('project', 'session', second, t.bootId);
       if (action === 'stop')
@@ -207,17 +208,17 @@ it.each(['stop', 'shutdown'] as const)(
 );
 
 it('times out a fake SDK that never emits init and frees the run slot', async () => {
-  const t = await setupControl({ maxRuns: 1, idleMin: 0.002 });
+  const t = await setupControl({ maxRuns: 1, idleMin: 0.02 });
   try {
     const body = t.body();
     await t.service.start('project', body, t.bootId);
-    await tick();
-    await tick();
-    expect(t.service.receipt(body.clientRequestId)).toMatchObject({
-      status: 'failed',
-      error: 'Claude Code did not start before the timeout',
-    });
-    expect(t.sdk.runs[0]!.closed).toBe(true);
+    await waitFor(() =>
+      expect(t.service.receipt(body.clientRequestId)).toMatchObject({
+        status: 'failed',
+        error: 'Claude Code did not start before the timeout',
+      }),
+    );
+    await waitFor(() => expect(t.sdk.runs[0]?.closed).toBe(true));
     await expect(
       t.service.start('project', t.body(), t.bootId),
     ).resolves.toMatchObject({ status: 'accepted' });
@@ -231,28 +232,29 @@ it('an interrupted error result ends the turn and keeps the fake SDK run open fo
   try {
     const body = t.body();
     const receipt = await t.service.reply('project', 'session', body, t.bootId);
-    await tick();
+    await waitFor(() => expect(t.sdk.runs).toHaveLength(1));
     const runner = t.sdk.runs[0]!;
     runner.init('session');
-    await tick();
+    await waitFor(() => expect(runner.inputs).toHaveLength(1));
     await t.service.interrupt(
       receipt.runId!,
       { clientRequestId: randomUUID() },
       t.bootId,
     );
     runner.messages.push({ type: 'result', is_error: true });
-    await tick();
+    await waitFor(() =>
+      expect(t.service.receipt(body.clientRequestId)?.status).toBe('done'),
+    );
     expect(t.service.snapshot().runs[0]!.state).toBe('idle');
-    expect(t.service.receipt(body.clientRequestId)?.status).toBe('done');
     expect(runner.closed).toBe(false);
     const next = t.body();
     await t.service.reply('project', 'session', next, t.bootId);
-    await tick();
+    await waitFor(() => expect(runner.inputs).toHaveLength(2));
     runner.result();
-    await tick();
+    await waitFor(() =>
+      expect(t.service.receipt(next.clientRequestId)?.status).toBe('done'),
+    );
     expect(t.sdk.runs).toHaveLength(1);
-    expect(runner.inputs).toHaveLength(2);
-    expect(t.service.receipt(next.clientRequestId)?.status).toBe('done');
   } finally {
     await t.close();
   }
@@ -297,7 +299,7 @@ it('serialises same-session preflight so the second reply joins the first run in
     // Only the first reply ran a preflight: the second waited, then joined.
     expect(releases).toHaveLength(1);
     expect(a.runId).toBe(b.runId);
-    await tick();
+    await waitFor(() => expect(t.sdk.runs[0]?.inputs).toHaveLength(2));
     expect(t.sdk.runs).toHaveLength(1);
     expect(t.sdk.runs[0]!.inputs.map((input) => input.message.content)).toEqual(
       ['first', 'second'],

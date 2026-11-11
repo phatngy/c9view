@@ -2,7 +2,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import { setupControl, tick } from './test-support.js';
+import { setupControl, waitFor } from './test-support.js';
 const cleanup: (() => Promise<void>)[] = [];
 afterEach(async () => {
   for (const close of cleanup.splice(0)) await close();
@@ -26,37 +26,35 @@ it('T021 T029 T037 accepts before SDK start, reserves generated ID/name and reco
   expect(await t.service.start('project', body, t.bootId)).toEqual(receipt);
   expect(t.service.receipt(body.clientRequestId)).toEqual(receipt);
   release();
-  await tick();
-  expect(t.sdk.runs).toHaveLength(1);
+  await waitFor(() => expect(t.sdk.runs).toHaveLength(1));
   expect(t.sdk.runs[0]!.options.extraArgs).toEqual({ name: body.name });
   t.sdk.runs[0]!.init(receipt.sessionId);
-  await tick();
-  expect(t.service.snapshot().runs[0]!.state).toBe('running');
+  await waitFor(() =>
+    expect(t.service.snapshot().runs[0]?.state).toBe('running'),
+  );
 });
 it('T019 T022 joins a run stream and queues while busy; idle timeout closes', async () => {
-  const t = await setup({ idleMin: 0.002 });
+  const t = await setup({ idleMin: 0.02 });
   await t.service.reply('project', 'session', t.body(), t.bootId);
-  await tick();
+  await waitFor(() => expect(t.sdk.runs).toHaveLength(1));
   const run = t.sdk.runs[0]!;
   run.init('session');
-  await tick();
+  await waitFor(() =>
+    expect(t.service.snapshot().runs[0]?.state).toBe('running'),
+  );
   await t.service.reply('project', 'session', t.body(), t.bootId);
-  await tick();
+  await waitFor(() => expect(run.inputs).toHaveLength(2));
   expect(t.sdk.runs).toHaveLength(1);
-  expect(run.inputs).toHaveLength(2);
   expect(t.service.snapshot().runs[0]!.queued).toBe(1);
   run.result(0.12);
   run.result(0.25);
-  await tick();
-  expect(t.service.snapshot().runs[0]!.costUsd).toBe(0.25);
-  await tick();
-  await tick();
-  expect(run.closed).toBe(true);
+  await waitFor(() => expect(t.service.snapshot().runs[0]?.costUsd).toBe(0.25));
+  await waitFor(() => expect(run.closed).toBe(true));
 });
 it('T019 enforces run cap before spawning and closes all on shutdown', async () => {
   const t = await setup({ maxRuns: 1 });
   await t.service.start('project', t.body(), t.bootId);
-  await tick();
+  await waitFor(() => expect(t.sdk.runs).toHaveLength(1));
   await expect(
     t.service.start('project', t.body(), t.bootId),
   ).rejects.toMatchObject({ status: 429 });
@@ -67,13 +65,14 @@ it('T021 fork uses SDK forkSession and follows init session ID into the receipt'
   const t = await setup();
   const body = { ...t.body(), fork: true };
   await t.service.reply('project', 'session', body, t.bootId);
-  await tick();
+  await waitFor(() => expect(t.sdk.runs).toHaveLength(1));
   const run = t.sdk.runs[0]!;
   expect(run.options).toMatchObject({ resume: 'session', forkSession: true });
   run.init('forked-session');
-  await tick();
-  expect(t.service.receipt(body.clientRequestId)?.sessionId).toBe(
-    'forked-session',
+  await waitFor(() =>
+    expect(t.service.receipt(body.clientRequestId)?.sessionId).toBe(
+      'forked-session',
+    ),
   );
 });
 it('T020 checks liveness twice and never spawns after a conflicting second check', async () => {
@@ -85,20 +84,23 @@ it('T020 checks liveness twice and never spawns after a conflicting second check
   const body = t.body();
   const receipt = await t.service.reply('project', 'session', body, t.bootId);
   expect(receipt.status).toBe('accepted');
-  await tick();
+  await waitFor(() =>
+    expect(t.service.receipt(body.clientRequestId)?.status).toBe('failed'),
+  );
   expect(liveness).toHaveBeenCalledTimes(2);
   expect(t.sdk.runs).toHaveLength(0);
-  expect(t.service.receipt(body.clientRequestId)?.status).toBe('failed');
 });
 it('T027 decisions, mode, interrupt and stop use receipts', async () => {
   const t = await setup();
   const receipt = await t.service.start('project', t.body(), t.bootId);
-  await tick();
+  await waitFor(() => expect(t.sdk.runs).toHaveLength(1));
   const run = t.sdk.runs[0]!;
   run.init(receipt.sessionId);
-  await tick();
+  await waitFor(() =>
+    expect(t.service.snapshot().runs[0]?.state).toBe('running'),
+  );
   const decision = run.permission('Bash', { command: 'synthetic' });
-  await tick();
+  await waitFor(() => expect(t.service.snapshot().requests).toHaveLength(1));
   const request = t.service.snapshot().requests[0]!;
   const body = { clientRequestId: randomUUID(), decision: 'allow' as const };
   const a = await t.service.decide(request.requestId, body, t.bootId);
@@ -141,7 +143,7 @@ it('T030 T033 default settings bypass is downgraded; node bypass forces all thre
     JSON.stringify({ permissions: { defaultMode: 'bypassPermissions' } }),
   );
   await t.service.start('project', t.body(), t.bootId);
-  await tick();
+  await waitFor(() => expect(t.sdk.runs).toHaveLength(1));
   expect(t.sdk.runs[0]!.options.permissionMode).toBe('default');
   const bypass = await setup({ bypass: true });
   await bypass.service.start('project', bypass.body(), bypass.bootId);
@@ -157,7 +159,7 @@ it('T030 T033 default settings bypass is downgraded; node bypass forces all thre
     { ...bypass.body(), fork: true },
     bypass.bootId,
   );
-  await tick();
+  await waitFor(() => expect(bypass.sdk.runs).toHaveLength(3));
   expect(bypass.sdk.runs.map((r) => r.options.permissionMode)).toEqual([
     'bypassPermissions',
     'bypassPermissions',
@@ -191,7 +193,7 @@ it('T091 tombstone saturation refuses new mutations and advertises unavailable',
   const t = await setup({ receiptMin: 0.000001, tombstoneMax: 3 });
   const commands = [t.body(), t.body(), t.body()];
   for (const body of commands) await t.service.start('project', body, t.bootId);
-  await tick();
+  await waitFor(() => expect(t.sdk.runs).toHaveLength(3));
   await expect(
     t.service.start('project', t.body(), t.bootId),
   ).rejects.toMatchObject({ reason: 'unknown-outcome' });
@@ -212,7 +214,7 @@ it('T024 fork is permitted when the original is held by a terminal process', asy
   const body = { ...t.body(), fork: true };
   const receipt = await t.service.reply('project', 'session', body, t.bootId);
   expect(receipt).not.toHaveProperty('sessionId');
-  await tick();
+  await waitFor(() => expect(t.sdk.runs).toHaveLength(1));
   expect(liveness).not.toHaveBeenCalled();
   expect(t.sdk.runs[0]!.options).toMatchObject({
     resume: 'session',
