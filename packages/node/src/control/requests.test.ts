@@ -176,3 +176,48 @@ it('T095 builds a bounded tool-row summary from relevant fields, not raw JSON', 
     t.close();
   }
 });
+it('T095 redacts a secret that straddles the field cut', async () => {
+  const t = await setup();
+  try {
+    const secret = 'sk-ant-api03-abcdefghijklmnopqrstuvwxyz123456789';
+    void t.fake.runs[0]!.permission('Bash', {
+      command: `${'a '.repeat(140)}${secret}`,
+    });
+    const card = t.requests.snapshot()[0]!;
+    if (card.kind !== 'permission') throw new Error('expected permission');
+    expect(card.summary).not.toMatch(/sk-ant|abcdefghij|\d{9}/);
+  } finally {
+    t.close();
+  }
+});
+it('T095 falls back to the tool name for empty or odd input', async () => {
+  const t = await setup();
+  try {
+    void t.fake.runs[0]!.permission('Mystery', {});
+    void t.fake.runs[0]!.permission('Bash', { command: 42 });
+    void t.fake.runs[0]!.permission('Other', { custom: { deep: true } });
+    const cards = t.requests.snapshot();
+    expect(
+      cards.map((c) => (c.kind === 'permission' ? c.summary : '')),
+    ).toEqual(['Mystery', 'Bash', 'Other']);
+  } finally {
+    t.close();
+  }
+});
+it('T095 redacts secrets in a command and in a path', async () => {
+  const t = await setup();
+  try {
+    const secret = 'sk-ant-api03-abcdefghijklmnopqrstuvwxyz123456789';
+    void t.fake.runs[0]!.permission('Bash', { command: `curl -H ${secret}` });
+    void t.fake.runs[0]!.permission('Read', {
+      file_path: `/synthetic/${secret}/notes.txt`,
+    });
+    for (const card of t.requests.snapshot()) {
+      if (card.kind !== 'permission') throw new Error('expected permission');
+      expect(card.summary).not.toContain(secret);
+      expect(card.summary).not.toContain('abcdefghijklmnop');
+    }
+  } finally {
+    t.close();
+  }
+});

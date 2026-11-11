@@ -193,9 +193,9 @@ MVP is 6a + 6b: reply and approvals from the session page (US1–US3, US5). Then
 
 6d (T063–T085, T093) is not part of this pass. T094 and T096 reverse a deliberate maintainer change or choose between amending the spec and the code; the maintainer decides before they are built.
 
-- [x] T094 Decide and reconcile the run bar's cost and interrupt: restore the "≈ API-equivalent" cost linked to `#api-equivalent-cost` in `apps/web/src/control/RunBar.tsx` (and update `runbar.test.tsx`), or amend FR-019, T051 and the plan to say the run bar shows no cost and Interrupt lives in the composer, per FR-019, T051, Principle VII (contradicts)
+- [x] T094 Amend FR-019, T051 and the plan to say the run bar shows no cost and Interrupt lives in the composer (maintainer decision), per FR-019, T051, Principle VII (contradicts)
 - [x] T095 Build the approval card summary in `packages/node/src/control/requests.ts` from the tool name and fields (command, file path, diff) instead of raw JSON, truncate it to a bounded length, and announce only the tool name in the live region (`Composer.tsx`), per FR-016, T052, Principle VI (partial)
-- [x] T096 Decide and reconcile where a pending approval card shows: render it at the matching tool row (`layout="inline"` in `cards.ts` is unused) or amend FR-016 to say pinned only, per FR-016, T052 (partial)
+- [x] T096 Amend FR-016 and T052 to say approval cards are pinned above the composer only, and remove the unused `layout="inline"` option from `cards.ts` and the cards (maintainer decision), per FR-016, T052 (partial)
 - [x] T097 Show a failed run's state and error in the "Starting…" view in `apps/web/src/session.tsx` (read `control.data.runs`), with a test, per US4/AC1, FR-010, T062 (partial)
 - [x] T098 [P] Declare the `newSession` search param with `validateSearch` on the session route in `apps/web/src/router.tsx` and read it typed in `session.tsx`, per T062 (partial)
 - [x] T099 [P] Strip `?newSession=true` with a replace navigation once the transcript loads or the retry cap is reached, with a test, per T062 (partial)
