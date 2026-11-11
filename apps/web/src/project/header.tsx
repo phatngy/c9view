@@ -1,7 +1,14 @@
+import { useRef, useState } from 'react';
 import type { ProjectSummary } from '@c9view/api';
+import { Button } from '../kit/index.js';
+import { NewSessionDialog } from '../control/NewSessionDialog.js';
+import { useControl } from '../control/useControl.js';
 import { money, number, total } from '../ui.js';
 
 export function ProjectHeader({ project }: { project: ProjectSummary }) {
+  const control = useControl();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const newSessionButton = useRef<HTMLButtonElement | null>(null);
   return (
     <header className="project-header">
       <div className="min-w-0">
@@ -27,6 +34,21 @@ export function ProjectHeader({ project }: { project: ProjectSummary }) {
           <dd>≈ {money(project.costUsd)}</dd>
         </div>
       </dl>
+      {control.ready && (
+        <Button
+          buttonRef={(button) => (newSessionButton.current = button)}
+          variant="primary"
+          onClick={() => setDialogOpen(true)}
+        >
+          New session
+        </Button>
+      )}
+      <NewSessionDialog
+        projectId={project.id}
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        finalFocus={() => newSessionButton.current}
+      />
     </header>
   );
 }

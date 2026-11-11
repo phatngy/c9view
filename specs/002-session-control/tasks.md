@@ -123,12 +123,12 @@ description: 'Task list for Session Control'
 
 ## Phase 5: User Story 4 (web) — PR 6c
 
-- [ ] T057 [P] [US4] `apps/web/src/control/NewSessionDialog.test.tsx`: navigates to the returned `sessionId`; sends `name` (≤ 80); "Starting…" until the transcript appears; bypass banner when the machine reports bypass
-- [ ] T058 [P] [US4] `apps/web/src/kit/Dialog.test.tsx`: focus trap, Escape, labelled title, return focus
-- [ ] T059 [US4] `apps/web/src/kit/Dialog.tsx` on Base UI Dialog; export from `apps/web/src/kit/index.ts`
-- [ ] T060 [US4] `apps/web/src/control/NewSessionDialog.tsx`: prompt, optional name, permission mode
-- [ ] T061 [US4] "New session" button in `apps/web/src/project/header.tsx`, only when control is `ready`
-- [ ] T062 [US4] "Starting…" state on the session page for a new `sessionId` without a transcript
+- [x] T057 [P] [US4] `apps/web/src/control/NewSessionDialog.test.tsx`: navigates to the returned `sessionId`; sends `name` (≤ 80); "Starting…" until the transcript appears; bypass banner when the machine reports bypass
+- [x] T058 [P] [US4] `apps/web/src/kit/Dialog.test.tsx`: focus trap, Escape, labelled title, return focus
+- [x] T059 [US4] `apps/web/src/kit/Dialog.tsx` on Base UI Dialog; export from `apps/web/src/kit/index.ts`
+- [x] T060 [US4] `apps/web/src/control/NewSessionDialog.tsx`: prompt, optional name, permission mode
+- [x] T061 [US4] "New session" button in `apps/web/src/project/header.tsx`, only when control is `ready`
+- [x] T062 [US4] "Starting…" state on the session page for a new `sessionId` without a transcript
 
 ---
 

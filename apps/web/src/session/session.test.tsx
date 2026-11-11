@@ -22,6 +22,7 @@ import type {
   StatusHistoryResponse,
 } from '@c9view/api';
 import { routeTree } from '../router.js';
+import { queryKeys } from '../queryKeys.js';
 import { useSession } from '../api.js';
 import {
   projectDetail,
@@ -244,16 +245,109 @@ it.each([10, 60])(
   },
 );
 
-function openSession() {
+function openSession(sessionId = 'session-0') {
   const router = createRouter({
     routeTree,
     history: createMemoryHistory({
-      initialEntries: ['/m/local/projects/project-1/sessions/session-0'],
+      initialEntries: [`/m/local/projects/project-1/sessions/${sessionId}`],
     }),
     defaultPendingMinMs: 0,
   });
   render(<RouterProvider router={router} />, { wrapper: wrapper() });
 }
+
+it('T062 shows Starting until a newly created session transcript is available', async () => {
+  const sessionId = 'new-session';
+  let transcriptReady = false;
+  const fetcher = vi.fn(async (url: string) => {
+    let body: unknown = {};
+    let status = 200;
+    if (url === '/api/machines')
+      body = [
+        {
+          machineId: 'local',
+          name: 'Local',
+          state: 'online',
+          lastSeenAt: null,
+          version: '1.0.0',
+          protocol: 1,
+          outdated: false,
+          bootId: 'boot',
+          capabilities: { control: { state: 'ready' }, bypass: false },
+        },
+      ];
+    else if (url.endsWith('/control/runs'))
+      body = {
+        runs: [
+          {
+            runId: 'run',
+            sessionId,
+            projectId: 'project-1',
+            state: 'running',
+            mode: 'default',
+            queued: 0,
+            startedAt: '2026-11-11T00:00:00.000Z',
+            ownedByC9view: true,
+          },
+        ],
+        requests: [],
+      };
+    else if (url.includes('/status/history')) body = { changes: [] };
+    else if (url.endsWith('/status'))
+      body = {
+        status: 'running',
+        totalMessages: transcriptReady ? 3 : 0,
+        lastAt: null,
+      };
+    else if (url.endsWith('/changes')) body = { files: [] };
+    else if (url === '/api/m/local/projects/project-1') body = projectDetail;
+    else if (url.includes(`/sessions/${sessionId}?`)) {
+      if (transcriptReady)
+        body = {
+          ...sessionDetail,
+          session: {
+            ...sessionDetail.session,
+            id: sessionId,
+            title: 'New session',
+          },
+        };
+      else {
+        status = 404;
+        body = { error: 'Not found' };
+      }
+    }
+    return {
+      ok: status >= 200 && status < 300,
+      status,
+      json: async () => body,
+    };
+  });
+  vi.stubGlobal('fetch', fetcher);
+  openSession(sessionId);
+  expect(await screen.findByText('Starting…')).toBeVisible();
+  transcriptReady = true;
+  await act(async () => {
+    clients[0]!.setQueryData(
+      queryKeys.session('local', 'project-1', sessionId),
+      {
+        pages: [
+          {
+            ...sessionDetail,
+            session: {
+              ...sessionDetail.session,
+              id: sessionId,
+              title: 'New session',
+            },
+          },
+        ],
+        pageParams: [{ cursor: 0, limit: 50 }],
+      },
+    );
+    await Promise.resolve();
+  });
+  await screen.findByRole('heading', { name: 'New session' });
+  expect(screen.queryByText('Starting…')).toBeNull();
+});
 
 async function openSearch() {
   const buttons = await screen.findAllByRole('button', {
