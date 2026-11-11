@@ -1,0 +1,2 @@
+{"type": "user", "uuid": "u-deny", "timestamp": "2026-01-01T10:00:00Z", "cwd": "__PROJECT_DIR__", "version": "2.1.0", "message": {"role": "user", "content": "Control fixture deny session"}}
+{"type": "assistant", "uuid": "a-deny", "timestamp": "2026-01-01T10:01:00Z", "message": {"role": "assistant", "id": "m-deny", "model": "claude-sonnet-4-5", "content": [{"type": "text", "text": "Ready for the deny check"}], "usage": {"input_tokens": 1, "output_tokens": 1}}}
