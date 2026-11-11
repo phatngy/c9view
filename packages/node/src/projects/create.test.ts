@@ -109,13 +109,22 @@ import { parseGitUrl } from './url.js';
 const url = parseGitUrl('https://h.example/o/r.git');
 
 it('H1 two concurrent creates of the same missing location: the second is refused and nothing is removed', async () => {
+  // Deterministic ordering: init signals it started (so the first request
+  // holds the location claim) and then blocks until the test opens the gate.
+  let started!: () => void;
+  const initStarted = new Promise<void>((r) => (started = r));
+  let open!: () => void;
+  const gate = new Promise<void>((r) => (open = r));
   const t = await setupControl(
     {},
     {
       roots: true,
       git: {
         clone: async () => {},
-        init: async () => new Promise((r) => setTimeout(r, 50)),
+        init: async () => {
+          started();
+          await gate;
+        },
       },
     },
   );
@@ -124,10 +133,12 @@ it('H1 two concurrent creates of the same missing location: the second is refuse
   const first = t.service
     .createProject(body({ location }), t.bootId)
     .catch((e: { status: number }) => e.status);
+  await initStarted;
   const second = await t.service
     .createProject(body({ location }), t.bootId)
     .catch((e: { status: number; reason: string }) => e.reason);
   expect(second).toBe('run-exists');
+  open();
   expect(await first).toBe(409);
   expect((await stat(location)).isDirectory()).toBe(true);
 });
