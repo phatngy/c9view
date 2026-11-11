@@ -201,5 +201,5 @@ MVP is 6a + 6b: reply and approvals from the session page (US1–US3, US5). Then
 - [ ] T099 [P] Strip `?newSession=true` with a replace navigation once the transcript loads or the retry cap is reached, with a test, per T062 (partial)
 - [ ] T100 [P] Add a "Project default" choice to `NewSessionDialog.tsx` that omits `permissionMode`, so the node falls back to the project's `defaultMode`, per FR-011 (partial)
 - [ ] T101 [P] Show the "Driven by c9view" and Bypass badges (`project/board.tsx`, `session.tsx`) only while the run is not `ended` or `failed`, with a test, per FR-025, US8 (partial)
-- [ ] T102 Add a control-on Playwright fixture and test: reply composer, an approval card, and the New session dialog from the project header, per Constitution Workflow (UI changes add a Playwright test) (partial)
+- [x] T102 Add a control-on Playwright fixture and test: reply composer, an approval card, and the New session dialog from the project header, per Constitution Workflow (UI changes add a Playwright test) (partial)
 - [ ] T103 Review the unrequested keyboard-shortcuts popover and "Copy last response" shortcut in `apps/web/src/control/Composer.tsx`: add them to the spec or remove them, per spec scope (unrequested)

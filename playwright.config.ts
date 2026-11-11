@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
+import { controlBaseURL, controlToken } from './tests/e2e/control-fixture.js';
 import { budgetBaseURL, pageBudgetBytes } from './tests/e2e/budget.js';
 
 export default defineConfig({
@@ -38,6 +39,24 @@ export default defineConfig({
         baseURL: budgetBaseURL,
       },
     },
+    {
+      name: 'chromium-control',
+      testMatch: ['control.spec.ts'],
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1440, height: 900 },
+        baseURL: controlBaseURL,
+      },
+    },
+    {
+      name: 'chromium-control-phone',
+      testMatch: ['control-phone.spec.ts'],
+      use: {
+        ...devices['Pixel 7'],
+        viewport: { width: 390, height: 844 },
+        baseURL: controlBaseURL,
+      },
+    },
   ],
   webServer: [
     {
@@ -53,6 +72,13 @@ export default defineConfig({
         C9VIEW_PAGE_BUDGET_BYTES: String(pageBudgetBytes),
       },
       url: `${budgetBaseURL}/api/health`,
+      reuseExistingServer: false,
+      timeout: 30_000,
+    },
+    {
+      command: 'node --experimental-strip-types tests/e2e/control-server.ts',
+      env: { C9VIEW_TOKEN: controlToken },
+      url: `${controlBaseURL}/api/health`,
       reuseExistingServer: false,
       timeout: 30_000,
     },
