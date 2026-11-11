@@ -431,7 +431,10 @@ export function createControlService(
     },
     browse: async (path, hidden) => {
       if (closed || !config.control) throw new ControlError(404, 'Not found');
-      return browse(store.config.workspaceRoots, path, hidden);
+      return browse(store.config.workspaceRoots, path, hidden, [
+        store.config.claudeDir,
+        stateDir,
+      ]);
     },
     createProject: (body, boot) =>
       reserve('project', body, boot, async () => {
@@ -443,6 +446,7 @@ export function createControlService(
           const plan = await planClone(
             store.config.workspaceRoots,
             body.location,
+            [store.config.claudeDir, stateDir],
           );
           const id = body.clientRequestId;
           // Run after the receipt is installed so its status can be patched.
@@ -473,6 +477,7 @@ export function createControlService(
           body.location,
           body.gitInit ?? true,
           git,
+          [store.config.claudeDir, stateDir],
         );
         opened.add(found.path);
         return begin(found.projectId, body, 'project', undefined, found.path);

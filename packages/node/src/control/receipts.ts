@@ -46,9 +46,16 @@ export class Receipts {
     )?.receipt;
     return receipt ? structuredClone(receipt) : undefined;
   }
+  /** A receipt still `cloning` does not expire; otherwise the TTL counts from the last update. */
+  private touch(entry: Reservation) {
+    entry.expires =
+      entry.receipt?.status === 'cloning' ? Infinity : this.now() + this.ttlMs;
+  }
   update(operation: string, id: string, patch: Partial<CommandReceipt>) {
     const entry = this.entries.get(`${operation}:${id}`);
-    if (entry?.receipt) Object.assign(entry.receipt, patch);
+    if (!entry?.receipt) return;
+    Object.assign(entry.receipt, patch);
+    if (entry.settled) this.touch(entry);
   }
   async run(
     operation: string,
@@ -109,7 +116,7 @@ export class Receipts {
           return entry.receipt;
         } finally {
           entry.settled = true;
-          entry.expires = this.now() + this.ttlMs;
+          this.touch(entry);
         }
       }),
     };

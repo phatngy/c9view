@@ -25,7 +25,10 @@ export function SessionTitle({
   const { labelFor } = useLabels();
   const label = given ?? labelFor(projectId, sessionId);
   return label ? (
-    <span title={LABEL_TOOLTIP}>{label}</span>
+    <span title={LABEL_TOOLTIP}>
+      {label}
+      <span className="sr-only"> ({LABEL_TOOLTIP})</span>
+    </span>
   ) : (
     <>{title || 'Untitled session'}</>
   );

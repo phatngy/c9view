@@ -103,3 +103,20 @@ it('T064 redacts git errors and hides the folder path', async () => {
   );
   expect((error as Error).message).not.toContain('more');
 });
+import { failureLine } from './git-write.js';
+it('M1 reports the last fatal line of realistic git stderr, redacted', async () => {
+  const stderr =
+    "Cloning into '/work/p'...\nremote: Repository not found.\nfatal: repository 'https://h.example/o/r.git/' not found\n";
+  expect(failureLine(stderr)).toBe(
+    "fatal: repository 'https://h.example/o/r.git/' not found",
+  );
+  expect(failureLine("Cloning into 'x'...\nwarning: x\n")).toBe('warning: x');
+  const { execFile } = fake(new Error('x'), stderr);
+  const error = await createGitWriter({ timeoutMs: 1, execFile })
+    .clone(parseGitUrl('https://h.example/o/r.git'), '/work/p')
+    .catch((e: Error) => e);
+  expect((error as Error).message).toBe(
+    "git clone failed: fatal: repository 'https://h.example/o/r.git/' not found",
+  );
+  expect((error as Error).message).not.toContain('Cloning into');
+});
