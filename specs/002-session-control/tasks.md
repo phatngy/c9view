@@ -203,3 +203,18 @@ MVP is 6a + 6b: reply and approvals from the session page (US1–US3, US5). Then
 - [x] T101 [P] Show the "Driven by c9view" and Bypass badges (`project/board.tsx`, `session.tsx`) only while the run is not `ended` or `failed`, with a test, per FR-025, US8 (partial)
 - [x] T102 Add a control-on Playwright fixture and test: reply composer, an approval card, and the New session dialog from the project header, per Constitution Workflow (UI changes add a Playwright test) (partial)
 - [x] T103 Review the unrequested keyboard-shortcuts popover and "Copy last response" shortcut in `apps/web/src/control/Composer.tsx`: add them to the spec or remove them, per spec scope (unrequested)
+
+## Phase 9: Convergence (whole feature, after Phase 8; found by `/speckit-converge` on 2026-11-11)
+
+T104 (G2) waits for the maintainer's approval and T085 before it is built. No CRITICAL or HIGH gaps were found.
+
+- [ ] T104 After the maintainer approves the feature (and T085 is done), set 002's status to Implemented in `specs/README.md` (table and Steps rows) and in `spec.md`, and tick T088, per FR-023, T088, T089 (partial)
+- [ ] T105 Give the control-on e2e fixture a workspace root (`tests/e2e/control-server.ts` sets `C9VIEW_WORKSPACE_ROOTS` to empty) and add Playwright tests for New project (location, trust step, first run) and for editing a session label, per Constitution Workflow (UI changes add a Playwright test), T074, T079 (missing)
+- [ ] T106 Make `claimLocation` in `packages/node/src/projects/inflight.ts` reject a path that is an ancestor or a descendant of an active claim (using `inside()`), so a clone into `a/b` and a create or clone into `a/b/c` cannot run together, with a test, per FR-023 (partial)
+- [ ] T107 [P] Replace the first-active-run logic in `apps/web/src/control/Composer.tsx` with `currentRun` from `runState.ts`, so one definition of the current run is used, with a test, per T103 (partial)
+- [ ] T108 [P] Cap concurrent clones in `packages/node/src/control/service.ts` (for example 2–3 at once), answering 409 or 503 beyond the cap, with a test, per FR-023 (missing)
+- [ ] T109 [P] Narrow the label character rule in `packages/node/src/labels/labels.ts`: forbid bidi controls, U+200B, U+FEFF and similar format characters, but allow ZWJ and variation selectors so emoji labels work, with a test, per FR-024 (contradicts)
+- [ ] T110 [P] Record in FR-023 or research R8 that locations whose project ID exceeds 200 characters are refused (Claude Code hashes such names), and show that message in the New project dialog, per FR-023 (partial)
+- [ ] T111 [P] Give `packages/node/src/boundaries.test.ts` ("rejects every forbidden node import…") and `apps/web/src/session/session.test.tsx` ("does not rebuild the 2,000-message search index while typing") an explicit `{ timeout: 30_000 }`, and the same for `packages/node/src/routes/sessions.test.ts` ("cuts a message larger than the whole budget and keeps paging"), checking that one for a real race if it still flakes, per the flaky tests seen on 2026-11-11 (partial)
+- [ ] T112 [P] Reword the `AGENTS.md` conventions line so project creation, init and clone under workspace roots read as current behaviour, with `c9view node install-service/uninstall-service` still planned, per T084 (partial)
+- [ ] T113 Stop `packages/node/src/projects/git-write.ts` from applying the user's global git config (set `GIT_CONFIG_GLOBAL=/dev/null` and keep `GIT_CONFIG_NOSYSTEM=1`), or document in research R7 why it is allowed (for example `url.insteadOf` rewrites after URL validation), with a test, per the hardened runner in R7 (partial)
