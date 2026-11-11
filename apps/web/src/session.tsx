@@ -1,6 +1,6 @@
 import { useControl } from './control/useControl.js';
 import { Composer } from './control/Composer.js';
-import { isActiveRun } from './control/runState.js';
+import { currentRun, isActiveRun } from './control/runState.js';
 import { MessageSquare, List, Files, ChartNoAxesColumn } from 'lucide-react';
 import {
   useCallback,
@@ -53,9 +53,7 @@ function SessionView({
   const machineId = useMachineId();
   const control = useControl();
   const startRun = control.ready
-    ? control.data?.runs.find(
-        (run) => run.projectId === projectId && run.sessionId === sessionId,
-      )
+    ? currentRun(control.data?.runs, projectId, sessionId)
     : undefined;
   const startFailed = isNewSession && startRun?.state === 'failed';
   const query = useSession(projectId, sessionId);

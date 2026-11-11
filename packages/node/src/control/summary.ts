@@ -4,8 +4,11 @@ const MAX = 600;
 const FIELD = 300;
 const DIFF_LINES = 6;
 
+/** Redact first, so a cut can never leave a fragment of a secret. */
 function text(value: unknown): string | undefined {
-  return typeof value === 'string' && value.trim() ? value : undefined;
+  return typeof value === 'string' && value.trim()
+    ? redactStrings(value)
+    : undefined;
 }
 
 function clip(value: string, max: number): string {

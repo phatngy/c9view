@@ -380,6 +380,29 @@ it.each(['ended', 'failed'])(
   },
 );
 
+it('keeps Stop and the badges for the live run when an older run of the session ended', async () => {
+  const sessionId = 'two-runs';
+  startFetcher(
+    sessionId,
+    [
+      runFixture(sessionId, { runId: 'old', state: 'ended' }),
+      runFixture(sessionId, {
+        runId: 'new',
+        state: 'running',
+        mode: 'bypassPermissions',
+      }),
+    ],
+    () => true,
+  );
+  openSession(sessionId);
+  await screen.findByRole('heading', { name: 'New session' });
+  expect(
+    await screen.findByRole('button', { name: 'Run options' }),
+  ).toBeVisible();
+  expect(screen.getAllByText('Driven by c9view').length).toBeGreaterThan(0);
+  expect(screen.getAllByText('Bypass').length).toBeGreaterThan(0);
+});
+
 it('T101 shows the Driven and Bypass badges while the run is active', async () => {
   const sessionId = 'badge-active';
   startFetcher(
