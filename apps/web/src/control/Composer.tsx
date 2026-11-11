@@ -1,7 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   ArrowUp,
-  CircleHelp,
   ClipboardList,
   Pencil,
   ShieldCheck,
@@ -15,7 +14,7 @@ import type {
   SessionStatus,
   TrustSummary,
 } from '@c9view/api';
-import { Button, Popover, Select, Kbd } from '../kit/index.js';
+import { Button, Select } from '../kit/index.js';
 import { focusRing, target as targetSize } from '../kit/classes.js';
 import { HttpError } from '../api.js';
 import { useMachineId } from '../machine.js';
@@ -63,57 +62,15 @@ function coarsePointer() {
     window.matchMedia('(hover: none) and (pointer: coarse)').matches
   );
 }
-/** Clipboard API where available (secure contexts), else a hidden textarea. */
-async function copyText(value: string): Promise<boolean> {
-  try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(value);
-      return true;
-    }
-  } catch {
-    // Fall through to the legacy path.
-  }
-  const area = document.createElement('textarea');
-  const active = document.activeElement;
-  try {
-    area.value = value;
-    area.setAttribute('readonly', '');
-    area.setAttribute('aria-hidden', 'true');
-    area.style.cssText = 'position:fixed;top:0;left:-9999px;opacity:0';
-    document.body.append(area);
-    area.select();
-    return document.execCommand('copy');
-  } catch {
-    return false;
-  } finally {
-    area.remove();
-    if (active instanceof HTMLElement) active.focus();
-  }
-}
-function Shortcut({ keys, label }: { keys: string[]; label: string }) {
-  return (
-    <div className="flex items-center justify-between gap-6">
-      <dt>{label}</dt>
-      <dd className="flex gap-1">
-        {keys.map((key) => (
-          <Kbd key={key}>{key}</Kbd>
-        ))}
-      </dd>
-    </div>
-  );
-}
 
 export function Composer({
   projectId,
   sessionId,
-  lastResponse,
   status,
   lastAt,
 }: {
   projectId: string;
   sessionId: string;
-  /** Plain text of the last assistant reply already shown on the page. */
-  lastResponse?: string | undefined;
   /** The session's own status, shown when c9view has no run. */
   status?: SessionStatus | undefined;
   lastAt?: string | null | undefined;
@@ -139,12 +96,8 @@ export function Composer({
   const focusEpoch = useRef(0);
   const focusedRequest = useRef<string | undefined>(undefined);
   const [elapsed, setElapsed] = useState(0);
-  const [copyNote, setCopyNote] = useState('');
   const [, setFocusTick] = useState(0);
   const mac = isMac();
-  const modKey = mac ? '⌘' : 'Ctrl';
-  const lastResponseRef = useRef(lastResponse);
-  lastResponseRef.current = lastResponse;
   const pollAttempt = useRef(0);
   const recovery = useRef<{ resolve: (error?: Error) => void } | undefined>(
     undefined,
@@ -166,7 +119,7 @@ export function Composer({
       ) ?? [])
     : [];
   const announcement = requests.length
-    ? `${requests.length} pending ${requests.length === 1 ? 'request' : 'requests'} from Claude. ${requests.map((request) => (request.kind === 'permission' ? request.summary : request.questions.map((question) => question.header).join(', '))).join('; ')}`
+    ? `${requests.length} pending ${requests.length === 1 ? 'request' : 'requests'} from Claude. ${requests.map((request) => (request.kind === 'permission' ? request.toolName : request.questions.map((question) => question.header).join(', '))).join('; ')}`
     : '';
   const receipt = useQuery({
     queryKey: queryKeys.controlReceipt(machineId, waiting?.id ?? ''),
@@ -264,61 +217,6 @@ export function Composer({
         : undefined;
     (next ?? composer.current)?.focus();
   });
-  // Ctrl/Cmd+Shift shortcuts work anywhere on the page, including the
-  // composer. They only focus or copy; they never answer a request.
-  useEffect(() => {
-    if (!control.ready) return;
-    let timer: number | undefined;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || isComposing(event)) return;
-      const mod = mac
-        ? event.metaKey && !event.ctrlKey
-        : event.ctrlKey && !event.metaKey;
-      if (!mod || !event.shiftKey || event.altKey) return;
-      if (
-        event.target instanceof Element &&
-        event.target.closest(
-          'dialog[open], [role="dialog"], [role="alertdialog"]',
-        )
-      )
-        return;
-      if (
-        event.code === 'Semicolon' ||
-        event.key === ';' ||
-        event.key === ':'
-      ) {
-        event.preventDefault();
-        composer.current?.focus();
-      } else if (event.code === 'KeyC' || event.key.toLowerCase() === 'c') {
-        // Leave the browser's copy alone when text is selected.
-        // Firefox reports no window selection inside a text field.
-        const field = document.activeElement;
-        const fieldSelection =
-          (field instanceof HTMLTextAreaElement ||
-            field instanceof HTMLInputElement) &&
-          field.selectionStart !== field.selectionEnd;
-        if (window.getSelection()?.toString() || fieldSelection) return;
-        event.preventDefault();
-        const value = lastResponseRef.current;
-        window.clearTimeout(timer);
-        const announce = (note: string) => {
-          if (!mounted.current) return;
-          setCopyNote(note);
-          timer = window.setTimeout(() => setCopyNote(''), 3000);
-        };
-        if (!value) return announce('Nothing to copy');
-        copyText(value).then(
-          (ok) => announce(ok ? 'Copied' : 'Could not copy'),
-          () => announce('Could not copy'),
-        );
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      window.clearTimeout(timer);
-    };
-  }, [control.ready, mac]);
   // Grow from one line up to 40% of the viewport, then scroll.
   useLayoutEffect(() => {
     const element = composer.current;
@@ -572,9 +470,6 @@ export function Composer({
         <p role="status" aria-live="polite" className="sr-only">
           {announcement}
         </p>
-        <p role="status" aria-live="polite" className="sr-only">
-          {copyNote}
-        </p>
         {control.error && (
           <p role="alert">
             Could not refresh run controls: {control.error.message}
@@ -590,7 +485,6 @@ export function Composer({
               <PermissionCard
                 key={request.requestId}
                 request={request}
-                layout="pinned"
                 onDecide={(decision) =>
                   action(() =>
                     control.service.decide(request.requestId, decision),
@@ -601,7 +495,6 @@ export function Composer({
               <QuestionCard
                 key={request.requestId}
                 request={request}
-                layout="pinned"
                 onDecide={(decision) =>
                   action(() =>
                     control.service.decide(request.requestId, decision),
@@ -636,7 +529,6 @@ export function Composer({
               ref={composer}
               id="session-reply"
               aria-label="Reply to session"
-              aria-keyshortcuts={`${mac ? 'Meta' : 'Control'}+Shift+;`}
               placeholder="Reply to Claude…"
               value={text}
               onChange={(event) => setText(event.target.value.slice(0, LIMIT))}
@@ -695,38 +587,6 @@ export function Composer({
                     }}
                   />
                 )}
-                <div className="hidden sm:block">
-                  <Popover
-                    label="Keyboard shortcuts"
-                    trigger={
-                      <button
-                        type="button"
-                        aria-label="Keyboard shortcuts"
-                        className={`${targetSize} ${focusRing} inline-flex items-center justify-center rounded-full text-muted hover:bg-surface hover:text-ink`}
-                      >
-                        <CircleHelp size={16} aria-hidden="true" />
-                      </button>
-                    }
-                  >
-                    <h2 className="mb-2 text-sm font-semibold">
-                      Keyboard shortcuts
-                    </h2>
-                    <dl className="space-y-2 text-sm">
-                      <Shortcut label="Send" keys={['Enter']} />
-                      <Shortcut label="New line" keys={['Shift', 'Enter']} />
-                      <Shortcut label="Send" keys={[modKey, 'Enter']} />
-                      <Shortcut
-                        label="Focus the reply box"
-                        keys={[modKey, 'Shift', ';']}
-                      />
-                      <Shortcut
-                        label="Copy last response"
-                        keys={[modKey, 'Shift', 'C']}
-                      />
-                      <Shortcut label="Search" keys={[modKey, 'K']} />
-                    </dl>
-                  </Popover>
-                </div>
               </div>
               <div className="flex items-center gap-2">
                 {text.length >= COUNTER_FROM && (

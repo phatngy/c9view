@@ -8,11 +8,7 @@ export function PermissionCard(props: PermissionCardProps) {
   return <PermissionDecision key={props.request.requestId} {...props} />;
 }
 
-function PermissionDecision({
-  request,
-  onDecide,
-  layout,
-}: PermissionCardProps) {
+function PermissionDecision({ request, onDecide }: PermissionCardProps) {
   const id = useId();
   const [withMessage, setWithMessage] = useState(false);
   const [message, setMessage] = useState('');
@@ -22,8 +18,7 @@ function PermissionDecision({
       role="region"
       tabIndex={-1}
       aria-label={`Permission for ${request.toolName}`}
-      data-layout={layout}
-      className={`${layout === 'pinned' ? 'p-3! text-sm' : 'p-4! text-sm'} ${focusRing}`}
+      className={`p-3! text-sm ${focusRing}`}
     >
       <div className="flex min-h-10 min-w-0 items-start gap-2.5">
         <ShieldQuestion

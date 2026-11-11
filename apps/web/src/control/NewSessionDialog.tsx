@@ -13,7 +13,9 @@ import { useControl } from './useControl.js';
 
 const LIMIT = 20_000;
 const RECEIPT_WAIT_LIMIT = 120_000;
+type ModeChoice = PermissionMode | 'project-default';
 const modes = [
+  { value: 'project-default', label: 'Project default' },
   { value: 'default', label: 'Default' },
   { value: 'acceptEdits', label: 'Accept edits' },
   { value: 'plan', label: 'Plan' },
@@ -35,7 +37,7 @@ export function NewSessionDialog({
   const navigate = useNavigate();
   const [text, setText] = useState('');
   const [name, setName] = useState('');
-  const [mode, setMode] = useState<PermissionMode>('default');
+  const [mode, setMode] = useState<ModeChoice>('project-default');
   const [pending, setPending] = useState(false);
   const [notice, setNotice] = useState('');
   const [trust, setTrust] = useState<TrustSummary>();
@@ -46,7 +48,7 @@ export function NewSessionDialog({
   const attempted = useRef({
     text: '',
     name: '',
-    mode: 'default' as PermissionMode,
+    mode: 'project-default' as ModeChoice,
   });
   const poll = useRef(0);
   const waitingSince = useRef(0);
@@ -75,7 +77,7 @@ export function NewSessionDialog({
     // Reset the controlled dialog draft each time it opens.
     setText('');
     setName('');
-    setMode('default');
+    setMode('project-default');
     setNotice('');
     setTrust(undefined);
     setWaitingId('');
@@ -107,7 +109,9 @@ export function NewSessionDialog({
       const value = await control.service.newSession(projectId, {
         text: draft.text,
         ...(draft.name.trim() ? { name: draft.name.trim() } : {}),
-        permissionMode: draft.mode,
+        ...(draft.mode === 'project-default'
+          ? {}
+          : { permissionMode: draft.mode }),
       });
       if (value.status === 'failed') {
         setNotice(value.error ?? 'Could not start the session.');
@@ -272,7 +276,7 @@ export function NewSessionDialog({
           label="Permission mode"
           options={modes}
           value={mode}
-          onValueChange={(value) => setMode(value as PermissionMode)}
+          onValueChange={(value) => setMode(value as ModeChoice)}
         />
         {trust && (
           <section

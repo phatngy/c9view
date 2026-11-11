@@ -436,10 +436,11 @@ it('T055 mounts and announces GET requests and keeps uncertain decisions locked 
     },
   );
   const allow = await screen.findByRole('button', { name: 'Allow' });
-  expect(screen.getByText(/1 pending request from Claude/)).toHaveAttribute(
-    'aria-live',
-    'polite',
-  );
+  const live = screen.getByText(/1 pending request from Claude/);
+  expect(live).toHaveAttribute('aria-live', 'polite');
+  // T095: only the tool name is announced, never the summary.
+  expect(live).toHaveTextContent('from Claude. Read');
+  expect(live).not.toHaveTextContent('Read fixture');
   fireEvent.click(allow);
   await screen.findByText('This may have been sent');
   expect(allow).toBeDisabled();

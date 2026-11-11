@@ -1,5 +1,6 @@
 import { useControl } from './control/useControl.js';
 import { Composer } from './control/Composer.js';
+import { isActiveRun } from './control/runState.js';
 import { MessageSquare, List, Files, ChartNoAxesColumn } from 'lucide-react';
 import {
   useCallback,
@@ -21,7 +22,7 @@ import { SessionHeader } from './session/header/SessionHeader.js';
 import { SessionSearch } from './session/header/SessionSearch.js';
 import { contextUsage } from './session/context.js';
 import { useQueryClient } from '@tanstack/react-query';
-import { useLocation } from '@tanstack/react-router';
+import { useNavigate, useSearch } from '@tanstack/react-router';
 import { useMachineId } from './machine.js';
 import { refreshSession } from './live/index.js';
 import { scrollConversationToBottom } from './session/WindowedMessages.js';
@@ -44,14 +45,19 @@ function SessionView({
   projectId: string;
   sessionId: string;
 }) {
-  const locationSearch = useLocation({ select: (location) => location.search });
-  const isNewSession =
-    !!locationSearch &&
-    typeof locationSearch === 'object' &&
-    'newSession' in locationSearch &&
-    locationSearch.newSession === true;
+  const isNewSession = useSearch({
+    from: '/m/$machineId/projects/$projectId/sessions/$sessionId',
+    select: (search) => search.newSession === true,
+  });
+  const navigate = useNavigate();
   const machineId = useMachineId();
   const control = useControl();
+  const startRun = control.ready
+    ? control.data?.runs.find(
+        (run) => run.projectId === projectId && run.sessionId === sessionId,
+      )
+    : undefined;
+  const startFailed = isNewSession && startRun?.state === 'failed';
   const query = useSession(projectId, sessionId);
   const { refetch } = query;
   const client = useQueryClient();
@@ -99,6 +105,7 @@ function SessionView({
   useEffect(() => {
     if (
       !isNewSession ||
+      startFailed ||
       newSessionTimedOut ||
       query.isFetching ||
       !(query.error instanceof HttpError) ||
@@ -112,11 +119,21 @@ function SessionView({
     return () => window.clearTimeout(timer);
   }, [
     isNewSession,
+    startFailed,
     newSessionTimedOut,
     query.error,
     query.isFetching,
     refetch,
   ]);
+  const hasTranscript = !!query.data;
+  useEffect(() => {
+    if (isNewSession && (hasTranscript || newSessionTimedOut))
+      void navigate({
+        to: '.',
+        search: (previous) => ({ ...previous, newSession: undefined }),
+        replace: true,
+      });
+  }, [isNewSession, hasTranscript, newSessionTimedOut, navigate]);
   const [mobileTab, setMobileTab] = useState<
     'chat' | 'outline' | 'files' | 'usage'
   >('chat');
@@ -142,18 +159,6 @@ function SessionView({
     ],
     [query.data],
   );
-  const lastResponse = useMemo(() => {
-    const reply = messages.findLast(
-      (m) =>
-        m.role === 'assistant' &&
-        !m.isSidechain &&
-        !m.isMeta &&
-        m.blocks.some((b) => b.type === 'text' && b.text.trim()),
-    );
-    return reply?.blocks
-      .flatMap((b) => (b.type === 'text' ? [b.text] : []))
-      .join('\n\n');
-  }, [messages]);
   const searchIndex = useMemo(() => buildSearchIndex(messages), [messages]);
   const matches = useMemo(
     () =>
@@ -461,6 +466,13 @@ function SessionView({
     return () => window.removeEventListener('scroll', update, true);
   }, []);
   if (error && !pages) {
+    if (startFailed)
+      return (
+        <div className="space-y-1 p-6 text-sm" role="alert">
+          <p className="font-medium">The session failed to start.</p>
+          {startRun?.error && <p className="text-muted">{startRun.error}</p>}
+        </div>
+      );
     if (
       isNewSession &&
       !newSessionTimedOut &&
@@ -512,14 +524,7 @@ function SessionView({
   return (
     <div className="session-page gap-5">
       <SessionHeader
-        ownedRun={
-          control.ready
-            ? control.data?.runs.find(
-                (run) =>
-                  run.projectId === projectId && run.sessionId === sessionId,
-              )
-            : undefined
-        }
+        ownedRun={startRun && isActiveRun(startRun) ? startRun : undefined}
         data={data}
         projectName={projectLabel}
         status={poll.data?.status ?? data.session.status}
@@ -617,7 +622,6 @@ function SessionView({
           <Composer
             projectId={projectId}
             sessionId={sessionId}
-            lastResponse={lastResponse}
             status={poll.data?.status ?? data.session.status}
             lastAt={poll.data ? poll.data.lastAt : data.session.lastAt}
           />

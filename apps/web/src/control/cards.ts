@@ -10,12 +10,10 @@ export type Decision = Omit<DecisionBody, 'clientRequestId'>;
 export interface PermissionCardProps {
   request: PermissionRequest;
   onDecide: (d: Decision) => Promise<void>;
-  layout: 'pinned' | 'inline';
 }
 export interface QuestionCardProps {
   request: QuestionRequest;
   onDecide: (d: Decision) => Promise<void>;
-  layout: 'pinned' | 'inline';
 }
 export interface TrustCardProps {
   trust: TrustSummary;

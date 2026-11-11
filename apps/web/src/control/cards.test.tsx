@@ -77,25 +77,16 @@ function activate(element: HTMLElement, key = 'Enter') {
   fireEvent.click(element, { detail: 0 });
 }
 
-it.each(['pinned', 'inline'] as const)(
-  'names the %s permission card and renders the redacted tool summary and expiry',
-  (layout) => {
-    render(
-      <PermissionCard
-        request={permission}
-        onDecide={vi.fn()}
-        layout={layout}
-      />,
-    );
-    expect(
-      screen.getByRole('region', { name: 'Permission for Bash' }),
-    ).toHaveAttribute('data-layout', layout);
-    expect(screen.getByText(permission.summary)).toBeInTheDocument();
-    expect(
-      screen.getByText(new Date(permission.expiresAt).toLocaleString()),
-    ).toHaveAttribute('dateTime', permission.expiresAt);
-  },
-);
+it('names the permission card and renders the redacted tool summary and expiry', () => {
+  render(<PermissionCard request={permission} onDecide={vi.fn()} />);
+  expect(
+    screen.getByRole('region', { name: 'Permission for Bash' }),
+  ).toBeInTheDocument();
+  expect(screen.getByText(permission.summary)).toBeInTheDocument();
+  expect(
+    screen.getByText(new Date(permission.expiresAt).toLocaleString()),
+  ).toHaveAttribute('dateTime', permission.expiresAt);
+});
 
 it.each([
   ['Allow', { decision: 'allow' }],
@@ -104,13 +95,7 @@ it.each([
   'supports keyboard activation of %s with the exact decision',
   async (label, decision) => {
     const onDecide = vi.fn().mockResolvedValue(undefined);
-    render(
-      <PermissionCard
-        request={permission}
-        onDecide={onDecide}
-        layout="pinned"
-      />,
-    );
+    render(<PermissionCard request={permission} onDecide={onDecide} />);
     activate(screen.getByRole('button', { name: label }));
     await waitFor(() =>
       expect(onDecide).toHaveBeenCalledExactlyOnceWith(decision),
@@ -120,9 +105,7 @@ it.each([
 
 it('supports a keyboard denial with a message and preserves the exact text', async () => {
   const onDecide = vi.fn().mockResolvedValue(undefined);
-  render(
-    <PermissionCard request={permission} onDecide={onDecide} layout="inline" />,
-  );
+  render(<PermissionCard request={permission} onDecide={onDecide} />);
   const disclose = screen.getByRole('button', { name: 'Deny with a message' });
   activate(disclose, ' ');
   expect(disclose).toHaveAttribute('aria-expanded', 'true');
@@ -143,9 +126,7 @@ it('supports a keyboard denial with a message and preserves the exact text', asy
 });
 
 it('caps the denial message at 2,000 characters', () => {
-  render(
-    <PermissionCard request={permission} onDecide={vi.fn()} layout="pinned" />,
-  );
+  render(<PermissionCard request={permission} onDecide={vi.fn()} />);
   activate(screen.getByRole('button', { name: 'Deny with a message' }));
   const input = screen.getByRole('textbox');
   expect(input).toHaveAttribute('maxLength', '2000');
@@ -157,9 +138,7 @@ it('caps the denial message at 2,000 characters', () => {
 it('prevents permission decisions during and after a successful request', async () => {
   const pending = deferred();
   const onDecide = vi.fn(() => pending.promise);
-  render(
-    <PermissionCard request={permission} onDecide={onDecide} layout="pinned" />,
-  );
+  render(<PermissionCard request={permission} onDecide={onDecide} />);
   fireEvent.click(screen.getByRole('button', { name: 'Allow' }));
   for (const button of screen.getAllByRole('button')) {
     expect(button).toBeDisabled();
@@ -177,9 +156,7 @@ it('shows a permission error and allows a retry with the retained message', asyn
     .fn()
     .mockRejectedValueOnce(new Error('The machine is unavailable.'))
     .mockResolvedValue(undefined);
-  render(
-    <PermissionCard request={permission} onDecide={onDecide} layout="inline" />,
-  );
+  render(<PermissionCard request={permission} onDecide={onDecide} />);
   activate(screen.getByRole('button', { name: 'Deny with a message' }));
   fireEvent.change(screen.getByRole('textbox'), {
     target: { value: 'Keep this text' },
@@ -194,32 +171,23 @@ it('shows a permission error and allows a retry with the retained message', asyn
   await waitFor(() => expect(onDecide).toHaveBeenCalledTimes(2));
 });
 
-it.each(['pinned', 'inline'] as const)(
-  'names the %s question card and labels its options with descriptions',
-  (layout) => {
-    render(
-      <QuestionCard request={question} onDecide={vi.fn()} layout={layout} />,
-    );
-    expect(
-      screen.getByRole('region', { name: 'Questions: Which approach?' }),
-    ).toHaveAttribute('data-layout', layout);
-    expect(
-      screen.getByRole('group', { name: /Approach.*Which approach/ }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('radio', { name: /Quick/ }),
-    ).toHaveAccessibleDescription('Use a small patch');
-    expect(
-      screen.getByRole('button', { name: 'Submit answers' }),
-    ).toBeDisabled();
-  },
-);
+it('names the question card and labels its options with descriptions', () => {
+  render(<QuestionCard request={question} onDecide={vi.fn()} />);
+  expect(
+    screen.getByRole('region', { name: 'Questions: Which approach?' }),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole('group', { name: /Approach.*Which approach/ }),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole('radio', { name: /Quick/ }),
+  ).toHaveAccessibleDescription('Use a small patch');
+  expect(screen.getByRole('button', { name: 'Submit answers' })).toBeDisabled();
+});
 
 it('submits a single answer using a native radio from the keyboard', async () => {
   const onDecide = vi.fn().mockResolvedValue(undefined);
-  render(
-    <QuestionCard request={question} onDecide={onDecide} layout="pinned" />,
-  );
+  render(<QuestionCard request={question} onDecide={onDecide} />);
   activate(screen.getByRole('radio', { name: /Thorough/ }), ' ');
   expect(screen.getByRole('radio', { name: /Thorough/ })).toBeChecked();
   expect(screen.getByRole('radio', { name: /Quick/ })).not.toBeChecked();
@@ -237,7 +205,7 @@ it('submits multiple answers as labels in option order from native checkboxes', 
     ...question,
     questions: [{ ...question.questions[0]!, multiSelect: true }],
   };
-  render(<QuestionCard request={multi} onDecide={onDecide} layout="inline" />);
+  render(<QuestionCard request={multi} onDecide={onDecide} />);
   activate(screen.getByRole('checkbox', { name: /Thorough/ }), ' ');
   activate(screen.getByRole('checkbox', { name: /Quick/ }), ' ');
   activate(screen.getByRole('button', { name: 'Submit answers' }));
@@ -259,7 +227,6 @@ it.each([false, true])(
           questions: [{ ...question.questions[0]!, multiSelect }],
         }}
         onDecide={onDecide}
-        layout="pinned"
       />,
     );
     const role = multiSelect ? 'checkbox' : 'radio';
@@ -285,9 +252,7 @@ it.each([false, true])(
 );
 
 it('requires nonblank Other text and caps it at 2,000 characters', () => {
-  render(
-    <QuestionCard request={question} onDecide={vi.fn()} layout="pinned" />,
-  );
+  render(<QuestionCard request={question} onDecide={vi.fn()} />);
   activate(screen.getByRole('radio', { name: 'Other' }), ' ');
   const input = screen.getByRole('textbox');
   expect(input).toHaveAttribute('maxLength', '2000');
@@ -315,7 +280,6 @@ it('submits each question under its own question text and requires every answer'
         ],
       }}
       onDecide={onDecide}
-      layout="inline"
     />,
   );
   const groups = screen.getAllByRole('group');
@@ -333,9 +297,7 @@ it('submits each question under its own question text and requires every answer'
 it('disables question controls and prevents double submission, including after success', async () => {
   const pending = deferred();
   const onDecide = vi.fn(() => pending.promise);
-  render(
-    <QuestionCard request={question} onDecide={onDecide} layout="inline" />,
-  );
+  render(<QuestionCard request={question} onDecide={onDecide} />);
   activate(screen.getByRole('radio', { name: /Quick/ }), ' ');
   const button = screen.getByRole('button', { name: 'Submit answers' });
   fireEvent.click(button);
@@ -353,9 +315,7 @@ it('shows a question error, retains the answer and lets the user retry', async (
     .fn()
     .mockRejectedValueOnce(new Error('Please reconnect.'))
     .mockResolvedValue(undefined);
-  render(
-    <QuestionCard request={question} onDecide={onDecide} layout="inline" />,
-  );
+  render(<QuestionCard request={question} onDecide={onDecide} />);
   activate(screen.getByRole('radio', { name: /Quick/ }), ' ');
   activate(screen.getByRole('button', { name: 'Submit answers' }));
   expect(await screen.findByRole('alert')).toHaveTextContent(
@@ -369,7 +329,7 @@ it('shows a question error, retains the answer and lets the user retry', async (
 it('resets decision state when a different request replaces a card', async () => {
   const onDecide = vi.fn().mockResolvedValue(undefined);
   const { rerender } = render(
-    <PermissionCard request={permission} onDecide={onDecide} layout="pinned" />,
+    <PermissionCard request={permission} onDecide={onDecide} />,
   );
   activate(screen.getByRole('button', { name: 'Allow' }));
   await screen.findByText('Decision sent.');
@@ -377,7 +337,6 @@ it('resets decision state when a different request replaces a card', async () =>
     <PermissionCard
       request={{ ...permission, requestId: 'permission-2' }}
       onDecide={onDecide}
-      layout="pinned"
     />,
   );
   expect(screen.getByRole('button', { name: 'Allow' })).toBeEnabled();

@@ -51,7 +51,7 @@ function run(state: string): ControlRuns {
     requests: [],
   } as ControlRuns;
 }
-function mount(snapshot: ControlRuns = run('idle'), lastResponse?: string) {
+function mount(snapshot: ControlRuns = run('idle')) {
   const fetcher = vi.fn((url: string) =>
     Promise.resolve(
       url.endsWith('/control/runs') ? json(snapshot) : json(receipt, 202),
@@ -72,7 +72,7 @@ function mount(snapshot: ControlRuns = run('idle'), lastResponse?: string) {
   render(
     <QueryClientProvider client={client}>
       <MachineContext value="remote">
-        <Composer projectId="p" sessionId="s" lastResponse={lastResponse} />
+        <Composer projectId="p" sessionId="s" />
       </MachineContext>
     </QueryClientProvider>,
   );
@@ -174,7 +174,7 @@ it('auto-grows to its content and caps at 40% of the viewport', () => {
 });
 it('has 44px targets and accessible names on the toolbar', () => {
   mount();
-  for (const name of ['Send', 'Keyboard shortcuts', 'Permission mode']) {
+  for (const name of ['Send', 'Permission mode']) {
     expect(
       screen.getByRole(name === 'Permission mode' ? 'combobox' : 'button', {
         name,
@@ -182,130 +182,6 @@ it('has 44px targets and accessible names on the toolbar', () => {
     ).toHaveClass('min-h-11');
   }
 });
-it.each([
-  ['Linux x86_64', { ctrlKey: true }],
-  ['MacIntel', { metaKey: true }],
-])('focuses the composer with the platform shortcut (%s)', (platform, mod) => {
-  setPlatform(platform);
-  mount();
-  screen.getByRole('combobox', { name: 'Permission mode' }).focus();
-  fireEvent.keyDown(window, {
-    key: ':',
-    code: 'Semicolon',
-    shiftKey: true,
-    ...mod,
-  });
-  expect(box()).toHaveFocus();
-  expect(box()).toHaveAttribute(
-    'aria-keyshortcuts',
-    `${platform === 'MacIntel' ? 'Meta' : 'Control'}+Shift+;`,
-  );
-});
-it('ignores the wrong modifier for the platform and plain keys', () => {
-  setPlatform('Linux x86_64');
-  mount();
-  fireEvent.keyDown(window, {
-    key: ':',
-    code: 'Semicolon',
-    shiftKey: true,
-    metaKey: true,
-  });
-  fireEvent.keyDown(window, { key: ';', code: 'Semicolon' });
-  expect(box()).not.toHaveFocus();
-});
-it('works while typing in the composer and copies the last response', async () => {
-  setPlatform('Linux x86_64');
-  const writeText = vi.fn().mockResolvedValue(undefined);
-  vi.stubGlobal(
-    'navigator',
-    Object.assign(Object.create(navigator), { clipboard: { writeText } }),
-  );
-  mount(run('idle'), 'Shown reply');
-  box().focus();
-  fireEvent.keyDown(box(), {
-    key: 'C',
-    code: 'KeyC',
-    ctrlKey: true,
-    shiftKey: true,
-  });
-  await screen.findByText('Copied');
-  expect(writeText).toHaveBeenCalledWith('Shown reply');
-  expect(box()).toHaveFocus();
-});
-it('announces when there is nothing to copy', async () => {
-  setPlatform('Linux x86_64');
-  mount();
-  fireEvent.keyDown(window, {
-    key: 'C',
-    code: 'KeyC',
-    ctrlKey: true,
-    shiftKey: true,
-  });
-  await screen.findByText('Nothing to copy');
-});
-it('ignores every shortcut during IME composition', () => {
-  setPlatform('Linux x86_64');
-  const writeText = vi.fn().mockResolvedValue(undefined);
-  vi.stubGlobal(
-    'navigator',
-    Object.assign(Object.create(navigator), { clipboard: { writeText } }),
-  );
-  mount(run('idle'), 'Shown reply');
-  fireEvent.keyDown(window, {
-    key: ':',
-    code: 'Semicolon',
-    ctrlKey: true,
-    shiftKey: true,
-    isComposing: true,
-  });
-  fireEvent.keyDown(window, {
-    key: 'C',
-    code: 'KeyC',
-    ctrlKey: true,
-    shiftKey: true,
-    keyCode: 229,
-  });
-  expect(box()).not.toHaveFocus();
-  expect(writeText).not.toHaveBeenCalled();
-});
-it('leaves Ctrl+K to the existing search binding', () => {
-  setPlatform('Linux x86_64');
-  mount();
-  const event = new KeyboardEvent('keydown', {
-    key: 'k',
-    ctrlKey: true,
-    cancelable: true,
-    bubbles: true,
-  });
-  window.dispatchEvent(event);
-  expect(event.defaultPrevented).toBe(false);
-  expect(box()).not.toHaveFocus();
-});
-it.each([
-  ['Linux x86_64', 'Ctrl'],
-  ['MacIntel', '⌘'],
-])(
-  'lists the right modifier in the shortcuts help (%s)',
-  async (platform, mod) => {
-    setPlatform(platform);
-    mount();
-    const help = screen.getByRole('button', { name: 'Keyboard shortcuts' });
-    expect(help).toHaveAttribute('aria-expanded', 'false');
-    help.focus();
-    fireEvent.click(help);
-    const popup = await screen.findByRole('dialog', {
-      name: 'Keyboard shortcuts',
-    });
-    expect(popup).toHaveTextContent('Enter');
-    expect(popup).toHaveTextContent('Shift');
-    const keys = [...popup.querySelectorAll('kbd')].map((k) => k.textContent);
-    expect(keys).toContain(mod);
-    expect(keys).not.toContain(mod === 'Ctrl' ? '⌘' : 'Ctrl');
-    fireEvent.keyDown(popup, { key: 'Escape' });
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-  },
-);
-
 it('Ctrl+Enter always sends, even on a coarse pointer, but not during IME', async () => {
   setPlatform('Linux x86_64');
   coarse(true);
@@ -335,123 +211,6 @@ it('checks for a touch-only device with hover none and coarse pointer', () => {
     '(hover: none) and (pointer: coarse)',
   );
 });
-it('lists Ctrl+Enter in the help', async () => {
-  setPlatform('Linux x86_64');
-  mount();
-  fireEvent.click(screen.getByRole('button', { name: 'Keyboard shortcuts' }));
-  const popup = await screen.findByRole('dialog', {
-    name: 'Keyboard shortcuts',
-  });
-  expect(popup).toHaveTextContent('SendCtrlEnter');
-});
-it('copies through a hidden textarea when the Clipboard API is missing', async () => {
-  setPlatform('Linux x86_64');
-  vi.stubGlobal(
-    'navigator',
-    Object.assign(Object.create(navigator), { clipboard: undefined }),
-  );
-  const exec = vi.fn(() => true);
-  document.execCommand = exec;
-  mount(run('idle'), 'Shown reply');
-  fireEvent.keyDown(window, {
-    key: 'C',
-    code: 'KeyC',
-    ctrlKey: true,
-    shiftKey: true,
-  });
-  await screen.findByText('Copied');
-  expect(exec).toHaveBeenCalledWith('copy');
-  expect(document.querySelectorAll('body > textarea[readonly]')).toHaveLength(
-    0,
-  );
-});
-it('announces Could not copy when every path fails', async () => {
-  setPlatform('Linux x86_64');
-  vi.stubGlobal(
-    'navigator',
-    Object.assign(Object.create(navigator), { clipboard: undefined }),
-  );
-  document.execCommand = vi.fn(() => {
-    throw new Error('denied');
-  });
-  mount(run('idle'), 'Shown reply');
-  fireEvent.keyDown(window, {
-    key: 'C',
-    code: 'KeyC',
-    ctrlKey: true,
-    shiftKey: true,
-  });
-  await screen.findByText('Could not copy');
-});
-it('leaves Ctrl+Shift+C alone when text is selected', () => {
-  setPlatform('Linux x86_64');
-  const writeText = vi.fn().mockResolvedValue(undefined);
-  vi.stubGlobal(
-    'navigator',
-    Object.assign(Object.create(navigator), { clipboard: { writeText } }),
-  );
-  vi.spyOn(window, 'getSelection').mockReturnValue({
-    toString: () => 'picked',
-  } as Selection);
-  mount(run('idle'), 'Shown reply');
-  const event = new KeyboardEvent('keydown', {
-    key: 'C',
-    code: 'KeyC',
-    ctrlKey: true,
-    shiftKey: true,
-    cancelable: true,
-    bubbles: true,
-  });
-  window.dispatchEvent(event);
-  expect(event.defaultPrevented).toBe(false);
-  expect(writeText).not.toHaveBeenCalled();
-});
-it('leaves Ctrl+Shift+C alone when text is selected inside the composer', () => {
-  setPlatform('Linux x86_64');
-  const writeText = vi.fn().mockResolvedValue(undefined);
-  vi.stubGlobal(
-    'navigator',
-    Object.assign(Object.create(navigator), { clipboard: { writeText } }),
-  );
-  // As in Firefox, the window selection is empty for text-field selections.
-  vi.spyOn(window, 'getSelection').mockReturnValue({
-    toString: () => '',
-  } as Selection);
-  mount(run('idle'), 'Shown reply');
-  const box = screen.getByRole('textbox', { name: 'Reply to session' });
-  fireEvent.change(box, { target: { value: 'draft text' } });
-  (box as HTMLTextAreaElement).focus();
-  (box as HTMLTextAreaElement).setSelectionRange(0, 5);
-  const event = new KeyboardEvent('keydown', {
-    key: 'C',
-    code: 'KeyC',
-    ctrlKey: true,
-    shiftKey: true,
-    cancelable: true,
-    bubbles: true,
-  });
-  window.dispatchEvent(event);
-  expect(event.defaultPrevented).toBe(false);
-  expect(writeText).not.toHaveBeenCalled();
-});
-it('ignores shortcuts that start inside a dialog', () => {
-  setPlatform('Linux x86_64');
-  mount();
-  const dialog = document.createElement('div');
-  dialog.setAttribute('role', 'dialog');
-  const field = document.createElement('button');
-  dialog.append(field);
-  document.body.append(dialog);
-  fireEvent.keyDown(field, {
-    key: ':',
-    code: 'Semicolon',
-    ctrlKey: true,
-    shiftKey: true,
-  });
-  expect(box()).not.toHaveFocus();
-  dialog.remove();
-});
-
 it('moves focus to the reply box after a successful Stop response, never onto a button', async () => {
   mount(run('running'));
   const bar = await screen.findByRole('button', { name: 'Stop response' });
@@ -468,24 +227,6 @@ it('does not steal focus from another field after Stop response', async () => {
   await new Promise((r) => setTimeout(r, 50));
   expect(other).toHaveFocus();
   other.remove();
-});
-
-it('ignores shortcuts that start inside an alert dialog', () => {
-  setPlatform('Linux x86_64');
-  mount();
-  const dialog = document.createElement('div');
-  dialog.setAttribute('role', 'alertdialog');
-  const field = document.createElement('button');
-  dialog.append(field);
-  document.body.append(dialog);
-  fireEvent.keyDown(field, {
-    key: ':',
-    code: 'Semicolon',
-    ctrlKey: true,
-    shiftKey: true,
-  });
-  expect(box()).not.toHaveFocus();
-  dialog.remove();
 });
 
 it('after a confirmed Stop the reply box is enabled and focused', async () => {

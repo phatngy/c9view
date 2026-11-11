@@ -769,7 +769,6 @@ it('T045 renders the permission card read from GET after an SSE request hint', a
               <PermissionCard
                 key={request.requestId}
                 request={request}
-                layout="pinned"
                 onDecide={async () => {}}
               />
             ),

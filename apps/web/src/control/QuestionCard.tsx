@@ -14,7 +14,7 @@ export function QuestionCard(props: QuestionCardProps) {
   return <QuestionDecision key={props.request.requestId} {...props} />;
 }
 
-function QuestionDecision({ request, onDecide, layout }: QuestionCardProps) {
+function QuestionDecision({ request, onDecide }: QuestionCardProps) {
   const id = useId();
   const [values, setValues] = useState<Answer[]>(() =>
     request.questions.map(emptyAnswer),
@@ -35,8 +35,7 @@ function QuestionDecision({ request, onDecide, layout }: QuestionCardProps) {
       role="region"
       tabIndex={-1}
       aria-label={`Questions: ${request.questions.map(({ question }) => question).join('; ')}`}
-      data-layout={layout}
-      className={`${layout === 'pinned' ? 'p-3! text-sm' : 'p-4! text-sm'} ${focusRing}`}
+      className={`p-3! text-sm ${focusRing}`}
     >
       <form
         onSubmit={(event) => {

@@ -255,7 +255,143 @@ function openSession(sessionId = 'session-0', newSession = false) {
     defaultPendingMinMs: 0,
   });
   render(<RouterProvider router={router} />, { wrapper: wrapper() });
+  return router;
 }
+
+function runFixture(
+  sessionId: string,
+  overrides: Record<string, unknown> = {},
+) {
+  return {
+    runId: 'run',
+    sessionId,
+    projectId: 'project-1',
+    state: 'running',
+    mode: 'default',
+    queued: 0,
+    startedAt: '2026-11-11T00:00:00.000Z',
+    ownedByC9view: true,
+    ...overrides,
+  };
+}
+
+function startFetcher(
+  sessionId: string,
+  runs: unknown[],
+  transcriptReady: () => boolean,
+) {
+  const fetcher = vi.fn(async (url: string) => {
+    let body: unknown = {};
+    let status = 200;
+    if (url === '/api/machines')
+      body = [
+        {
+          machineId: 'local',
+          name: 'Local',
+          state: 'online',
+          lastSeenAt: null,
+          version: '1.0.0',
+          protocol: 1,
+          outdated: false,
+          bootId: 'boot',
+          capabilities: { control: { state: 'ready' }, bypass: false },
+        },
+      ];
+    else if (url.endsWith('/control/runs')) body = { runs, requests: [] };
+    else if (url.includes('/status/history')) body = { changes: [] };
+    else if (url.endsWith('/status'))
+      body = { status: 'running', totalMessages: 0, lastAt: null };
+    else if (url.endsWith('/changes')) body = { files: [] };
+    else if (url === '/api/m/local/projects/project-1') body = projectDetail;
+    else if (url.includes(`/sessions/${sessionId}?`)) {
+      if (transcriptReady())
+        body = {
+          ...sessionDetail,
+          session: {
+            ...sessionDetail.session,
+            id: sessionId,
+            title: 'New session',
+          },
+        };
+      else {
+        status = 404;
+        body = { error: 'Not found' };
+      }
+    }
+    return {
+      ok: status >= 200 && status < 300,
+      status,
+      json: async () => body,
+    };
+  });
+  vi.stubGlobal('fetch', fetcher);
+  return fetcher;
+}
+
+it('T097 shows a failed start and its error, and stops retrying', async () => {
+  const sessionId = 'failed-session';
+  const fetcher = startFetcher(
+    sessionId,
+    [runFixture(sessionId, { state: 'failed', error: 'Could not launch' })],
+    () => false,
+  );
+  openSession(sessionId, true);
+  const alert = await screen.findByRole('alert');
+  expect(alert).toHaveTextContent('The session failed to start.');
+  expect(alert).toHaveTextContent('Could not launch');
+  expect(screen.queryByText('Starting…')).toBeNull();
+  const count = () =>
+    fetcher.mock.calls.filter(([url]) =>
+      url.includes(`/sessions/${sessionId}?`),
+    ).length;
+  const before = count();
+  await new Promise((resolve) => setTimeout(resolve, 1500));
+  expect(count()).toBe(before);
+});
+
+it('T098 T099 strips newSession from the URL once the transcript loads', async () => {
+  const sessionId = 'strip-session';
+  let ready = false;
+  startFetcher(sessionId, [runFixture(sessionId)], () => ready);
+  const router = openSession(sessionId, true);
+  expect(await screen.findByText('Starting…')).toBeVisible();
+  expect(router.state.location.search).toMatchObject({ newSession: true });
+  ready = true;
+  await screen.findByRole('heading', { name: 'New session' });
+  await waitFor(() =>
+    expect(router.state.location.search).not.toHaveProperty('newSession', true),
+  );
+  expect(router.state.location.href).not.toContain('newSession');
+});
+
+it.each(['ended', 'failed'])(
+  'T101 hides the Driven and Bypass badges once the run is %s',
+  async (state) => {
+    const sessionId = 'badge-session';
+    startFetcher(
+      sessionId,
+      [runFixture(sessionId, { state, mode: 'bypassPermissions' })],
+      () => true,
+    );
+    openSession(sessionId);
+    await screen.findByRole('heading', { name: 'New session' });
+    expect(screen.queryByText('Driven by c9view')).toBeNull();
+    expect(screen.queryByText('Bypass')).toBeNull();
+  },
+);
+
+it('T101 shows the Driven and Bypass badges while the run is active', async () => {
+  const sessionId = 'badge-active';
+  startFetcher(
+    sessionId,
+    [runFixture(sessionId, { mode: 'bypassPermissions' })],
+    () => true,
+  );
+  openSession(sessionId);
+  await screen.findByRole('heading', { name: 'New session' });
+  expect(screen.getAllByText('Driven by c9view').length).toBeGreaterThan(0);
+  expect(screen.getAllByText('Bypass').length).toBeGreaterThan(0);
+});
 
 it('T062 shows Starting until a newly created session transcript is available', async () => {
   const sessionId = 'new-session';

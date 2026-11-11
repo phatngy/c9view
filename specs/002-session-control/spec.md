@@ -211,13 +211,13 @@ On a machine the owner fully trusts (for example a sandbox), the owner starts it
 - **FR-013 (was R13)** Pending requests: when Claude asks to use a tool that no rule or mode approved, the node stores a pending request with a random single-use ID, emits a refresh hint, and waits until the owner decides, the run aborts, or a configured approval time passes (default 30 minutes, configurable by environment), which denies with "No answer from the c9view user". The first decision wins; repeating the same command returns its receipt; any other decision on a decided request, including from another tab, is a conflict.
 - **FR-014 (was R14)** Deciding: allow uses the **node-held original tool input**; the browser never sends tool input. Deny takes an optional message of at most 2,000 characters. There is no "always allow" in v1 (it would write project settings).
 - **FR-015 (was R15)** Questions: the browser sends answers keyed by question; the node checks every key against the held questions and every value against the option labels or a free-text "Other" of at most 2,000 characters.
-- **FR-016 (was R16)** The permission card shows the tool name and a summary in the style of the existing tool rows (command, file path and diff, …), with secrets hidden, and offers Allow, Deny, and Deny with a message. The question card shows options as radio buttons or checkboxes with "Other". Both are keyboard and screen-reader accessible, with 44 px targets below 1024 px.
+- **FR-016 (was R16)** The permission card shows the tool name and a summary in the style of the existing tool rows (command, file path and diff, …), with secrets hidden, and offers Allow, Deny, and Deny with a message. Approval cards are pinned above the composer only. The question card shows options as radio buttons or checkboxes with "Other". Both are keyboard and screen-reader accessible, with 44 px targets below 1024 px.
 
 **Live view**
 
 - **FR-017 (was R17)** The conversation stays transcript-driven: new messages appear through the existing file watching and live updates, exactly as for terminal sessions.
 - **FR-018 (was R18)** Run events are refresh hints, not data (001 FR-007): the node emits run, request and request-resolved hints carrying only IDs (no card content, tool input or state); the hub wraps each with its machine. On any control hint the web refetches the control state, which returns current runs (state, cost, error) and pending requests with their redacted cards; that read is the only source of truth.
-- **FR-019 (was R19)** Cost: the run bar shows the run's cost labelled "≈ API-equivalent" and linked to the billing note. Session and project totals keep coming from the transcript.
+- **FR-019 (was R19)** Cost: the run bar shows no cost; the run's cost stays in the run summary, and session and project totals keep coming from the transcript (labelled "≈ API-equivalent" where shown). Interrupt lives in the composer's square button.
 
 **Multi-machine readiness**
 

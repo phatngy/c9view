@@ -135,7 +135,7 @@ export function RunBar({
         <span className="sr-only" role="status" aria-live="polite">
           {announcement}
         </span>
-        {run && (
+        {run && !ended && (
           <span
             data-testid="run-badges"
             className="flex min-w-0 gap-1.5 max-sm:hidden"

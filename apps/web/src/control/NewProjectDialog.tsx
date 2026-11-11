@@ -424,6 +424,8 @@ function message(error: unknown) {
       return 'Enter an https:// or ssh:// git URL, or user@host:path.';
     if (error.reason === 'not-empty')
       return 'That folder is not empty; pick a missing or empty folder to clone into.';
+    if (error.reason === 'run-exists')
+      return 'A run is already starting for that folder. Wait for it to finish, then try again.';
     if (error.reason === 'bypass-not-allowed')
       return 'This permission mode is not allowed on the selected machine.';
   }
