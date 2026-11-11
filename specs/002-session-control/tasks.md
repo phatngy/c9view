@@ -188,3 +188,18 @@ description: 'Task list for Session Control'
 ## Implementation strategy
 
 MVP is 6a + 6b: reply and approvals from the session page (US1–US3, US5). Then new sessions (6c), then projects and labels (6d).
+
+## Phase 8: Convergence (after 6a–6c; found by `/speckit-converge` on 2026-11-11)
+
+6d (T063–T085, T093) is not part of this pass. T094 and T096 reverse a deliberate maintainer change or choose between amending the spec and the code; the maintainer decides before they are built.
+
+- [ ] T094 Decide and reconcile the run bar's cost and interrupt: restore the "≈ API-equivalent" cost linked to `#api-equivalent-cost` in `apps/web/src/control/RunBar.tsx` (and update `runbar.test.tsx`), or amend FR-019, T051 and the plan to say the run bar shows no cost and Interrupt lives in the composer, per FR-019, T051, Principle VII (contradicts)
+- [ ] T095 Build the approval card summary in `packages/node/src/control/requests.ts` from the tool name and fields (command, file path, diff) instead of raw JSON, truncate it to a bounded length, and announce only the tool name in the live region (`Composer.tsx`), per FR-016, T052, Principle VI (partial)
+- [ ] T096 Decide and reconcile where a pending approval card shows: render it at the matching tool row (`layout="inline"` in `cards.ts` is unused) or amend FR-016 to say pinned only, per FR-016, T052 (partial)
+- [ ] T097 Show a failed run's state and error in the "Starting…" view in `apps/web/src/session.tsx` (read `control.data.runs`), with a test, per US4/AC1, FR-010, T062 (partial)
+- [ ] T098 [P] Declare the `newSession` search param with `validateSearch` on the session route in `apps/web/src/router.tsx` and read it typed in `session.tsx`, per T062 (partial)
+- [ ] T099 [P] Strip `?newSession=true` with a replace navigation once the transcript loads or the retry cap is reached, with a test, per T062 (partial)
+- [ ] T100 [P] Add a "Project default" choice to `NewSessionDialog.tsx` that omits `permissionMode`, so the node falls back to the project's `defaultMode`, per FR-011 (partial)
+- [ ] T101 [P] Show the "Driven by c9view" and Bypass badges (`project/board.tsx`, `session.tsx`) only while the run is not `ended` or `failed`, with a test, per FR-025, US8 (partial)
+- [ ] T102 Add a control-on Playwright fixture and test: reply composer, an approval card, and the New session dialog from the project header, per Constitution Workflow (UI changes add a Playwright test) (partial)
+- [ ] T103 Review the unrequested keyboard-shortcuts popover and "Copy last response" shortcut in `apps/web/src/control/Composer.tsx`: add them to the spec or remove them, per spec scope (unrequested)
