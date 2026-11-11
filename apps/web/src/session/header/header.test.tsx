@@ -6,7 +6,9 @@ import {
   screen,
   waitFor,
 } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, expect, it, vi } from 'vitest';
+import { queryKeys } from '../../queryKeys.js';
 import { sessionDetail, tokens } from '../../test-fixtures.js';
 import { SessionHeader } from './SessionHeader.js';
 import { SessionSearch } from './SessionSearch.js';
@@ -27,12 +29,14 @@ const data = {
     status: { ...sessionDetail.session.status, reason: 'Live status: busy' },
   },
 };
+const queryClient = new QueryClient();
+queryClient.setQueryData(queryKeys.machines(), []);
 function HeaderHarness() {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const button = useRef<HTMLButtonElement | null>(null);
   return (
-    <>
+    <QueryClientProvider client={queryClient}>
       <SessionHeader
         data={data}
         projectName="project"
@@ -63,7 +67,7 @@ function HeaderHarness() {
           }}
         />
       )}
-    </>
+    </QueryClientProvider>
   );
 }
 it('shows the status, title and session metadata chips', () => {
@@ -106,10 +110,9 @@ it('opens search, focuses the input and returns focus on empty Escape', () => {
   });
   expect(input).toHaveFocus();
   expect(button).toHaveAttribute('aria-expanded', 'true');
-  expect(screen.getByRole('button', { name: 'Session details' })).toHaveAttribute(
-    'aria-expanded',
-    'false',
-  );
+  expect(
+    screen.getByRole('button', { name: 'Session details' }),
+  ).toHaveAttribute('aria-expanded', 'false');
   fireEvent.keyDown(input, { key: 'Escape' });
   expect(screen.queryByRole('searchbox')).not.toBeInTheDocument();
   expect(button).toHaveFocus();

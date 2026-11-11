@@ -1,4 +1,6 @@
 import { controlRoutes } from './control/routes.js';
+import { projectCreateRoutes } from './projects/routes.js';
+import { labelRoutes } from './labels/routes.js';
 import { Hono } from 'hono';
 import { redactText } from '@c9view/core';
 import type { ApiError } from '@c9view/api';
@@ -60,15 +62,18 @@ export function createNodeApp(
     changeRoutes,
   ])
     app.route('/', routes(store, limits));
-  if (runtime.control)
+  if (runtime.control) {
+    const textMax = runtime.controlConfig?.textMaxChars ?? 20000;
     app.route(
       '/',
-      controlRoutes(
-        runtime.control,
-        runtime.controlConfig?.textMaxChars ?? 20000,
-        limits.requestBodyMaxBytes,
-      ),
+      controlRoutes(runtime.control, textMax, limits.requestBodyMaxBytes),
     );
+    app.route(
+      '/',
+      projectCreateRoutes(runtime.control, textMax, limits.requestBodyMaxBytes),
+    );
+    app.route('/', labelRoutes(runtime.control, limits.requestBodyMaxBytes));
+  }
   app.notFound((c) => c.json({ error: 'Not found' } satisfies ApiError, 404));
   return app;
 }

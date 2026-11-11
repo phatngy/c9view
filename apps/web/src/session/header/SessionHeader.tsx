@@ -1,4 +1,5 @@
 import { BypassBadge, DrivenBadge } from '../../control/cards.js';
+import { SessionLabel, SessionTitle } from '../../control/SessionLabel.js';
 import { useState } from 'react';
 import type {
   RunSummary,
@@ -71,7 +72,11 @@ export function SessionHeader({
         {controlBadges}
         <div className="min-w-0 flex-1">
           <p className="truncate text-lead font-semibold">
-            {session.title || 'Untitled session'}
+            <SessionTitle
+              projectId={projectId}
+              sessionId={sessionId}
+              title={session.title}
+            />
           </p>
           <p className="truncate text-xs text-muted">
             {projectName} ·{' '}
@@ -116,7 +121,11 @@ export function SessionHeader({
             className="session-header-title text-2xl font-semibold tracking-[-.01em]"
             tabIndex={-1}
           >
-            {session.title || 'Untitled session'}
+            <SessionTitle
+              projectId={projectId}
+              sessionId={sessionId}
+              title={session.title}
+            />
           </h1>
           <div className="session-header-actions">
             <IconButton
@@ -131,6 +140,7 @@ export function SessionHeader({
               }}
               className="session-desktop-search max-sm:min-h-11"
             />
+            <SessionLabel projectId={projectId} sessionId={sessionId} />
             <MoreMenu sessionId={sessionId} cwd={data.cwd} notice={notice} />
             <ExportMenu projectId={projectId} sessionId={sessionId} />
           </div>

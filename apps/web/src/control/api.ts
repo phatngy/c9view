@@ -3,8 +3,12 @@ import type {
   CommandReceipt,
   ControlRuns,
   DecisionBody,
+  NewProjectBody,
   NewSessionBody,
   PermissionMode,
+  SessionLabels,
+  WorkspaceBrowse,
+  WorkspaceRoots,
 } from '@c9view/api';
 import { get, machinePath } from '../api.js';
 
@@ -26,6 +30,22 @@ export const receiptSchema = z.object({
   sessionId: z.string().optional(),
   projectId: z.string().optional(),
   error: z.string().optional(),
+});
+const rootsSchema = z.object({ roots: z.array(z.string()) });
+const browseSchema = z.object({
+  path: z.string().optional(),
+  parent: z.string().optional(),
+  entries: z.array(z.object({ name: z.string(), path: z.string() })),
+  truncated: z.boolean(),
+});
+const labelsSchema = z.object({
+  labels: z.array(
+    z.object({
+      projectId: z.string(),
+      sessionId: z.string(),
+      label: z.string(),
+    }),
+  ),
 });
 const baseRequest = {
   requestId: z.string(),
@@ -217,6 +237,34 @@ export function controlApi(machineId: string, bootId: string) {
       post(`/control/runs/${encodeURIComponent(runId)}/stop`, {}),
     mode: (runId: string, mode: PermissionMode) =>
       post(`/control/runs/${encodeURIComponent(runId)}/mode`, { mode }),
+    workspaceRoots: async (signal?: AbortSignal): Promise<WorkspaceRoots> =>
+      rootsSchema.parse(
+        await get<unknown>(machinePath(machineId, '/workspace/roots'), signal),
+      ),
+    browse: async (
+      path: string | undefined,
+      hidden: boolean,
+      signal?: AbortSignal,
+    ): Promise<WorkspaceBrowse> => {
+      const query = new URLSearchParams();
+      if (path) query.set('path', path);
+      if (hidden) query.set('hidden', '1');
+      const text = query.toString();
+      return browseSchema.parse(
+        await get<unknown>(
+          machinePath(machineId, `/workspace/browse${text ? `?${text}` : ''}`),
+          signal,
+        ),
+      ) as WorkspaceBrowse;
+    },
+    newProject: (body: Omit<NewProjectBody, 'clientRequestId'>) =>
+      post('/projects', body),
+    labels: async (signal?: AbortSignal): Promise<SessionLabels> =>
+      labelsSchema.parse(
+        await get<unknown>(machinePath(machineId, '/labels'), signal),
+      ),
+    label: (projectId: string, sessionId: string, label: string) =>
+      post(`${session(projectId, sessionId)}/label`, { label }),
     trust: (path: string, fingerprint: string) =>
       post('/projects/trust', { path, fingerprint }),
   };

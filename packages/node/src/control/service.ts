@@ -9,7 +9,11 @@ import type {
   ControlRuns,
   DecisionBody,
   ModeBody,
+  NewProjectBody,
   NewSessionBody,
+  SessionLabels,
+  WorkspaceBrowse,
+  LabelBody,
   ReplyBody,
   RunActionBody,
   TrustBody,
@@ -27,7 +31,14 @@ import { Receipts } from './receipts.js';
 import { Runs } from './runs.js';
 import { Requests } from './requests.js';
 import { createLiveness, type Liveness } from './liveness.js';
-import { openControlState, type TrustState } from './state.js';
+import { openControlState, type ControlState } from './state.js';
+import { createLabels } from '../labels/labels.js';
+import { createGitWriter, type GitWriter } from '../projects/git-write.js';
+import { parseGitUrl } from '../projects/url.js';
+import { openProject } from '../projects/create.js';
+import { planClone, runClone } from '../projects/clone.js';
+import { browse } from '../projects/browse.js';
+import { realRoots } from '../projects/roots.js';
 import { assertStateLocation, FolderTrust } from './trust.js';
 import { ControlError } from './errors.js';
 export interface ControlService {
@@ -65,13 +76,25 @@ export interface ControlService {
     bootId?: string,
   ): Promise<CommandReceipt>;
   trust(body: TrustBody, bootId?: string): Promise<CommandReceipt>;
+  /** Roots the node accepts project locations under (real paths); empty when none. */
+  workspaceRoots(): Promise<string[]>;
+  browse(path: string | undefined, hidden: boolean): Promise<WorkspaceBrowse>;
+  createProject(body: NewProjectBody, bootId?: string): Promise<CommandReceipt>;
+  label(
+    projectId: string,
+    sessionId: string,
+    body: LabelBody,
+    bootId?: string,
+  ): Promise<CommandReceipt>;
+  labels(): SessionLabels;
   snapshot(): ControlRuns;
   receipt(id: string): CommandReceipt | undefined;
   close(): Promise<void>;
 }
 export interface ControlDependencies {
   sdk?: SdkAdapter;
-  state?: TrustState;
+  state?: ControlState;
+  git?: GitWriter;
   liveness?: Liveness;
   env?: NodeJS.ProcessEnv;
   stateDir?: string;
@@ -99,6 +122,18 @@ export function createControlService(
     : claudeBinaryVersion(binary, childEnvironment(env, stateDir));
   const state = dependencies.state ?? openControlState(stateDir);
   const folders = new FolderTrust(store.config.claudeDir, state);
+  const labels = createLabels(
+    state,
+    async (projectId, sessionId) =>
+      !!(await store.findSession(projectId, sessionId)),
+  );
+  const git =
+    dependencies.git ??
+    createGitWriter({ timeoutMs: config.cloneTimeoutMin * 60000, env });
+  // Folders this boot created or opened under the roots: the only unknown
+  // folders the trust step accepts, since they have no transcript yet.
+  const opened = new Set<string>();
+  const cloning = new AbortController();
   const receipts = new Receipts(
     bootId,
     config.receiptMin * 60000,
@@ -177,7 +212,10 @@ export function createControlService(
   async function project(id: string) {
     const found = (await store.snapshot()).find((p) => p.project.id === id);
     if (!found?.project.path) throw new ControlError(404, 'Project not found');
-    const folder = await realpath(found.project.path);
+    return checkedFolder(found.project.path);
+  }
+  async function checkedFolder(path: string) {
+    const folder = await realpath(path);
     assertWritableDirectory(folder, 'project directory');
     assertStateLocation(stateDir, store.config.claudeDir, [folder]);
     return folder;
@@ -187,8 +225,11 @@ export function createControlService(
     body: NewSessionBody | ReplyBody,
     operation: string,
     source?: string,
+    knownFolder?: string,
   ) {
-    const folder = await project(projectId);
+    const folder = knownFolder
+      ? await checkedFolder(knownFolder)
+      : await project(projectId);
     if (source && !(await store.findSession(projectId, source)))
       throw new ControlError(404, 'Session not found');
     await folders.check(folder);
@@ -375,17 +416,88 @@ export function createControlService(
       ),
     trust: (body, boot) =>
       reserve('trust', body, boot, async () => {
-        const known = (await store.snapshot()).flatMap((p) =>
-          p.project.path ? [p.project.path] : [],
-        );
+        const known = [
+          ...(await store.snapshot()).flatMap((p) =>
+            p.project.path ? [p.project.path] : [],
+          ),
+          ...opened,
+        ];
         await folders.accept(body.path, body.fingerprint, known);
         return {};
       }),
+    workspaceRoots: async () => {
+      if (closed || !config.control) throw new ControlError(404, 'Not found');
+      return realRoots(store.config.workspaceRoots);
+    },
+    browse: async (path, hidden) => {
+      if (closed || !config.control) throw new ControlError(404, 'Not found');
+      return browse(store.config.workspaceRoots, path, hidden);
+    },
+    createProject: (body, boot) =>
+      reserve('project', body, boot, async () => {
+        if ((await realRoots(store.config.workspaceRoots)).length === 0)
+          throw new ControlError(404, 'Not found');
+        const url =
+          body.gitUrl !== undefined ? parseGitUrl(body.gitUrl) : undefined;
+        if (url) {
+          const plan = await planClone(
+            store.config.workspaceRoots,
+            body.location,
+          );
+          const id = body.clientRequestId;
+          // Run after the receipt is installed so its status can be patched.
+          setImmediate(() => {
+            runClone(plan, url, git, cloning.signal)
+              .then(
+                (path) => {
+                  opened.add(path);
+                  receipts.update('project', id, { status: 'ready' });
+                },
+                (error: unknown) =>
+                  receipts.update('project', id, {
+                    status: 'failed',
+                    error:
+                      error instanceof Error
+                        ? error.message
+                        : 'git clone failed',
+                  }),
+              )
+              .finally(() =>
+                emit({ type: 'control.project', clientRequestId: id }),
+              );
+          });
+          return { status: 'cloning' as const, projectId: plan.projectId };
+        }
+        const found = await openProject(
+          store.config.workspaceRoots,
+          body.location,
+          body.gitInit ?? true,
+          git,
+        );
+        opened.add(found.path);
+        return begin(found.projectId, body, 'project', undefined, found.path);
+      }),
+    label: (projectId, sessionId, body, boot) =>
+      reserve(
+        'label',
+        body,
+        boot,
+        async () => {
+          await labels.set(projectId, sessionId, body.label);
+          return { projectId, sessionId };
+        },
+        { projectId, sessionId },
+      ),
+    labels: () => {
+      if (closed || !config.control) throw new ControlError(404, 'Not found');
+      return labels.all();
+    },
     snapshot: () => ({ runs: runs.snapshot(), requests: requests.snapshot() }),
     receipt: (id) => receipts.get(id),
     close: async () => {
       if (closed) return;
       closed = true;
+      cloning.abort();
       requests.close();
       await runs.close();
       state.close();

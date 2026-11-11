@@ -209,3 +209,34 @@ export type ControlEvent =
     }
   | { type: 'control.request.resolved'; requestId: string }
   | { type: 'control.project'; clientRequestId: string };
+
+/** GET /workspace/roots (6d). 404 without roots or with control off. */
+export interface WorkspaceRoots {
+  roots: string[];
+}
+
+export interface WorkspaceEntry {
+  name: string;
+  path: string;
+}
+
+/** GET /workspace/browse?path=&hidden= (6d): one level of directories under the roots. */
+export interface WorkspaceBrowse {
+  /** Absent when listing the roots themselves. */
+  path?: string;
+  /** Absent at a root. */
+  parent?: string;
+  entries: WorkspaceEntry[];
+  truncated: boolean;
+}
+
+export interface SessionLabelEntry {
+  projectId: string;
+  sessionId: string;
+  label: string;
+}
+
+/** GET /labels (6d). */
+export interface SessionLabels {
+  labels: SessionLabelEntry[];
+}

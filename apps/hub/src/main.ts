@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { resolve } from 'node:path';
+import { delimiter, resolve } from 'node:path';
 import { serve } from '@hono/node-server';
 import { loadConfig } from '@c9view/core';
 import { createApp } from './app.js';
@@ -22,6 +22,7 @@ export interface StartServerOptions {
   claudeDir?: string;
   db?: string;
   allowedHosts?: string[];
+  workspaceRoots?: string[];
   auth?: AuthMode;
   webDist?: string;
   onListening?: (url: string) => void;
@@ -88,6 +89,9 @@ export function startServer(options: StartServerOptions = {}) {
     ...process.env,
     ...(options.claudeDir ? { C9VIEW_CLAUDE_DIR: options.claudeDir } : {}),
     ...(options.db ? { C9VIEW_DB: options.db } : {}),
+    ...(options.workspaceRoots?.length
+      ? { C9VIEW_WORKSPACE_ROOTS: options.workspaceRoots.join(delimiter) }
+      : {}),
   });
   // Validate limits before the index watcher starts, so a bad value leaks nothing.
   const limits = loadNodeLimits();

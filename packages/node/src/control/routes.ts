@@ -4,6 +4,7 @@ import type { ReplyBody, NewSessionBody, DecisionBody } from '@c9view/api';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import type { ControlService } from './service.js';
 import { ControlError } from './errors.js';
+import { readCommand } from './http.js';
 const command = { clientRequestId: z.uuid() };
 const mode = z.enum(['default', 'acceptEdits', 'plan']);
 export function controlRoutes(
@@ -85,51 +86,11 @@ export function controlRoutes(
     ) => Promise<unknown>,
   ) {
     app.post(path, async (c) => {
-      const boot = c.req.header('x-c9view-boot-id');
-      if (!boot || !z.uuid().safeParse(boot).success)
-        throw new ControlError(403, 'Missing or invalid boot identity');
-      const reader = c.req.raw.body?.getReader();
-      const chunks: Uint8Array[] = [];
-      let size = 0;
-      if (reader)
-        try {
-          for (;;) {
-            const chunk = await reader.read();
-            if (chunk.done) break;
-            size += chunk.value.byteLength;
-            if (size > bodyMaxBytes) {
-              await reader.cancel();
-              throw new ControlError(413, 'Request body too large');
-            }
-            chunks.push(chunk.value);
-          }
-        } finally {
-          reader.releaseLock();
-        }
-      const bytes = new Uint8Array(size);
-      let offset = 0;
-      for (const chunk of chunks) {
-        bytes.set(chunk, offset);
-        offset += chunk.byteLength;
-      }
-      let value: unknown;
-      try {
-        value = JSON.parse(new TextDecoder().decode(bytes));
-      } catch {
-        throw new ControlError(400, 'Invalid JSON body');
-      }
-      if (
-        value &&
-        typeof value === 'object' &&
-        (('permissionMode' in value &&
-          value.permissionMode === 'bypassPermissions') ||
-          ('mode' in value && value.mode === 'bypassPermissions'))
-      )
-        throw new ControlError(
-          400,
-          'Browser cannot request bypass',
-          'bypass-not-allowed',
-        );
+      const { boot, value } = await readCommand(
+        c.req.raw,
+        bodyMaxBytes,
+        c.req.header('x-c9view-boot-id'),
+      );
       // All bodies reject unknown fields, including ambiguous decision shapes.
       if (
         path === '/control/requests/:requestId' &&

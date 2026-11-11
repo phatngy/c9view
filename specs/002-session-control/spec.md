@@ -273,6 +273,7 @@ On a machine the owner fully trusts (for example a sandbox), the owner starts it
 - No default workspace roots: "New project" stays hidden until the owner sets roots (open question 9).
 - "Initialize git" defaults on (open question 10).
 - Trust is recorded by c9view only, never in Claude Code's file (open question 11).
+- Renaming a session inside Claude Code is not supported: the spike found only `renameSession()`, which writes a `custom-title` entry into the transcript from c9view's process, and c9view does not write Claude data. Names are set only when a session starts (FR-010, FR-024); later naming is a c9view label.
 - A spike in the first PR answers: resume file behaviour, whether SDK runs write session files and with which entry point, whether installed hooks fire, what bypass needs and whether questions reach the card under bypass, how names are set and stored and whether rename is possible, and how project folder names are derived (list in notes); answers go to `docs/data-sources.md`.
 - Depends on 001-multi-machine PRs 6.0a and 6.0b (component split and machine-scoped API); 001's 6.0c may run in parallel with the first PR here and merges before the second.
 - Non-goals: driving a terminal-started process; Docker for control; "always allow", editing tool input, plan approval UI, model choice; token streaming and image attachments; keeping runs across restarts; editing configs (separate item); deleting, moving or renaming projects or deleting sessions; clones with submodules, LFS or a non-default branch; picking folders outside the roots.

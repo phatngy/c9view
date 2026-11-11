@@ -1,4 +1,6 @@
 import { useControl } from '../control/useControl.js';
+import { useLabels } from '../control/useLabels.js';
+import { SessionTitle } from '../control/SessionLabel.js';
 import { BypassBadge, DrivenBadge } from '../control/cards.js';
 import { useMachineId } from '../machine.js';
 import { useState } from 'react';
@@ -18,6 +20,7 @@ export function Kanban({
 }) {
   const machineId = useMachineId();
   const control = useControl();
+  const { labelFor } = useLabels();
   const [inactiveLimit, setInactiveLimit] = useState(30);
   return (
     <div className="project-board">
@@ -47,7 +50,12 @@ export function Kanban({
               >
                 <div className="flex items-start justify-between gap-2">
                   <h3 className="line-clamp-2 font-medium">
-                    {session.title || 'Untitled session'}
+                    <SessionTitle
+                      projectId={projectId}
+                      sessionId={session.id}
+                      title={session.title}
+                      label={labelFor(projectId, session.id)}
+                    />
                   </h3>
                   <time
                     className="shrink-0 text-xs text-muted"
