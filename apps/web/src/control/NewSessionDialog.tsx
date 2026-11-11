@@ -12,6 +12,7 @@ import { BypassBadge } from './BypassBadge.js';
 import { useControl } from './useControl.js';
 
 const LIMIT = 20_000;
+const RECEIPT_WAIT_LIMIT = 120_000;
 const modes = [
   { value: 'default', label: 'Default' },
   { value: 'acceptEdits', label: 'Accept edits' },
@@ -48,6 +49,7 @@ export function NewSessionDialog({
     mode: 'default' as PermissionMode,
   });
   const poll = useRef(0);
+  const waitingSince = useRef(0);
   const receipt = useQuery({
     queryKey: queryKeys.controlReceipt(machineId, waitingId),
     queryFn: ({ signal }) => control.service.receipt(waitingId, signal),
@@ -56,26 +58,39 @@ export function NewSessionDialog({
     refetchInterval: (query) =>
       query.state.error instanceof HttpError && query.state.error.status === 404
         ? false
-        : Math.min(1000 * 2 ** Math.max(0, poll.current++), 10_000),
+        : Date.now() - waitingSince.current >= RECEIPT_WAIT_LIMIT
+          ? false
+          : Math.min(1000 * 2 ** Math.max(0, poll.current++), 5000),
   });
 
+  /* eslint-disable react-hooks/set-state-in-effect -- Reset the draft and receipt tracking when the controlled dialog closes or reopens. */
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      setWaitingId('');
+      setWaitingOperation('start');
+      waitingSince.current = 0;
+      poll.current = 0;
+      return;
+    }
     // Reset the controlled dialog draft each time it opens.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setText('');
     setName('');
     setMode('default');
     setNotice('');
     setTrust(undefined);
+    setWaitingId('');
+    setWaitingOperation('start');
     poll.current = 0;
+    waitingSince.current = 0;
   }, [open]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   function goToSession(sessionId: string) {
     onOpenChange(false);
     void navigate({
       to: '/m/$machineId/projects/$projectId/sessions/$sessionId',
       params: { machineId, projectId, sessionId },
+      search: { newSession: true },
     });
   }
 
@@ -108,6 +123,7 @@ export function NewSessionDialog({
         setNotice('This may have been sent. Checking its receipt…');
         setWaitingOperation('start');
         setWaitingId(error.clientRequestId);
+        waitingSince.current = Date.now();
       } else {
         if (error instanceof ControlError && error.reason === 'unknown-outcome')
           setNotice(unknownOutcome);
@@ -143,6 +159,7 @@ export function NewSessionDialog({
         setNotice('Trust may have been sent. Checking its receipt…');
         setWaitingOperation('trust');
         setWaitingId(error.clientRequestId);
+        waitingSince.current = Date.now();
       } else
         setNotice(error instanceof Error ? error.message : 'Request failed.');
     } finally {
@@ -152,7 +169,7 @@ export function NewSessionDialog({
 
   /* eslint-disable react-hooks/set-state-in-effect -- Synchronize an uncertain command with the external receipt query. */
   useEffect(() => {
-    if (!waitingId) return;
+    if (!open || !waitingId) return;
     if (receipt.data) {
       const value = receipt.data;
       if (value.status === 'failed') {
@@ -173,7 +190,20 @@ export function NewSessionDialog({
     }
     // Receipt lookup is the only recovery after a possibly committed POST.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [receipt.data, receipt.error, waitingId, waitingOperation]);
+  }, [open, receipt.data, receipt.error, waitingId, waitingOperation]);
+  useEffect(() => {
+    if (!open || !waitingId) return;
+    const timer = window.setTimeout(
+      () => {
+        setNotice(
+          'This may have been sent. Check the session before sending again.',
+        );
+        setWaitingId('');
+      },
+      Math.max(0, RECEIPT_WAIT_LIMIT - (Date.now() - waitingSince.current)),
+    );
+    return () => window.clearTimeout(timer);
+  }, [open, waitingId]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   return (
