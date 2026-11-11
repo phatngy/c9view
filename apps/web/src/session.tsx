@@ -10,7 +10,7 @@ import {
   useState,
 } from 'react';
 import { useBreadcrumbs } from './shell/breadcrumbs.js';
-import { useProject, useSession, useSessionPoll } from './api.js';
+import { HttpError, useProject, useSession, useSessionPoll } from './api.js';
 import { SessionChanges } from './files/SessionChanges.js';
 import { Failure, Loading } from './ui.js';
 import { Conversation } from './session/Conversation.js';
@@ -411,9 +411,28 @@ function SessionView({
     window.addEventListener('scroll', update, true);
     return () => window.removeEventListener('scroll', update, true);
   }, []);
-  if (error && !pages) return <Failure error={error} retry={query.refetch} />;
+  if (error && !pages) {
+    if (
+      (control.ready || !control.machine) &&
+      error instanceof HttpError &&
+      error.status === 404
+    )
+      return (
+        <p className="p-6 text-sm text-muted" role="status">
+          Starting…
+        </p>
+      );
+    return <Failure error={error} retry={query.refetch} />;
+  }
   const data = pages?.pages.at(-1);
-  if (!data) return <Loading />;
+  if (!data)
+    return control.ready ? (
+      <p className="p-6 text-sm text-muted" role="status">
+        Starting…
+      </p>
+    ) : (
+      <Loading />
+    );
   const sidebar = (
     <>
       <div hidden={narrow && mobileTab !== 'outline'}>

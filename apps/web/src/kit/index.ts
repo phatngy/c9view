@@ -14,3 +14,4 @@ export * from './Skeleton.js';
 export * from './Kbd.js';
 export * from './Popover.js';
 export * from './ConfirmDialog.js';
+export * from './Dialog.js';

@@ -3,6 +3,7 @@ import type {
   CommandReceipt,
   ControlRuns,
   DecisionBody,
+  NewSessionBody,
   PermissionMode,
 } from '@c9view/api';
 import { get, machinePath } from '../api.js';
@@ -202,6 +203,10 @@ export function controlApi(machineId: string, bootId: string) {
         text,
         ...(fork ? { fork: true } : {}),
       }),
+    newSession: (
+      projectId: string,
+      body: Omit<NewSessionBody, 'clientRequestId'>,
+    ) => post(`/projects/${encodeURIComponent(projectId)}/sessions`, body),
     decide: (
       requestId: string,
       decision: Omit<DecisionBody, 'clientRequestId'>,
