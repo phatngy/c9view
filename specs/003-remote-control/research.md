@@ -162,4 +162,4 @@ Each is a short run on Linux with real Claude Code (Haiku), recorded in `docs/da
 | 9 | macOS: socket folder, `procStart` format, token optional | later (macOS support) | Open |
 | 10 | Every Claude Code upgrade: one idle send and one record check | ongoing (R1) | Ongoing |
 
-_(Updated 2026-11-16: Claude Code 2.1.323 is installed; the spike verified only 2.1.318. Items 1–8 need a re-spike on 2.1.323 before 003-b merges (tasks T017). The minimum stays 2.1.318.)_
+_(Updated 2026-11-16: items 1–8 and 10 re-spiked on Claude Code 2.1.325 and all pass with no plan change ([Re-spike (2026-11-16)](spike.md#re-spike-2026-11-16)). The minimum stays 2.1.318; 003-0 records "verified also on 2.1.325" in `docs/data-sources.md`. New: `bridgeSessionId` in the status file (unused); `claude -p` sessions accept frames, so the `entrypoint === "cli"` gate is required; the size cap is between 1,048,191 and 1,100,191 bytes, above `FRAME_MAX_BYTES` (131,072); stale files after a kill may vanish at any time.)_
