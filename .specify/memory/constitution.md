@@ -1,3 +1,16 @@
+<!--
+Sync Impact Report
+Version change: 1.0.0 -> 1.1.0 (MINOR: materially expanded guidance in Principle I)
+Modified principles: I. Never Change Claude Data or Projects (new exception bullet for delivering a
+  message to a live session's cross-session messaging socket; the sentence on what Claude Code
+  processes write now also covers live sessions that receive a delivered message). Title unchanged.
+Added sections: none
+Removed sections: none
+Templates checked: .specify/templates/* unchanged (they read the constitution at runtime).
+Dependent docs updated in the same PR: AGENTS.md, docs/data-sources.md.
+Follow-up TODOs: none
+-->
+
 # c9view Constitution
 
 ## Core Principles
@@ -19,9 +32,17 @@ project working folder, with exactly these exceptions:
 - With session control on, creating a project folder, `git init` and `git clone`, only under the
   configured workspace roots, only on an explicit request, and never auto-trusted. They MUST use
   their own hardened git runner, separate from `createGit`.
+- With session control on, delivering a message the owner sends to a live interactive Claude Code
+  session of the same OS user on the same machine, through the cross-session messaging socket named
+  in that session's live status file (`sessions/<pid>.json`). c9view MUST check before every
+  delivery that the socket belongs to that live process and user, MUST NOT store the socket path,
+  open `*.key` files, or keep, parse into a field, log, store or return a `peerToken` that appears
+  in a status file, and MUST NOT create, change or remove any socket or file; it MUST write only the
+  message to the socket.
 
 Nothing else under `~/.claude` or in a project folder is written by c9view; the Claude Code processes
-it starts with control on write their own data, in `~/.claude` and in the project folder they run in. `~/.claude.json` is read-only. All other git access MUST be read-only and go
+it starts with control on, and live sessions that receive a message c9view delivers, write their own
+data, in `~/.claude` and in the project folder they run in. `~/.claude.json` is read-only. All other git access MUST be read-only and go
 through `createGit` in `packages/core/src/git/`: `--no-optional-locks`, `GIT_OPTIONAL_LOCKS=0`,
 `execFile` with no shell, a timeout, repository-configured hooks, fsmonitor, filter drivers,
 external diff and credential or network commands disabled, and a whitelisted environment with no
@@ -145,4 +166,4 @@ or redefining a principle, MINOR for a new principle or materially expanded guid
 wording. Every plan runs the Constitution Check, and every PR review checks the change against these
 principles.
 
-**Version**: 1.0.0 | **Ratified**: 2026-11-04 | **Last Amended**: 2026-11-04
+**Version**: 1.1.0 | **Ratified**: 2026-11-04 | **Last Amended**: 2026-11-16
