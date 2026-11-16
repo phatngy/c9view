@@ -7,6 +7,7 @@ One folder per feature, `NNN-feature/`, created by [Spec Kit](https://github.com
 | [000-baseline](000-baseline/spec.md)               | Shipped   |
 | [001-multi-machine](001-multi-machine/spec.md)     | Specified |
 | [002-session-control](002-session-control/spec.md) | Specified |
+| [003-remote-control](003-remote-control/spec.md)   | Specified |
 
 `000-baseline` is the as-built record of everything c9view shipped before later features were planned with Spec Kit. Its open tasks are the known follow-ups.
 
@@ -24,6 +25,7 @@ One folder per feature, `NNN-feature/`, created by [Spec Kit](https://github.com
 | 5       | [000-baseline](000-baseline/spec.md)               | Shipped   | CLI, Docker and Compose, optional login, tunnel setup guide.                                                 |
 | 6.0     | [001-multi-machine](001-multi-machine/spec.md)     | Specified | Split into web UI, hub and node; machine-scoped API and web; response budgets; unified c9view state folder.  |
 | 6       | [002-session-control](002-session-control/spec.md) | Specified | Opt-in session control through the Agent SDK, including replies, approvals, questions and starting sessions. |
+| 6b      | [003-remote-control](003-remote-control/spec.md)   | Specified | Send a message into a session live in a terminal through cross-session messaging; remove "Fork and reply".   |
 | 7       | [001-multi-machine](001-multi-machine/spec.md)     | Specified | Hub and node modes, pairing and one dashboard across machines.                                               |
 | Planned | —                                                  | Planned   | Edit configs from the web.                                                                                   |
 | Planned | —                                                  | Planned   | Codex support through the data-source layer.                                                                 |
