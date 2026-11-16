@@ -100,7 +100,11 @@ export async function resolveLocation(
   for (const folder of forbidden)
     if (overlaps(await canonical(folder), path)) throw outside();
   if (projectIdFor(path).length > MAX_PROJECT_ID)
-    throw new ControlError(400, 'Location path is too long');
+    throw new ControlError(
+      400,
+      `That location is too long: Claude Code hashes project folder names over ${MAX_PROJECT_ID} characters, so c9view cannot find the sessions. Pick a shorter path.`,
+      'path-too-long',
+    );
   const firstMissing = missing[0] ? join(base, missing[0]) : undefined;
   return {
     path,

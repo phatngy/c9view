@@ -26,7 +26,16 @@ interface Options {
 }
 
 function transcript(options: Options, sessionId: string) {
-  const directory = process.env.C9VIEW_E2E_FAKE_PROJECT_DIR!;
+  // Sessions started in a folder under the workspace root (New project) land in
+  // that folder's own project directory, named as Claude Code names it.
+  const root = process.env.C9VIEW_E2E_FAKE_WORKSPACE_ROOT;
+  const directory =
+    root && options.cwd.startsWith(`${root}/`)
+      ? join(
+          process.env.C9VIEW_E2E_FAKE_PROJECTS_DIR!,
+          options.cwd.replace(/[^A-Za-z0-9]/g, '-'),
+        )
+      : process.env.C9VIEW_E2E_FAKE_PROJECT_DIR!;
   mkdirSync(directory, { recursive: true });
   const file = join(directory, `${sessionId}.jsonl`);
   const write = (line: object) =>

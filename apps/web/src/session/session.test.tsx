@@ -1335,7 +1335,7 @@ describe('session navigation', () => {
     expect(build).toHaveBeenCalledTimes(calls);
     // Rendering 2,000 messages in jsdom takes ~2 s locally, over the 5 s
     // default on slow CI runners; the assertion is about memoization.
-  }, 20_000);
+  }, 30_000);
   it('caps tool input summaries without serializing or visiting the whole input', () => {
     const unread = vi.fn(() => {
       throw new Error('Unbounded traversal');

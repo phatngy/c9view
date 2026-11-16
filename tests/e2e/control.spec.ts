@@ -71,3 +71,54 @@ test('New session from the project header starts a run and opens its transcript'
   ).toBeVisible();
   await expect(composer(page)).toBeVisible();
 });
+
+test('New project: pick a location, trust the folder, start the first run', async ({
+  page,
+}) => {
+  await page.goto('/m/local');
+  await page.getByRole('button', { name: 'New project', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'New project' });
+  await dialog.getByRole('button', { name: 'Browse…' }).click();
+  const picker = dialog.getByRole('region', { name: 'Folder picker' });
+  await picker.getByRole('button', { name: 'e2e-workspace' }).click();
+  await picker.getByRole('button', { name: 'fresh-app' }).click();
+  await expect(dialog.getByLabel('Location')).toHaveValue(
+    /e2e-workspace\/fresh-app$/,
+  );
+  await dialog.getByLabel('First prompt').fill('Hello from a new project');
+  await dialog.getByRole('button', { name: 'Create and start' }).click();
+  // The folder is new to Claude Code, so the trust step comes first.
+  const trust = dialog.getByRole('region', { name: 'Folder trust required' });
+  await expect(trust).toBeVisible();
+  await expect(trust).toContainText('fresh-app');
+  await trust.getByRole('button', { name: 'Trust this folder' }).click();
+  await expect(page).toHaveURL(/\/projects\/[^/]+\/sessions\/[0-9a-f-]{36}/);
+  await expect(
+    page.getByText('Synthetic reply to: Hello from a new project').first(),
+  ).toBeVisible();
+});
+
+test('A session label is edited, shown in place of the title and removed', async ({
+  page,
+}) => {
+  await page.goto(controlSessionPath('reply'));
+  await page.getByRole('button', { name: 'Add label' }).click();
+  const form = page.getByRole('form', { name: 'Session label' });
+  await form.getByLabel('c9view label').fill('Synthetic label');
+  await form.getByRole('button', { name: 'Save' }).click();
+  await expect(form).toHaveCount(0);
+  await expect(
+    page.getByRole('heading', { level: 1, name: /Synthetic label/ }),
+  ).toBeVisible();
+  await page.reload();
+  await expect(
+    page.getByRole('heading', { level: 1, name: /Synthetic label/ }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Edit label' }).click();
+  const again = page.getByRole('form', { name: 'Session label' });
+  await again.getByLabel('c9view label').fill('');
+  await again.getByRole('button', { name: 'Save' }).click();
+  await expect(
+    page.getByRole('heading', { level: 1, name: /Synthetic label/ }),
+  ).toHaveCount(0);
+});

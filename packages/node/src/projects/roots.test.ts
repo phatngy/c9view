@@ -105,7 +105,11 @@ it('refuses locations whose project ID would be hashed by Claude Code (> 200 cha
   const { root } = await setup();
   await expect(
     resolveLocation([root], join(root, 'a'.repeat(210))),
-  ).rejects.toMatchObject({ status: 400 });
+  ).rejects.toMatchObject({
+    status: 400,
+    reason: 'path-too-long',
+    message: expect.stringContaining('hashes project folder names'),
+  });
 });
 it('M4 refuses locations inside or containing Claude data or the state folder', async () => {
   const { base, root } = await setup();

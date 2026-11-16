@@ -28,6 +28,7 @@ import {
   TrustCard,
 } from './cards.js';
 import { RunBar } from './RunBar.js';
+import { currentRun } from './runState.js';
 
 type Waiting = {
   id: string;
@@ -108,9 +109,7 @@ export function Composer({
         (run) => run.projectId === projectId && run.sessionId === sessionId,
       ) ?? [])
     : [];
-  const run =
-    runs.find((item) => !['ended', 'failed'].includes(item.state)) ??
-    runs.at(-1);
+  const run = currentRun(runs, projectId, sessionId);
   const requests = control.ready
     ? (control.data?.requests.filter(
         (request) =>

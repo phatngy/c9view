@@ -248,3 +248,13 @@ it('after a confirmed Stop the reply box is enabled and focused', async () => {
   await waitFor(() => expect(box()).toHaveFocus());
   expect(box()).toBeEnabled();
 });
+it('T107 follows the latest active run, as currentRun defines it', async () => {
+  const first = run('idle').runs[0]!;
+  mount({
+    runs: [first, { ...first, runId: 'r2', state: 'running' }],
+    requests: [],
+  } as ControlRuns);
+  expect(
+    await screen.findByRole('button', { name: 'Stop response' }),
+  ).toBeInTheDocument();
+});

@@ -41,6 +41,9 @@ import { browse } from '../projects/browse.js';
 import { realRoots } from '../projects/roots.js';
 import { assertStateLocation, FolderTrust } from './trust.js';
 import { ControlError } from './errors.js';
+/** Clones that may run at once on one node; more answer 429 `clone-cap`. */
+const MAX_CONCURRENT_CLONES = 3;
+
 export interface ControlService {
   readonly claudeCodeVersion?: string;
   readonly capability: ControlCapability;
@@ -134,6 +137,7 @@ export function createControlService(
   // folders the trust step accepts, since they have no transcript yet.
   const opened = new Set<string>();
   const cloning = new AbortController();
+  let activeClones = 0;
   const receipts = new Receipts(
     bootId,
     config.receiptMin * 60000,
@@ -443,11 +447,23 @@ export function createControlService(
         const url =
           body.gitUrl !== undefined ? parseGitUrl(body.gitUrl) : undefined;
         if (url) {
-          const plan = await planClone(
-            store.config.workspaceRoots,
-            body.location,
-            [store.config.claudeDir, stateDir],
-          );
+          if (activeClones >= MAX_CONCURRENT_CLONES)
+            throw new ControlError(
+              429,
+              'Too many clones are running; wait for one to finish',
+              'clone-cap',
+            );
+          activeClones += 1;
+          let plan;
+          try {
+            plan = await planClone(store.config.workspaceRoots, body.location, [
+              store.config.claudeDir,
+              stateDir,
+            ]);
+          } catch (error) {
+            activeClones -= 1;
+            throw error;
+          }
           const id = body.clientRequestId;
           // Run after the receipt is installed so its status can be patched.
           setImmediate(() => {
@@ -466,9 +482,10 @@ export function createControlService(
                         : 'git clone failed',
                   }),
               )
-              .finally(() =>
-                emit({ type: 'control.project', clientRequestId: id }),
-              );
+              .finally(() => {
+                activeClones -= 1;
+                emit({ type: 'control.project', clientRequestId: id });
+              });
           });
           return { status: 'cloning' as const, projectId: plan.projectId };
         }

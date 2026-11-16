@@ -36,7 +36,7 @@ describe('package import boundaries', () => {
         (message) => message.ruleId === 'no-restricted-imports',
       ),
     ).toHaveLength(0);
-  });
+  }, 30_000);
 
   it('rejects hub imports outside the @c9view/node package entry', async () => {
     const eslint = new ESLint({ cwd: repoRoot, ignore: false });

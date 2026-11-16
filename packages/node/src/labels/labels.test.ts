@@ -2,6 +2,7 @@ import { afterEach, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { readdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
+import { normalizeLabel } from './labels.js';
 import { createNodeApp } from '../app.js';
 import { openControlState } from '../control/state.js';
 import { createNode } from '../runtime.js';
@@ -94,4 +95,32 @@ it('rejects Unicode control and format characters in labels', async () => {
   } as unknown as NodeRuntime);
   for (const bad of ['a‮b', 'a​b', 'a b', 'a\u0085b'])
     expect((await label(a, t.bootId, bad)).status).toBe(400);
+});
+
+it('T109 refuses bidi controls and invisible format characters', () => {
+  for (const bad of [
+    '\u202Ea',
+    'a\u202C',
+    '\u2066a',
+    'a\u2069',
+    'a\u200E',
+    'a\u200F',
+    'a\u061C',
+    'a\u200Bb',
+    'a\uFEFFb',
+    'a\u2060b',
+    'a\u2028b',
+    'a\nb',
+  ])
+    expect(() => normalizeLabel(bad), JSON.stringify(bad)).toThrow(
+      /Invalid label/,
+    );
+});
+it('T109 allows emoji with ZWJ and variation selectors', () => {
+  for (const good of [
+    '\u{1F469}\u200D\u{1F4BB}',
+    '\u2764\uFE0F',
+    'a\u{E0100}b',
+  ])
+    expect(normalizeLabel(good)).toBe(good);
 });
