@@ -53,7 +53,10 @@ test('budgeted session pages preserve message order and show partial content', a
     if (url.pathname === sessionAPI) sessionRequests.push(url);
   });
   await page.goto(projectPath);
-  await page.getByRole('link', { name: /Sample widget/ }).click();
+  await page
+    .getByRole('main')
+    .getByRole('link', { name: /Sample widget/ })
+    .click();
   await expect(page).toHaveURL(sessionPath);
   const conversation = page.getByLabel('Conversation messages', {
     exact: true,
