@@ -124,3 +124,28 @@ it('T109 allows emoji with ZWJ and variation selectors', () => {
   ])
     expect(normalizeLabel(good)).toBe(good);
 });
+it('T109 allows ZWNJ and tag characters such as the England flag', () => {
+  const england =
+    '\u{1F3F4}\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}';
+  for (const good of [england, 'a\u200Cb'])
+    expect(normalizeLabel(good)).toBe(good);
+});
+it('T109 refuses a label with no visible character', () => {
+  for (const bad of [
+    '\u200D',
+    '\u200C\u200D',
+    '\uFE0F',
+    '\u{E0100}',
+    '\u{E0067}\u{E007F}',
+    '\u034F',
+    '\u115F',
+    '\u1160',
+    '\u3164',
+    '\uFFA0',
+    ' \u3164 \u200D ',
+  ])
+    expect(() => normalizeLabel(bad), JSON.stringify(bad)).toThrow(
+      /Invalid label/,
+    );
+  expect(normalizeLabel('  ')).toBe('');
+});

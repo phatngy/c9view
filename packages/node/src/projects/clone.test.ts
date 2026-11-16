@@ -115,7 +115,7 @@ it('T065 a failed clone is redacted, reported and removes what it created', asyn
   );
   await expect(stat(join(t.work, 'q'))).rejects.toThrow();
 });
-it('T108 caps concurrent clones, answers 429 and frees the slot on success, failure and cancel', async () => {
+it('T108 caps concurrent clones, answers 429 and frees the slot on success and failure', async () => {
   const gates: (() => void)[] = [];
   const fails: boolean[] = [];
   const git: GitWriter = {
@@ -169,5 +169,67 @@ it('T108 caps concurrent clones, answers 429 and frees the slot on success, fail
   await g.result;
   await waitFor(() => expect(gates).toHaveLength(5));
   await expect(start('h').result).rejects.toMatchObject({ status: 429 });
-  // Shutdown aborts the remaining clones; they release through the same path.
+});
+it('T108 an invalid location at the cap answers 400, and a failed plan frees nothing it did not take', async () => {
+  const git: GitWriter = {
+    clone: () => new Promise<void>(() => undefined),
+    init: async () => undefined,
+  };
+  const t = await setupControl({}, { roots: true, git });
+  cleanups.push(t.close);
+  const clone = (location: string) =>
+    t.service.createProject(
+      body({ location, gitUrl: 'https://h.example/o/r.git' }) as never,
+      t.bootId,
+    );
+  await mkdir(join(t.work, 'full'));
+  await writeFile(join(t.work, 'full/f'), 'x');
+  // planClone throwing (not empty) never consumes a slot.
+  for (let i = 0; i < 5; i++)
+    await expect(clone(join(t.work, 'full'))).rejects.toMatchObject({
+      reason: 'not-empty',
+    });
+  for (const name of ['a', 'b', 'c']) await clone(join(t.work, name));
+  await expect(clone(join(t.work, 'd'))).rejects.toMatchObject({
+    status: 429,
+  });
+  // The refused clone released its claim on the location.
+  await expect(clone(join(t.work, 'd'))).rejects.toMatchObject({
+    status: 429,
+  });
+  await expect(clone('/definitely/outside')).rejects.toMatchObject({
+    status: 400,
+    reason: 'outside-roots',
+  });
+  await expect(clone(join(t.work, 'full'))).rejects.toMatchObject({
+    status: 400,
+    reason: 'not-empty',
+  });
+});
+it('T108 cancelling clones (shutdown) settles them and releases their locations', async () => {
+  let started = false;
+  const git: GitWriter = {
+    clone: (_url, _dir, signal) =>
+      new Promise<void>((_resolve, reject) => {
+        started = true;
+        signal?.addEventListener('abort', () => reject(new Error('aborted')));
+      }),
+    init: async () => undefined,
+  };
+  const t = await setupControl({}, { roots: true, git });
+  cleanups.push(t.close);
+  const request = body({
+    location: join(t.work, 'p'),
+    gitUrl: 'https://h.example/o/r.git',
+  });
+  await t.service.createProject(request as never, t.bootId);
+  const { claimLocation } = await import('./inflight.js');
+  const real = join(
+    await import('node:fs/promises').then((m) => m.realpath(t.work)),
+    'p',
+  );
+  expect(() => claimLocation(real)).toThrow(/already using/);
+  await waitFor(() => expect(started).toBe(true));
+  await t.close();
+  await waitFor(() => expect(() => claimLocation(real)()).not.toThrow());
 });
