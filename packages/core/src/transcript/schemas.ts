@@ -105,10 +105,34 @@ const envelope = {
   promptId: z.string().optional(),
 };
 
+// Peer (cross-session) origin. Every field is optional and tolerant: a field
+// of an unexpected type reads as absent, never as an error.
+const lenient = <T extends z.ZodTypeAny>(schema: T) =>
+  schema.optional().catch(undefined);
+export const originSchema = z
+  .object({
+    kind: lenient(z.string()),
+    from: lenient(z.string()),
+    name: lenient(z.string()),
+    msg_id: lenient(z.string()),
+    verifiedPeerPid: lenient(z.number()),
+    verifiedPeerProcStart: lenient(z.string()),
+    body: lenient(z.string()),
+  })
+  .passthrough();
+export const queuedCommandAttachmentSchema = z
+  .object({
+    type: z.literal('queued_command'),
+    prompt: lenient(z.string()),
+    origin: lenient(originSchema),
+  })
+  .passthrough();
+
 export const userRecordSchema = z
   .object({
     ...envelope,
     type: z.literal('user'),
+    origin: lenient(originSchema),
     message: z
       .object({
         role: z.literal('user').optional(),
@@ -154,12 +178,20 @@ export const systemRecordSchema = z
     toolUseID: z.string().optional(),
   })
   .passthrough();
+export const attachmentRecordSchema = z
+  .object({
+    ...envelope,
+    type: z.literal('attachment'),
+    attachment: z.object({ type: z.string() }).passthrough(),
+  })
+  .passthrough();
 export const knownTranscriptRecordSchema = z.discriminatedUnion('type', [
   userRecordSchema,
   assistantRecordSchema,
   aiTitleRecordSchema,
   permissionModeRecordSchema,
   systemRecordSchema,
+  attachmentRecordSchema,
 ]);
 export const genericRecordSchema = z.object({ type: z.string() }).passthrough();
 export const transcriptRecordSchema = z.union([
@@ -171,6 +203,7 @@ export type GenericTranscriptRecord = z.infer<typeof genericRecordSchema>;
 // The open string fallback overlaps known discriminants; use the guards below
 // when narrowing records that may have unrecognized or invalid known shapes.
 export type TranscriptRecord = KnownTranscriptRecord | GenericTranscriptRecord;
+export type PeerOrigin = z.infer<typeof originSchema>;
 export type UserRecord = z.infer<typeof userRecordSchema>;
 export type AssistantRecord = z.infer<typeof assistantRecordSchema>;
 export type RawTokenUsage = z.infer<typeof usageSchema>;

@@ -3,11 +3,13 @@ import {
   extractUsage,
   isAssistantRecord,
   isUserRecord,
+  readPeerMessage,
   redactText,
   redactValue,
   type TranscriptRecord,
 } from '@c9view/core';
 import { redacted, redactStrings } from './redaction.js';
+import { selfIdentity, type ProcIdentity } from '../remote/proc.js';
 import type { Message, MessageBlock, TokenTotals } from '@c9view/api';
 
 export function tokens(value: TokenTotals): TokenTotals {
@@ -79,19 +81,27 @@ function block(value: Record<string, unknown>): MessageBlock | null {
       return null;
   }
 }
-export function messages(records: TranscriptRecord[]): Message[] {
+export function messages(
+  records: TranscriptRecord[],
+  self: ProcIdentity | null = selfIdentity(),
+): Message[] {
   const result: Message[] = [];
   const changes = inlineChanges(records);
   for (const [index, record] of records.entries()) {
     const assistant = isAssistantRecord(record);
     const user = isUserRecord(record);
-    if (!assistant && !user && record.type !== 'system') continue;
+    const peer = assistant ? null : readPeerMessage(record);
+    if (!assistant && !user && !peer && record.type !== 'system') continue;
+    // A queued peer record with no usable text has nothing to show.
+    if (peer && !user && peer.text == null) continue;
     const content =
-      assistant || user
-        ? record.message.content
-        : typeof record.content === 'string'
-          ? record.content
-          : '';
+      peer?.text != null
+        ? peer.text
+        : assistant || user
+          ? record.message.content
+          : typeof record.content === 'string'
+            ? record.content
+            : '';
     const blocks =
       typeof content === 'string'
         ? [{ type: 'text' as const, text: capped(content) }]
@@ -104,7 +114,7 @@ export function messages(records: TranscriptRecord[]): Message[] {
     }
     result.push({
       uuid: typeof record.uuid === 'string' ? record.uuid : `record-${index}`,
-      role: assistant ? 'assistant' : user ? 'user' : 'system',
+      role: assistant ? 'assistant' : user || peer ? 'user' : 'system',
       timestamp:
         typeof record.timestamp === 'string' &&
         Number.isFinite(Date.parse(record.timestamp))
@@ -118,6 +128,15 @@ export function messages(records: TranscriptRecord[]): Message[] {
         assistant && record.message.usage
           ? tokens(extractUsage(record.message.usage))
           : null,
+      ...(peer && {
+        sentFrom: peer.fromC9view ? ('c9view' as const) : ('peer' as const),
+        ...(peer.fromC9view && {
+          sentFromVerified:
+            self !== null &&
+            peer.verifiedPeerPid === self.pid &&
+            peer.verifiedPeerProcStart === self.procStart,
+        }),
+      }),
     });
   }
   return result.map((message) => redacted(redactStrings(message)));
