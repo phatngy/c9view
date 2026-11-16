@@ -53,6 +53,14 @@ Records link to each other through `uuid` / `parentUuid`; `isSidechain` marks su
   "kind": "interactive",
   "entrypoint": "cli",
   "version": "2.1.310",
+  "procStart": "19950454",
+  "peerProtocol": 1,
+  "peerFeatures": [
+    "notify_idle",
+    "reply_across_default_dirs",
+    "artifact_yield"
+  ],
+  "messagingSocketPath": "/run/user/<uid>/cc-socks/<pid>.sock",
   "name": "repo-fb",
   "status": "idle",
   "updatedAt": 1792836278902,
@@ -62,9 +70,27 @@ Records link to each other through `uuid` / `parentUuid`; `isSidechain` marks su
 }
 ```
 
-`status` seen as `busy` and `idle`. `pidDomain` tells whether the PID belongs to the same PID namespace (matters inside Docker). Sessions started through the Agent SDK write the same file with `entrypoint: "sdk-cli"`.
+`status` seen as `busy`, `idle` and `waiting` (with a `waitingFor` text such as `dialog open`). The messaging fields (`procStart`, `peerProtocol`, `peerFeatures`, `messagingSocketPath`) appear from Claude Code 2.1.318; Claude Code 2.1.325 also writes `bridgeSessionId` for interactive sessions, which c9view does not use. `pidDomain` tells whether the PID belongs to the same PID namespace (matters inside Docker). Sessions started through the Agent SDK write the same file with `entrypoint: "sdk-cli"`.
 
-The same folder also holds `<pid>.<hash>.key` files with a `peerToken` for cross-session messaging. They are secrets: c9view reads only `sessions/*.json` and never lists, reads or logs `*.key` files.
+The same folder also holds `<pid>.<hash>.key` files with a `peerToken` for cross-session messaging, and a `peerToken` may also appear in some `sessions/<pid>.json` files (none was seen on 2.1.318 or 2.1.325). They are secrets: c9view reads only `sessions/*.json` and never lists, opens or logs `*.key` files. Its discovery parser picks fields explicitly, so a `peerToken` in a status file is dropped at parse time and never kept, logged, stored or returned.
+
+003 reads `messagingSocketPath`, `version`, `peerProtocol`, `pid`, `procStart` and `kind` to send a message into a live session; the path is never stored or logged. After a crash the socket and JSON files can stay behind, and they can also vanish at any time, so c9view checks the process before every send.
+
+## Cross-session messaging (003)
+
+Checked on Linux with Claude Code 2.1.318 on 2026-11-05, and again on 2.1.325 on 2026-11-16 (003 [spike](../specs/003-remote-control/spike.md)). The minimum supported version is 2.1.318. Linux only: macOS (socket folder, process start time) and the `bg` and `daemon` kinds were not tested, so sending is unavailable there.
+
+- **Socket**: `messagingSocketPath` in the live status file, a plain path such as `/run/user/<uid>/cc-socks/<pid>.sock`, mode 0600. No token is needed on Linux, and c9view sends no auth line.
+- **Frame**: one JSON line ending in `\n`: `{"msgV":1,"msg_id":"<uuid>","type":"user","message":{"role":"user","content":"<wrapper>"},"priority":"next","from":"uds:/dev/null/c9view"}`. The wrapper is `<cross-session-message from="uds:/dev/null/c9view" from-name="c9view">`, an attribution line and the owner's text. c9view sends no `from-mode`. Frames without `msgV` are delivered but lose `msg_id`, `from` and the name.
+- **Silent socket**: the session never writes back on the connection, for delivered, held or refused messages. Hold and refuse notices go to the sender's `from` socket, which for c9view is not a socket, so they fail quietly.
+- **Transcript records**: delivery shows up as a `user` record with `origin.kind: "peer"` (idle, starts a new turn) or an `attachment` with `attachment.type: "queued_command"` (mid-turn, read at the next step). Both keep `origin.msg_id`, `from`, `name`, `verifiedPeerPid` and `verifiedPeerProcStart`. `queue-operation` records carry no `msg_id`. A message held and released later keeps its `msg_id`, and the record's timestamp is the release time.
+- **`crossSessionInbound`**: settings key with `accept`, `hold` or `refuse`. The first of managed policy, `--settings` and `~/.claude/settings.json` that sets it wins. Then `.claude/settings.local.json` and `.claude/settings.json` can only tighten (`accept` < `hold` < `refuse`). If unset, a message from a sender that names no permission mode is delivered to a session in a prompting mode (`default`, `plan`, `auto`) and held by a session in `bypassPermissions`. `hold` and `refuse` are invisible to an outside sender: nothing comes back. Observed on 2.1.325 with a receiver in `auto` and project-level `hold` and `refuse`. The managed and user-level precedence, the `default`, `plan` and `bypassPermissions` defaults, and the "invalid value or unknown mode is held" rule were read from the binary and are untested.
+- **Gate**: only `kind === "interactive"` with `entrypoint === "cli"` counts as a terminal session. `claude -p` runs write `kind: "interactive"` with `entrypoint: "sdk-cli"` and accept frames while they run (2.1.325), so the `entrypoint` check is what keeps them out. `bg`, `daemon` and `daemon-worker` kinds exist and are not tested.
+- **`procStart`**: a decimal string equal to field 22 of `/proc/<pid>/stat` (clock ticks since boot), parsed after the last `)` so a `comm` with spaces or parentheses cannot shift the fields. The transcript's `verifiedPeerProcStart` has the same format. c9view checks the process and its `procStart` before each send.
+- **Size**: Claude Code accepts a frame line of about 1 MB: 1,048,191 bytes accepted and 1,100,191 rejected (connection reset) on 2.1.325. c9view caps frames at 131,072 bytes.
+- **After a crash**: the socket gives `ECONNREFUSED` and the JSON keeps its last `status`; both files stayed for at least 90 s in one test and were gone within about 12 minutes in another; they can vanish at any time.
+
+Re-spike on every Claude Code upgrade ([research R13](../specs/003-remote-control/research.md#r13-re-spike-items)).
 
 ## `stats-cache.json`
 
