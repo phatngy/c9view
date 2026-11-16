@@ -72,30 +72,39 @@ test('New session from the project header starts a run and opens its transcript'
   await expect(composer(page)).toBeVisible();
 });
 
-test('New project: pick a location, trust the folder, start the first run', async ({
-  page,
-}) => {
-  await page.goto('/m/local');
-  await page.getByRole('button', { name: 'New project', exact: true }).click();
-  const dialog = page.getByRole('dialog', { name: 'New project' });
-  await dialog.getByRole('button', { name: 'Browse…' }).click();
-  const picker = dialog.getByRole('region', { name: 'Folder picker' });
-  await picker.getByRole('button', { name: 'e2e-workspace' }).click();
-  await picker.getByRole('button', { name: 'fresh-app' }).click();
-  await expect(dialog.getByLabel('Location')).toHaveValue(
-    /e2e-workspace\/fresh-app$/,
-  );
-  await dialog.getByLabel('First prompt').fill('Hello from a new project');
-  await dialog.getByRole('button', { name: 'Create and start' }).click();
-  // The folder is new to Claude Code, so the trust step comes first.
-  const trust = dialog.getByRole('region', { name: 'Folder trust required' });
-  await expect(trust).toBeVisible();
-  await expect(trust).toContainText('fresh-app');
-  await trust.getByRole('button', { name: 'Trust this folder' }).click();
-  await expect(page).toHaveURL(/\/projects\/[^/]+\/sessions\/[0-9a-f-]{36}/);
-  await expect(
-    page.getByText('Synthetic reply to: Hello from a new project').first(),
-  ).toBeVisible();
+// The empty `fresh-app` folder lives in a temp workspace root created per server
+// start (control-server.ts) and is consumed by this test: it is trusted and gets
+// a session. The server is never reused, so a rerun gets a fresh root; a retry
+// within one run would not, hence no retries.
+test.describe('New project', () => {
+  test.describe.configure({ retries: 0 });
+  test('pick a location, trust the folder, start the first run', async ({
+    page,
+  }) => {
+    await page.goto('/m/local');
+    await page
+      .getByRole('button', { name: 'New project', exact: true })
+      .click();
+    const dialog = page.getByRole('dialog', { name: 'New project' });
+    await dialog.getByRole('button', { name: 'Browse…' }).click();
+    const picker = dialog.getByRole('region', { name: 'Folder picker' });
+    await picker.getByRole('button', { name: 'e2e-workspace' }).click();
+    await picker.getByRole('button', { name: 'fresh-app' }).click();
+    await expect(dialog.getByLabel('Location')).toHaveValue(
+      /e2e-workspace\/fresh-app$/,
+    );
+    await dialog.getByLabel('First prompt').fill('Hello from a new project');
+    await dialog.getByRole('button', { name: 'Create and start' }).click();
+    // The folder is new to Claude Code, so the trust step comes first.
+    const trust = dialog.getByRole('region', { name: 'Folder trust required' });
+    await expect(trust).toBeVisible();
+    await expect(trust).toContainText('fresh-app');
+    await trust.getByRole('button', { name: 'Trust this folder' }).click();
+    await expect(page).toHaveURL(/\/projects\/[^/]+\/sessions\/[0-9a-f-]{36}/);
+    await expect(
+      page.getByText('Synthetic reply to: Hello from a new project').first(),
+    ).toBeVisible();
+  });
 });
 
 test('A session label is edited, shown in place of the title and removed', async ({

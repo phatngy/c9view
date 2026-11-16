@@ -447,23 +447,21 @@ export function createControlService(
         const url =
           body.gitUrl !== undefined ? parseGitUrl(body.gitUrl) : undefined;
         if (url) {
-          if (activeClones >= MAX_CONCURRENT_CLONES)
+          const plan = await planClone(
+            store.config.workspaceRoots,
+            body.location,
+            [store.config.claudeDir, stateDir],
+          );
+          // The cap is checked after the location, so a bad location answers 400.
+          if (activeClones >= MAX_CONCURRENT_CLONES) {
+            plan.release();
             throw new ControlError(
               429,
               'Too many clones are running; wait for one to finish',
               'clone-cap',
             );
-          activeClones += 1;
-          let plan;
-          try {
-            plan = await planClone(store.config.workspaceRoots, body.location, [
-              store.config.claudeDir,
-              stateDir,
-            ]);
-          } catch (error) {
-            activeClones -= 1;
-            throw error;
           }
+          activeClones += 1;
           const id = body.clientRequestId;
           // Run after the receipt is installed so its status can be patched.
           setImmediate(() => {

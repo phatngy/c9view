@@ -1,7 +1,3 @@
-import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import {
   createGitWriter,
@@ -47,7 +43,6 @@ it('T064 builds the environment from scratch', () => {
     GIT_TERMINAL_PROMPT: '0',
     GIT_ALLOW_PROTOCOL: 'https:ssh',
     GIT_CONFIG_NOSYSTEM: '1',
-    GIT_CONFIG_GLOBAL: '/dev/null',
     GIT_SSH_COMMAND: 'ssh -o BatchMode=yes -o StrictHostKeyChecking=yes',
   });
 });
@@ -83,7 +78,6 @@ it('T064 clone uses no shell, hardened config, a timeout and -- before URL and d
       .sort(),
   ).toEqual([
     'GIT_ALLOW_PROTOCOL',
-    'GIT_CONFIG_GLOBAL',
     'GIT_CONFIG_NOSYSTEM',
     'GIT_SSH_COMMAND',
     'GIT_TERMINAL_PROMPT',
@@ -127,50 +121,9 @@ it('M1 reports the last fatal line of realistic git stderr, redacted', async () 
   expect((error as Error).message).not.toContain('Cloning into');
 });
 
-// GIT_CONFIG_GLOBAL needs git 2.32; older git ignores it, so the behaviour is
-// only checkable on a newer one (the variable itself is asserted above).
-const [major = 0, minor = 0] = execFileSync('git', ['--version'], {
-  encoding: 'utf8',
-})
-  .replace(/^\D+/, '')
-  .split('.')
-  .map(Number);
-const supportsGlobalOverride = major > 2 || (major === 2 && minor >= 32);
-
-it.skipIf(!supportsGlobalOverride)(
-  'T113 does not apply the global git config',
-  () => {
-    const home = mkdtempSync(join(tmpdir(), 'c9view-gitcfg-'));
-    try {
-      writeFileSync(
-        join(home, '.gitconfig'),
-        '[url "https://evil.example/"]\n\tinsteadOf = https://host.example/\n[core]\n\thooksPath = /tmp/evil-hooks\n',
-      );
-      const env = gitEnvironment({ PATH: process.env.PATH, HOME: home });
-      const read = (key: string) => {
-        try {
-          return execFileSync('git', ['config', '--get', key], {
-            env,
-            encoding: 'utf8',
-          }).trim();
-        } catch {
-          return '';
-        }
-      };
-      expect(read('core.hookspath')).toBe('');
-      expect(read('url.https://evil.example/.insteadof')).toBe('');
-      // Control: without the override the same file is applied.
-      const control = execFileSync(
-        'git',
-        ['config', '--get', 'core.hookspath'],
-        {
-          env: { PATH: process.env.PATH, HOME: home, GIT_CONFIG_NOSYSTEM: '1' },
-          encoding: 'utf8',
-        },
-      ).trim();
-      expect(control).toBe('/tmp/evil-hooks');
-    } finally {
-      rmSync(home, { recursive: true, force: true });
-    }
-  },
-);
+it("T113 keeps the owner's global git config: the runner env does not set GIT_CONFIG_GLOBAL", () => {
+  const env = gitEnvironment({ ...source, GIT_CONFIG_GLOBAL: '/evil' });
+  expect(env).not.toHaveProperty('GIT_CONFIG_GLOBAL');
+  expect(env.GIT_CONFIG_NOSYSTEM).toBe('1');
+  expect(env.HOME).toBe('/home/x');
+});
