@@ -24,25 +24,25 @@
 
 **Goal**: Read both peer record forms and expose honest marker metadata without sending anything.
 
-- [ ] T006 Check that R13 item 1 is answered in `specs/003-remote-control/spike.md` under `Re-spike (2026-11-05)` before 003-a merges. Already satisfied: answered yes on 2026-11-05 (mid-turn `attachment.queued_command` keeps `origin.msg_id`, `from`, `name`), so the parser needs no wrapper fallback. Tick after confirming the evidence is unchanged; do not run Claude.
+- [x] T006 Check that R13 item 1 is answered in `specs/003-remote-control/spike.md` under `Re-spike (2026-11-05)` before 003-a merges. Already satisfied: answered yes on 2026-11-05 (mid-turn `attachment.queued_command` keeps `origin.msg_id`, `from`, `name`), so the parser needs no wrapper fallback. Tick after confirming the evidence is unchanged; do not run Claude.
 
 ### User Story 3 — clear labelling (P2, parser)
 
 **Independent test**: Synthetic idle and queued peer records produce the right text and metadata; terminal input is unchanged. Matching both kernel-verified PID and process start proves current-node identity; a marker alone never does.
 
-- [ ] T007 [P] [US3] Write `packages/core/src/transcript/peer.test.ts` for idle `user` origin and `attachment.queued_command`, c9view marker (`origin.from` and `origin.name` both required, in both record types), attribution stripping, ordinary peers, a peer record missing `from` or `name` (peer, no label, no error, no wrapper fallback), human/no-origin prompts, malformed/unknown fields and missing optional values; test the R13 item 1 answer.
-- [ ] T008 [P] [US3] Write `packages/node/src/remote/proc.test.ts` for `/proc/self/stat` field 22 extraction (including spaces/parentheses in command names), current-node identity, malformed/missing stat and PID reuse comparison; fail closed on unreadable identity.
-- [ ] T009 [P] [US3] Write `packages/node/src/data/messages.test.ts` for queued peer inclusion, stable record UUID and ordering/pagination, c9view vs ordinary peer metadata, exact-body display and existing redaction, matching/mismatching verified PID plus procStart, and unchanged terminal-typed messages.
-- [ ] T010 [US3] Implement `packages/core/src/transcript/peer.ts` and extend `packages/core/src/transcript/schemas.ts`: origin fields `kind`, `from`, `name`, `msg_id`, `verifiedPeerPid`, `verifiedPeerProcStart`, `body` are “all optional, passthrough”; queued records use `attachment.type: "queued_command"`, `prompt` and `origin`. Recognize c9view only with exact `origin.from` `uds:/dev/null/c9view` and `origin.name` `c9view`, with no wrapper-content fallback (missing fields: no label); remove only the exact attribution line and preserve other peers' display.
-- [ ] T011 [US3] Add parser exports in `packages/core/src/transcript/index.ts` and additive exports in `packages/core/src/index.ts`; add `Message` fields in `packages/api/src/index.ts`: “`sentFrom?: 'c9view' | 'peer'` and `sentFromVerified?: boolean` (only with `'c9view'`)”. Keep all existing barrel exports.
-- [ ] T012 [US3] Implement `packages/node/src/remote/proc.ts` using `/proc/self/stat` field 22; cache only node self identity for the process lifetime and expose safe target-process start comparison for 003-b. Do not leak raw proc errors.
-- [ ] T013 [US3] Integrate peer parsing in `packages/node/src/data/messages.ts`, including queued attachment records; pass text through existing `redactStrings`; set verification only when both verified PID and procStart equal the current node. Keep transcript-driven paging and the SQLite index unchanged.
+- [x] T007 [P] [US3] Write `packages/core/src/transcript/peer.test.ts` for idle `user` origin and `attachment.queued_command`, c9view marker (`origin.from` and `origin.name` both required, in both record types), attribution stripping, ordinary peers, a peer record missing `from` or `name` (peer, no label, no error, no wrapper fallback), human/no-origin prompts, malformed/unknown fields and missing optional values; test the R13 item 1 answer.
+- [x] T008 [P] [US3] Write `packages/node/src/remote/proc.test.ts` for `/proc/self/stat` field 22 extraction (including spaces/parentheses in command names), current-node identity, malformed/missing stat and PID reuse comparison; fail closed on unreadable identity.
+- [x] T009 [P] [US3] Write `packages/node/src/data/messages.test.ts` for queued peer inclusion, stable record UUID and ordering/pagination, c9view vs ordinary peer metadata, exact-body display and existing redaction, matching/mismatching verified PID plus procStart, and unchanged terminal-typed messages.
+- [x] T010 [US3] Implement `packages/core/src/transcript/peer.ts` and extend `packages/core/src/transcript/schemas.ts`: origin fields `kind`, `from`, `name`, `msg_id`, `verifiedPeerPid`, `verifiedPeerProcStart`, `body` are “all optional, passthrough”; queued records use `attachment.type: "queued_command"`, `prompt` and `origin`. Recognize c9view only with exact `origin.from` `uds:/dev/null/c9view` and `origin.name` `c9view`, with no wrapper-content fallback (missing fields: no label); remove only the exact attribution line and preserve other peers' display.
+- [x] T011 [US3] Add parser exports in `packages/core/src/transcript/index.ts` and additive exports in `packages/core/src/index.ts`; add `Message` fields in `packages/api/src/index.ts`: “`sentFrom?: 'c9view' | 'peer'` and `sentFromVerified?: boolean` (only with `'c9view'`)”. Keep all existing barrel exports.
+- [x] T012 [US3] Implement `packages/node/src/remote/proc.ts` using `/proc/self/stat` field 22; cache only node self identity for the process lifetime and expose safe target-process start comparison for 003-b. Do not leak raw proc errors.
+- [x] T013 [US3] Integrate peer parsing in `packages/node/src/data/messages.ts`, including queued attachment records; pass text through existing `redactStrings`; set verification only when both verified PID and procStart equal the current node. Keep transcript-driven paging and the SQLite index unchanged.
 
 ### PR 003-a gate
 
-- [ ] T014 Review only the 003-a paths listed in `specs/003-remote-control/plan.md`, including additive barrel edits, and verify T006's evidence gate; arrange independent review through `docs/ai-workflow.md`.
-- [ ] T015 Run root `corepack pnpm lint`, `corepack pnpm typecheck`, `corepack pnpm test`, `corepack pnpm build` and `corepack pnpm test:e2e` for 003-a, with Playwright in Docker per `specs/003-remote-control/quickstart.md`; fix failures.
-- [ ] T016 Tick verified 003-a tasks in `specs/003-remote-control/tasks.md` after review and checks, and commit the task update as PR 003-a's last commit.
+- [x] T014 Review only the 003-a paths listed in `specs/003-remote-control/plan.md`, including additive barrel edits, and verify T006's evidence gate; arrange independent review through `docs/ai-workflow.md`.
+- [x] T015 Run root `corepack pnpm lint`, `corepack pnpm typecheck`, `corepack pnpm test`, `corepack pnpm build` and `corepack pnpm test:e2e` for 003-a, with Playwright in Docker per `specs/003-remote-control/quickstart.md`; fix failures.
+- [x] T016 Tick verified 003-a tasks in `specs/003-remote-control/tasks.md` after review and checks, and commit the task update as PR 003-a's last commit.
 
 ## Phase 3: Node stories — PR 003-b
 
