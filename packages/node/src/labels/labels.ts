@@ -3,8 +3,10 @@ import { ControlError } from '../control/errors.js';
 import type { LabelStore } from '../control/state.js';
 
 // Labels are one line of at most 80 characters, without control characters.
-// Control, format (bidi, zero-width) and line or paragraph separator characters.
-const forbidden = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
+// Control, line and paragraph separator and format characters (bidi controls,
+// U+200B, U+FEFF, U+2060 and the rest of Cf) are refused. ZWJ (U+200D) is Cf but
+// allowed, and variation selectors (Mn) are not refused, so emoji labels work.
+const forbidden = /[\p{Cc}\p{Zl}\p{Zp}]|(?!\u200D)\p{Cf}/u;
 
 export function normalizeLabel(value: string): string {
   const label = value.trim();

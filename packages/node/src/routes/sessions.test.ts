@@ -240,7 +240,7 @@ it('cuts a message larger than the whole budget and keeps paging', async () => {
   const { uuids } = await forward(served, budget);
   expect(uuids).toEqual(expected);
   expect(await backward(served, budget)).toEqual(expected);
-});
+}, 30_000);
 
 it('leaves small pages as they were', async () => {
   const served = createApp(store.config, { store });

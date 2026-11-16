@@ -185,3 +185,12 @@ it('T074 reports a bad location from the node', async () => {
   ).toBeInTheDocument();
   expect(navigate).not.toHaveBeenCalled();
 });
+it('T110 shows why a location over 200 characters is refused', async () => {
+  mount(() => json({ error: 'x', reason: 'path-too-long' }, 400));
+  fill();
+  fireEvent.click(screen.getByRole('button', { name: 'Create and start' }));
+  expect(
+    await screen.findByText(/hashes project folder names over 200/),
+  ).toBeInTheDocument();
+  expect(navigate).not.toHaveBeenCalled();
+});

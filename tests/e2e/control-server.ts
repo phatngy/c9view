@@ -20,6 +20,9 @@ const claudeDir = join(temporary, '.claude');
 const folder = join(temporary, 'workspace', 'control-demo');
 const projectDir = join(claudeDir, 'projects', '-synthetic-control');
 mkdirSync(folder, { recursive: true });
+// Synthetic workspace root for New project: one empty folder to open in it.
+const workspaceRoot = join(temporary, 'e2e-workspace');
+mkdirSync(join(workspaceRoot, 'fresh-app'), { recursive: true });
 cpSync(resolve('tests/fixtures/claude-control'), claudeDir, {
   recursive: true,
 });
@@ -71,7 +74,9 @@ const server = spawn(
       C9VIEW_ALLOWED_HOSTS: '',
       C9VIEW_TRUST_PROXY: '',
       C9VIEW_INSECURE_NO_AUTH: '',
-      C9VIEW_WORKSPACE_ROOTS: '',
+      C9VIEW_WORKSPACE_ROOTS: workspaceRoot,
+      C9VIEW_E2E_FAKE_PROJECTS_DIR: join(claudeDir, 'projects'),
+      C9VIEW_E2E_FAKE_WORKSPACE_ROOT: workspaceRoot,
       C9VIEW_CONTROL_BYPASS: '0',
       C9VIEW_WEB_DIST: resolve('apps/web/dist'),
     },

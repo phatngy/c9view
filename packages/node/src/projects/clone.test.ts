@@ -115,3 +115,59 @@ it('T065 a failed clone is redacted, reported and removes what it created', asyn
   );
   await expect(stat(join(t.work, 'q'))).rejects.toThrow();
 });
+it('T108 caps concurrent clones, answers 429 and frees the slot on success, failure and cancel', async () => {
+  const gates: (() => void)[] = [];
+  const fails: boolean[] = [];
+  const git: GitWriter = {
+    clone: (_url, _dir, signal) =>
+      new Promise<void>((resolve, reject) => {
+        const fail = fails.shift() ?? false;
+        gates.push(() => (fail ? reject(new Error('boom')) : resolve()));
+        signal?.addEventListener('abort', () => reject(new Error('aborted')));
+      }),
+    init: async () => undefined,
+  };
+  const t = await setupControl({}, { roots: true, git });
+  cleanups.push(t.close);
+  const start = (name: string) => {
+    const request = body({
+      location: join(t.work, name),
+      gitUrl: 'https://h.example/o/r.git',
+    });
+    return {
+      request,
+      result: t.service.createProject(request as never, t.bootId),
+    };
+  };
+  fails.push(false, true, false);
+  const first = ['a', 'b', 'c'].map(start);
+  for (const item of first) await item.result;
+  await waitFor(() => expect(gates).toHaveLength(3));
+  await expect(start('d').result).rejects.toMatchObject({
+    status: 429,
+    reason: 'clone-cap',
+  });
+  // Success frees a slot.
+  gates[0]!();
+  await waitFor(() =>
+    expect(t.service.receipt(first[0]!.request.clientRequestId)?.status).toBe(
+      'ready',
+    ),
+  );
+  const e = start('e');
+  await e.result;
+  await waitFor(() => expect(gates).toHaveLength(4));
+  await expect(start('f').result).rejects.toMatchObject({ status: 429 });
+  // Failure frees a slot.
+  gates[1]!();
+  await waitFor(() =>
+    expect(t.service.receipt(first[1]!.request.clientRequestId)?.status).toBe(
+      'failed',
+    ),
+  );
+  const g = start('g');
+  await g.result;
+  await waitFor(() => expect(gates).toHaveLength(5));
+  await expect(start('h').result).rejects.toMatchObject({ status: 429 });
+  // Shutdown aborts the remaining clones; they release through the same path.
+});

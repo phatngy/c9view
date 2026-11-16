@@ -420,6 +420,10 @@ function message(error: unknown) {
     if (error.reason === 'unknown-outcome') return unknownOutcome;
     if (error.reason === 'outside-roots')
       return 'That location is outside the workspace roots.';
+    if (error.reason === 'path-too-long')
+      return 'That location is too long: Claude Code hashes project folder names over 200 characters, so c9view could not find its sessions. Pick a shorter path.';
+    if (error.reason === 'clone-cap')
+      return 'Too many clones are running on that machine. Wait for one to finish, then try again.';
     if (error.reason === 'bad-url')
       return 'Enter an https:// or ssh:// git URL, or user@host:path.';
     if (error.reason === 'not-empty')
