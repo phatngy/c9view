@@ -132,6 +132,10 @@ export interface Message {
   usage: TokenTotals | null;
   /** Set when the message alone exceeded the page budget and was cut (6.0c). */
   truncated?: boolean;
+  /** Set for a cross-session peer message; 'c9view' only for the exact marker. */
+  sentFrom?: 'c9view' | 'peer';
+  /** Only with `sentFrom: 'c9view'`: the kernel-verified sender is this node. */
+  sentFromVerified?: boolean;
 }
 
 // GET /api/projects/:projectId/sessions/:sessionId?cursor=<n>&limit=<n>
