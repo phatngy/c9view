@@ -210,6 +210,27 @@ export function parseAssistantNotices(text: string): Segment[] | null {
   return segments.length ? segments : null;
 }
 
+export const SENT_FROM_C9VIEW = 'Sent from c9view';
+export const SENT_FROM_UNVERIFIED =
+  "Marked as sent from c9view; c9view can't confirm this after a restart";
+
+/**
+ * The label for a message the transcript marks as sent by c9view, with its
+ * accessible description. Only the exact marker counts: ordinary peers and
+ * terminal-typed prompts get none.
+ */
+export function sentFromLabel(
+  message: Pick<Message, 'sentFrom' | 'sentFromVerified'>,
+): { text: string; verified: boolean; description: string } | null {
+  if (message.sentFrom !== 'c9view') return null;
+  const verified = message.sentFromVerified === true;
+  return {
+    text: SENT_FROM_C9VIEW,
+    verified,
+    description: verified ? SENT_FROM_C9VIEW : SENT_FROM_UNVERIFIED,
+  };
+}
+
 export function classifyMessage(message: Message): {
   kind: MessageKind;
   segments: Segment[];
@@ -268,7 +289,7 @@ export function classifyMessage(message: Message): {
       kind = 'task-notification';
     else if (
       message.role === 'user' &&
-      !message.isMeta &&
+      (!message.isMeta || message.sentFrom === 'c9view') &&
       !message.isSidechain &&
       (hasText ||
         segments.some((segment) => segment.kind === 'pasted') ||

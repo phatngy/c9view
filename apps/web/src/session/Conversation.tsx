@@ -6,6 +6,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { SendHorizontal } from 'lucide-react';
 import type { Message } from '@c9view/api';
 import {
   ToolCard,
@@ -15,7 +16,7 @@ import {
 } from '../tools/ToolCard.js';
 import { Markdown } from '../markdown.js';
 import { Empty } from '../ui.js';
-import { classifyMessage } from './markup.js';
+import { classifyMessage, sentFromLabel } from './markup.js';
 import { buildTurns } from './turns.js';
 import { AssistantHeader } from './chat/AssistantHeader.js';
 import { UserBubble } from './chat/UserBubble.js';
@@ -83,6 +84,7 @@ export function Conversation({
         (m) =>
           showMeta ||
           !m.isMeta ||
+          m.sentFrom === 'c9view' ||
           m.uuid === target ||
           m.uuid === revealedMeta ||
           m.blocks.some(
@@ -359,14 +361,19 @@ export function Conversation({
               ? body.filter((_, index) => blocks[index]?.type !== 'text')
               : body}
           </>
-        ) : message.isMeta || kind === 'note' || kind === 'other' ? (
+        ) : (message.isMeta && message.sentFrom !== 'c9view') ||
+          kind === 'note' ||
+          kind === 'other' ? (
           <SystemNote meta={message.isMeta}>
             {parsed}
             {blocks.filter((block) => block.type !== 'text').length > 0 &&
               body.filter((_, index) => blocks[index]?.type !== 'text')}
           </SystemNote>
         ) : kind === 'prompt' ? (
-          <UserBubble timestamp={message.timestamp}>
+          <UserBubble
+            timestamp={message.timestamp}
+            label={<SentFromLabel message={message} />}
+          >
             {parsed}
             {blocks.some((block) => block.type === 'image') && (
               <p className="text-xs text-muted">[Image attachment]</p>
@@ -495,5 +502,27 @@ export function Conversation({
         }}
       />
     </div>
+  );
+}
+
+/** "Sent from c9view": text and an icon, never colour alone, with a full description when unconfirmed. */
+function SentFromLabel({ message }: { message: Message }) {
+  const label = sentFromLabel(message);
+  if (!label) return null;
+  return (
+    <p
+      role="note"
+      aria-label={label.description}
+      data-sent-from="c9view"
+      className="flex min-h-6 items-center gap-1 text-xs font-medium text-muted"
+    >
+      <SendHorizontal size={12} aria-hidden="true" />
+      <span aria-hidden="true">{label.text}</span>
+      {!label.verified && (
+        <span aria-hidden="true" className="font-normal">
+          · not confirmed
+        </span>
+      )}
+    </p>
   );
 }

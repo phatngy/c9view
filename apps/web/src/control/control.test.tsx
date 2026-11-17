@@ -15,8 +15,6 @@ import { controlApi, ControlError } from './api.js';
 import { queryKeys } from '../queryKeys.js';
 import { MachineContext } from '../machine.js';
 
-const { navigate } = vi.hoisted(() => ({ navigate: vi.fn() }));
-vi.mock('@tanstack/react-router', () => ({ useNavigate: () => navigate }));
 const clients: QueryClient[] = [];
 afterEach(() => {
   cleanup();
@@ -24,7 +22,6 @@ afterEach(() => {
   clients.length = 0;
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
-  navigate.mockReset();
 });
 const receipt = {
   clientRequestId: 'request',
@@ -118,37 +115,64 @@ it('T050 caps replies at 20,000 characters and counts them', () => {
   expect(screen.getByRole('textbox')).toHaveValue('x'.repeat(20000));
   expect(screen.getByText('20,000 / 20,000')).toBeVisible();
 });
-it.each(['live-elsewhere', 'liveness-unknown'])(
-  'T042 offers a fork for %s and navigates to its receipt session',
-  async (reason) => {
-    const { fetcher } = mount('ready', false, (_url, init) =>
-      JSON.parse(init!.body as string).fork
-        ? json({ ...receipt, sessionId: 'forked' }, 202)
-        : json({ error: reason, reason }, 409),
-    );
-    send();
-    fireEvent.click(
-      await screen.findByRole('button', { name: 'Fork and reply' }),
-    );
-    await waitFor(() =>
-      expect(navigate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          params: { machineId: 'remote', projectId: 'p', sessionId: 'forked' },
-        }),
-      ),
-    );
-    const posts = fetcher.mock.calls.filter(
-      ([, init]) => init?.method === 'POST',
-    );
-    expect(JSON.parse(posts[1]![1]!.body as string)).toMatchObject({
-      fork: true,
-      text: 'Fixture reply',
-    });
-    expect(JSON.parse(posts[0]![1]!.body as string).clientRequestId).not.toBe(
-      JSON.parse(posts[1]![1]!.body as string).clientRequestId,
-    );
-  },
-);
+const availability = (patch: object) => ({
+  sessionId: 's',
+  available: false,
+  checkedAt: '2026-11-01T00:00:00.000Z',
+  ...patch,
+});
+it('T042 live-elsewhere switches to remote mode, keeps the text and offers no fork', async () => {
+  let held = false;
+  const { fetcher } = mount('ready', false, (url, init) => {
+    if (url.endsWith('/remote') && init?.method !== 'POST')
+      return json(
+        held
+          ? availability({ available: true })
+          : availability({ reason: 'not-live' }),
+      );
+    held = true;
+    return json({ error: 'Held elsewhere', reason: 'live-elsewhere' }, 409);
+  });
+  send();
+  await screen.findByRole('button', { name: 'Send to the terminal session' });
+  expect(screen.getByRole('textbox')).toHaveValue('Fixture reply');
+  expect(screen.queryByRole('button', { name: /fork/i })).toBeNull();
+  expect(screen.queryByText(/fork/i)).toBeNull();
+  const posts = fetcher.mock.calls.filter(
+    ([, init]) => init?.method === 'POST',
+  );
+  expect(posts).toHaveLength(1);
+  expect(JSON.parse(posts[0]![1]!.body as string)).not.toHaveProperty('fork');
+});
+it('T042 liveness-unknown keeps the text and offers only the reason', async () => {
+  let held = false;
+  const { fetcher } = mount('ready', false, (url, init) => {
+    if (url.endsWith('/remote') && init?.method !== 'POST')
+      return json(
+        held
+          ? availability({ reason: 'liveness-unknown' })
+          : availability({ reason: 'not-live' }),
+      );
+    held = true;
+    return json({ error: 'Unknown', reason: 'liveness-unknown' }, 409);
+  });
+  send();
+  await waitFor(() =>
+    expect(
+      screen.getByRole('button', { name: 'Send to the terminal session' }),
+    ).toBeDisabled(),
+  );
+  expect(
+    screen.getAllByText(
+      "c9view can't tell whether another process holds this session.",
+    ).length,
+  ).toBeGreaterThan(0);
+  expect(screen.getByRole('textbox')).toHaveValue('Fixture reply');
+  expect(screen.queryByRole('button', { name: /fork/i })).toBeNull();
+  expect(
+    fetcher.mock.calls.filter(([, init]) => init?.method === 'POST'),
+  ).toHaveLength(1);
+});
 it.each(['503', 'timeout'])(
   'T043 recovers a %s through the receipt without reposting',
   async (failure) => {
@@ -269,26 +293,6 @@ it('T043 treats an expired receipt as unknown without replaying the reply', asyn
   expect(
     fetcher.mock.calls.filter(([, init]) => init?.method === 'POST'),
   ).toHaveLength(1);
-});
-it('T042 waits for the fork session ID in the receipt', async () => {
-  mount('ready', false, (url, init) =>
-    url.includes('/receipts/')
-      ? json({ ...receipt, sessionId: 'fork-from-receipt' })
-      : JSON.parse(init!.body as string).fork
-        ? json(receipt, 202)
-        : json({ error: 'Held elsewhere', reason: 'live-elsewhere' }, 409),
-  );
-  send();
-  fireEvent.click(
-    await screen.findByRole('button', { name: 'Fork and reply' }),
-  );
-  await waitFor(() =>
-    expect(navigate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        params: expect.objectContaining({ sessionId: 'fork-from-receipt' }),
-      }),
-    ),
-  );
 });
 it('T048 gives each command a fresh ID, keeps the captured boot ID and parses every mutation response', async () => {
   const fetcher = vi.fn(async () => json({ ...receipt, futureField: true }));

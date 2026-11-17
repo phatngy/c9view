@@ -28,6 +28,16 @@ export const queryKeys = {
   labels: (machineId: MachineId) => [machineId, 'labels'] as const,
   controlReceipt: (machineId: MachineId, id: string) =>
     [machineId, 'control-receipt', id] as const,
+  remoteAvailability: (
+    machineId: MachineId,
+    projectId: string,
+    sessionId: string,
+  ) => [machineId, 'remote', projectId, sessionId] as const,
+  remoteCommands: (
+    machineId: MachineId,
+    projectId: string,
+    sessionId: string,
+  ) => [machineId, 'remote-commands', projectId, sessionId] as const,
   files: (machineId: MachineId, projectId: string, path: string) =>
     [machineId, 'files', projectId, path] as const,
   file: (machineId: MachineId, projectId: string, path: string) =>

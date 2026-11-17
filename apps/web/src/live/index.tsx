@@ -13,6 +13,7 @@ import {
   SESSION_PAGE_SIZE,
   type SessionPageParam,
 } from '../api.js';
+import { addRemoteCommand } from '../control/useRemote.js';
 import { machineEventSchema, machineStateEventSchema } from './events.js';
 import { resetConnection, setConnection } from './state.js';
 export { useLiveConnection, useLivePolling, useLiveSession } from './state.js';
@@ -130,9 +131,26 @@ export async function invalidateLiveEvent(
         if (machine !== machineId) return false;
         switch (event.type) {
           case 'control.run':
+            return (
+              kind === queryKeys.controlRuns(machineId)[1] ||
+              (kind === 'remote' &&
+                projectId === event.projectId &&
+                sessionId === event.sessionId)
+            );
           case 'control.request':
           case 'control.request.resolved':
             return kind === queryKeys.controlRuns(machineId)[1];
+          case 'control.remote':
+            // IDs only: refetch that command's receipt (whichever tab sent it)
+            // and the session's availability.
+            return (
+              (kind === 'remote' &&
+                projectId === event.projectId &&
+                sessionId === event.sessionId) ||
+              (kind === queryKeys.controlReceipt(machineId, '')[1] &&
+                typeof event.clientRequestId === 'string' &&
+                projectId === event.clientRequestId)
+            );
           case 'control.project':
             return (
               typeof event.clientRequestId === 'string' &&
@@ -149,9 +167,12 @@ export async function invalidateLiveEvent(
             return (
               projectId === event.projectId &&
               (kind === 'project' ||
-                (['session', 'session-poll', 'status-history'].includes(
-                  String(kind),
-                ) &&
+                ([
+                  'session',
+                  'session-poll',
+                  'status-history',
+                  'remote',
+                ].includes(String(kind)) &&
                   sessionId === event.sessionId))
             );
           case 'status':
@@ -173,6 +194,26 @@ export async function invalidateLiveEvent(
       })
       .map((query) => refreshQuery(client, query)),
   );
+}
+/** A hinted remote command joins the session's list when that session is open here. */
+function trackRemote(client: QueryClient, envelope: MachineEvent) {
+  const { machineId, event } = envelope;
+  const { clientRequestId, projectId, sessionId } = event as Record<
+    string,
+    unknown
+  >;
+  if (
+    typeof clientRequestId !== 'string' ||
+    typeof projectId !== 'string' ||
+    typeof sessionId !== 'string'
+  )
+    return;
+  const open = client.getQueryCache().find({
+    queryKey: queryKeys.remoteAvailability(machineId, projectId, sessionId),
+    exact: true,
+  });
+  if (open)
+    addRemoteCommand(client, machineId, projectId, sessionId, clientRequestId);
 }
 let source: EventSource | undefined;
 const clients = new Map<QueryClient, number>();
@@ -253,6 +294,7 @@ function start() {
     'control.request',
     'control.request.resolved',
     'control.project',
+    'control.remote',
   ]) {
     current.addEventListener(type, (message) => {
       if (source !== current) return;
@@ -309,8 +351,10 @@ function start() {
         typeof data.event.sessionId !== 'string'
       )
         return;
-      for (const client of clients.keys())
+      for (const client of clients.keys()) {
+        if (type === 'control.remote') trackRemote(client, data);
         void invalidateLiveEvent(client, data).catch(() => {});
+      }
     });
   }
 }

@@ -6,6 +6,7 @@ import type {
   NewProjectBody,
   NewSessionBody,
   PermissionMode,
+  RemoteAvailability,
   SessionLabels,
   WorkspaceBrowse,
   WorkspaceRoots,
@@ -21,6 +22,13 @@ const trustSchema = z.object({
   plugins: z.array(z.string()),
   hasClaudeMd: z.boolean(),
 });
+const deliverySchema = z.object({
+  state: z.enum(['sent', 'delivered', 'not-seen', 'uncertain', 'failed']),
+  turn: z.enum(['new-turn', 'next-step']).optional(),
+  reason: z.enum(['session-ended', 'unreachable']).optional(),
+  sentAt: z.string().optional(),
+  deliveredAt: z.string().optional(),
+});
 export const receiptSchema = z.object({
   clientRequestId: z.string(),
   bootId: z.string(),
@@ -30,6 +38,20 @@ export const receiptSchema = z.object({
   sessionId: z.string().optional(),
   projectId: z.string().optional(),
   error: z.string().optional(),
+  delivery: deliverySchema.optional(),
+});
+// Reasons are read as plain strings: a reason added later still refuses, with a generic text.
+export const availabilitySchema = z.object({
+  sessionId: z.string(),
+  available: z.boolean(),
+  reason: z.string().optional(),
+  minVersion: z.string().optional(),
+  inbound: z.enum(['hold', 'may-hold']).optional().catch(undefined),
+  sessionState: z
+    .enum(['idle', 'busy', 'waiting', 'unknown'])
+    .optional()
+    .catch(undefined),
+  checkedAt: z.string(),
 });
 const rootsSchema = z.object({ roots: z.array(z.string()) });
 const browseSchema = z.object({
@@ -105,6 +127,7 @@ const errorSchema = z.object({
   error: z.string(),
   reason: z.string().optional(),
   trust: trustSchema.optional(),
+  availability: availabilitySchema.optional(),
 });
 export type ControlFailureKind =
   'conflict' | 'rate-limit' | 'bad-request' | 'uncertain' | 'http';
@@ -116,6 +139,7 @@ export class ControlError extends Error {
     public status?: number,
     public reason?: string,
     public trust?: z.infer<typeof trustSchema>,
+    public availability?: RemoteAvailability,
   ) {
     super(message);
   }
@@ -137,8 +161,13 @@ export function controlApi(machineId: string, bootId: string) {
   // A POST runs once: timeout, gateway failure or an unreadable receipt may hide
   // a committed command. Recover only with receipt GETs; never replay it.
   // A manual resend after a clean failure is a new command with a fresh ID.
-  async function post(path: string, body: object) {
-    const clientRequestId = crypto.randomUUID();
+  // A retry of the same command (lost response) passes its original ID; every
+  // other send, including one after a refusal, gets a new one.
+  async function post(
+    path: string,
+    body: object,
+    clientRequestId: string = crypto.randomUUID(),
+  ) {
     let response: Response;
     try {
       response = await fetch(`/api${machinePath(machineId, path)}`, {
@@ -208,6 +237,9 @@ export function controlApi(machineId: string, bootId: string) {
       response.status,
       failure.reason,
       failure.trust,
+      // The schema keeps `reason` an open string so a newer node still parses;
+      // the cast only names the known union, and unknown reasons render generically.
+      failure.availability as RemoteAvailability | undefined,
     );
   }
   const session = (projectId: string, sessionId: string) =>
@@ -218,11 +250,34 @@ export function controlApi(machineId: string, bootId: string) {
       runsSchema.parse(
         await get<unknown>(machinePath(machineId, '/control/runs'), signal),
       ) as ControlRuns,
+    // The `fork` parameter stays until 003-d removes it with the node's field; no caller passes it.
     reply: (projectId: string, sessionId: string, text: string, fork = false) =>
       post(`${session(projectId, sessionId)}/messages`, {
         text,
         ...(fork ? { fork: true } : {}),
       }),
+    remoteAvailability: async (
+      projectId: string,
+      sessionId: string,
+      signal?: AbortSignal,
+    ): Promise<RemoteAvailability> =>
+      availabilitySchema.parse(
+        await get<unknown>(
+          machinePath(machineId, `${session(projectId, sessionId)}/remote`),
+          signal,
+        ),
+      ) as RemoteAvailability,
+    remoteSend: (
+      projectId: string,
+      sessionId: string,
+      text: string,
+      clientRequestId: string,
+    ) =>
+      post(
+        `${session(projectId, sessionId)}/remote`,
+        { text },
+        clientRequestId,
+      ),
     newSession: (
       projectId: string,
       body: Omit<NewSessionBody, 'clientRequestId'>,

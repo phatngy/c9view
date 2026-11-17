@@ -3,12 +3,15 @@ import { shortTime } from './time.js';
 export function UserBubble({
   children,
   timestamp,
+  label,
 }: {
   children: ReactNode;
   timestamp: string | null;
+  label?: ReactNode;
 }) {
   return (
     <div className="flex flex-col items-end gap-1.5">
+      {label}
       <div className="bubble flex max-w-[78%] min-w-0 flex-col gap-2.5 rounded-[16px_16px_4px_16px] bg-bubble px-4 py-3 text-ink">
         {children}
       </div>

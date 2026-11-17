@@ -4,6 +4,7 @@ import {
   classifyMessage,
   parseAssistantNotices,
   parseMarkup,
+  sentFromLabel,
   stripAnsi,
 } from './markup.js';
 import { outlineEntries, searchableText } from './model.js';
@@ -245,5 +246,73 @@ describe('Claude Code markup', () => {
     ]);
     expect(entries.every((entry) => entry.label.length <= 120)).toBe(true);
     expect(entries.map((entry) => entry.label).join(' ')).not.toContain('{');
+  });
+});
+
+describe('Sent from c9view label', () => {
+  it('labels only the exact c9view marker and says when it is unconfirmed', () => {
+    expect(
+      sentFromLabel(
+        message('x', { sentFrom: 'c9view', sentFromVerified: true }),
+      ),
+    ).toEqual({
+      text: 'Sent from c9view',
+      verified: true,
+      description: 'Sent from c9view',
+    });
+    expect(
+      sentFromLabel(
+        message('x', { sentFrom: 'c9view', sentFromVerified: false }),
+      ),
+    ).toEqual({
+      text: 'Sent from c9view',
+      verified: false,
+      description:
+        "Marked as sent from c9view; c9view can't confirm this after a restart",
+    });
+    // A missing flag is never read as confirmed.
+    expect(sentFromLabel(message('x', { sentFrom: 'c9view' }))?.verified).toBe(
+      false,
+    );
+  });
+  it.each([
+    ['an ordinary peer', { sentFrom: 'peer' as const }],
+    ['a terminal-typed prompt', {}],
+  ])('gives %s no label', (_name, overrides) => {
+    expect(sentFromLabel(message('x', overrides))).toBeNull();
+  });
+  it.each([
+    ['an idle prompt record', { isMeta: true }],
+    ['a queued record', { isMeta: false }],
+  ])('shows a c9view message from %s as a prompt', (_name, overrides) => {
+    const result = classifyMessage(
+      message('Check the build', {
+        sentFrom: 'c9view',
+        sentFromVerified: true,
+        ...overrides,
+      }),
+    );
+    expect(result.kind).toBe('prompt');
+    expect(result.segments).toEqual([
+      { kind: 'text', text: 'Check the build' },
+    ]);
+  });
+  it('keeps an ordinary peer message a system note', () => {
+    expect(
+      classifyMessage(
+        message('From a peer', { sentFrom: 'peer', isMeta: true }),
+      ).kind,
+    ).toBe('other');
+  });
+  it('keeps escaping and secret redaction untouched for the text', () => {
+    const result = classifyMessage(
+      message('<b>not markup</b> & [redacted]', {
+        sentFrom: 'c9view',
+        sentFromVerified: true,
+      }),
+    );
+    expect(result.segments).toEqual([
+      { kind: 'text', text: '<b>not markup</b> & [redacted]' },
+    ]);
   });
 });
