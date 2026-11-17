@@ -19,7 +19,6 @@ export interface RunnerOptions {
   cwd: string;
   sessionId?: string;
   resume?: string;
-  forkSession?: boolean;
   permissionMode: RunMode;
   env: NodeJS.ProcessEnv;
   pathToClaudeCodeExecutable: string;

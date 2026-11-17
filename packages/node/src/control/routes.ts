@@ -17,7 +17,7 @@ export function controlRoutes(
   const text = z.string().min(1).max(textMaxChars);
   const schemas = {
     reply: z
-      .object({ ...command, text, fork: z.boolean().optional() })
+      .object({ ...command, text })
       .strict(),
     start: z
       .object({

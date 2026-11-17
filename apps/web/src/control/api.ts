@@ -250,12 +250,8 @@ export function controlApi(machineId: string, bootId: string) {
       runsSchema.parse(
         await get<unknown>(machinePath(machineId, '/control/runs'), signal),
       ) as ControlRuns,
-    // The `fork` parameter stays until 003-d removes it with the node's field; no caller passes it.
-    reply: (projectId: string, sessionId: string, text: string, fork = false) =>
-      post(`${session(projectId, sessionId)}/messages`, {
-        text,
-        ...(fork ? { fork: true } : {}),
-      }),
+    reply: (projectId: string, sessionId: string, text: string) =>
+      post(`${session(projectId, sessionId)}/messages`, { text }),
     remoteAvailability: async (
       projectId: string,
       sessionId: string,

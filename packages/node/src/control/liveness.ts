@@ -21,7 +21,7 @@ export function createLiveness(claudeDir: string): Liveness {
     const unknown = () =>
       new ControlError(
         409,
-        'Cannot determine whether another process holds this session; fork and reply instead',
+        'Cannot determine whether another process holds this session.',
         'liveness-unknown',
       );
     const directory = join(claudeDir, 'sessions');
@@ -64,7 +64,7 @@ export function createLiveness(claudeDir: string): Liveness {
       if (processAlive(entry.pid))
         throw new ControlError(
           409,
-          'Session is live elsewhere; fork and reply instead',
+          'Session is live elsewhere.',
           'live-elsewhere',
         );
     }
