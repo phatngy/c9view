@@ -3,11 +3,11 @@ import {
   ArrowUp,
   ClipboardList,
   Pencil,
+  SendHorizontal,
   ShieldCheck,
   Square,
 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from '@tanstack/react-router';
 import type {
   CommandReceipt,
   PermissionMode,
@@ -28,12 +28,24 @@ import {
   TrustCard,
 } from './cards.js';
 import { RunBar } from './RunBar.js';
-import { currentRun } from './runState.js';
+import { currentRun, isActiveRun } from './runState.js';
+import {
+  addRemoteCommand,
+  useRemoteAvailability,
+  useRemoteCommands,
+} from './useRemote.js';
+import {
+  REMOTE_HEADING,
+  REMOTE_SEND_LABEL,
+  RemoteNotice,
+  STOPPED_TRACKING,
+  commandText,
+  refusal,
+} from './RemoteNotice.js';
 
 type Waiting = {
   id: string;
-  fork: boolean;
-  operation: 'reply' | 'trust' | 'action';
+  operation: 'reply' | 'remote' | 'trust' | 'action';
   startedAt: number;
 };
 const LIMIT = 20_000;
@@ -79,12 +91,10 @@ export function Composer({
   const control = useControl();
   const machineId = useMachineId();
   const client = useQueryClient();
-  const navigate = useNavigate();
   const [text, setText] = useState('');
   const [pending, setPending] = useState(false);
   const busy = useRef(false);
   const [notice, setNotice] = useState('');
-  const [conflict, setConflict] = useState(false);
   const [trust, setTrust] = useState<TrustSummary>();
   const [changed, setChanged] = useState(false);
   const [waiting, setWaiting] = useState<Waiting>();
@@ -103,7 +113,15 @@ export function Composer({
   const recovery = useRef<{ resolve: (error?: Error) => void } | undefined>(
     undefined,
   );
-  const attempted = useRef({ text: '', fork: false });
+  const attempted = useRef({ text: '' });
+  // The command a remote send is working on. A retry of the same text after a
+  // lost response reuses its ID (the node replays the receipt, never resends);
+  // any send after a refusal or an outcome gets a new one.
+  const remoteCommand = useRef<{ id: string; text: string } | undefined>(
+    undefined,
+  );
+  const announced = useRef(new Set<string>());
+  const seenCommands = useRef(new Set<string>());
   const runs = control.ready
     ? (control.data?.runs.filter(
         (run) => run.projectId === projectId && run.sessionId === sessionId,
@@ -120,6 +138,32 @@ export function Composer({
   const announcement = requests.length
     ? `${requests.length} pending ${requests.length === 1 ? 'request' : 'requests'} from Claude. ${requests.map((request) => (request.kind === 'permission' ? request.toolName : request.questions.map((question) => question.header).join(', '))).join('; ')}`
     : '';
+  const activeRun = !!run && isActiveRun(run);
+  const availability = useRemoteAvailability(
+    control.service,
+    projectId,
+    sessionId,
+    // Wait for the run list: one of c9view's own runs never asks.
+    control.ready && control.isSuccess && !activeRun,
+  );
+  const remote = availability.data;
+  // reply: 002's own run or a session no terminal holds. remote: a live terminal
+  // session that can receive. refused: anything else, with the reason.
+  const mode: 'reply' | 'remote' | 'refused' =
+    activeRun ||
+    !remote ||
+    remote.reason === 'not-live' ||
+    remote.reason === 'own-run'
+      ? 'reply'
+      : remote.available
+        ? 'remote'
+        : 'refused';
+  const commands = useRemoteCommands(
+    control.service,
+    projectId,
+    sessionId,
+    control.ready,
+  );
   const receipt = useQuery({
     queryKey: queryKeys.controlReceipt(machineId, waiting?.id ?? ''),
     queryFn: ({ signal }) => {
@@ -145,13 +189,22 @@ export function Composer({
     );
   }
   function stopWaiting() {
+    // A deliberate resend after giving up is a new command.
+    if (waiting?.operation === 'remote') remoteCommand.current = undefined;
     recovery.current?.resolve(new Error(unknownOutcome));
     recovery.current = undefined;
     setWaiting(undefined);
     setTrust(undefined);
-    if (waiting?.fork) setConflict(true);
-    setNotice(`This may have been sent. ${unknownOutcome}`);
-    focusNext(waiting?.operation === 'reply' ? 'composer' : 'card');
+    setNotice(
+      waiting?.operation === 'remote'
+        ? STOPPED_TRACKING
+        : `This may have been sent. ${unknownOutcome}`,
+    );
+    focusNext(
+      waiting?.operation === 'reply' || waiting?.operation === 'remote'
+        ? 'composer'
+        : 'card',
+    );
     void client.invalidateQueries({ queryKey: queryKeys.machines() });
     refresh();
   }
@@ -224,10 +277,32 @@ export function Composer({
     element.style.height = 'auto';
     element.style.height = `${Math.min(element.scrollHeight, cap)}px`;
   }, [text, control.ready]);
+  // Announce each remote outcome once, through the composer's live region.
+  // A command restored from an earlier page load is announced only when its
+  // outcome changes after this page first saw it.
+  useEffect(() => {
+    for (const command of [...commands].reverse()) {
+      const text = commandText(command);
+      if (!text) continue;
+      const delivery = command.receipt?.delivery;
+      const key = `${command.id}:${
+        command.expired
+          ? 'expired'
+          : delivery
+            ? `${delivery.state}:${delivery.turn ?? ''}`
+            : (command.receipt?.status ?? '')
+      }`;
+      if (announced.current.has(key)) continue;
+      announced.current.add(key);
+      const first = !seenCommands.current.has(command.id);
+      seenCommands.current.add(command.id);
+      if (!(command.restored && first)) setNotice(text);
+    }
+  }, [commands]);
   function refresh() {
     void control.refresh();
   }
-  function outcome(value: CommandReceipt, fork: boolean) {
+  function outcome(value: CommandReceipt) {
     refresh();
     if (value.status === 'failed') {
       setNotice(value.error ?? 'Command failed.');
@@ -235,66 +310,126 @@ export function Composer({
       focusNext('composer');
       return;
     }
-    if (fork && (!value.sessionId || value.sessionId === sessionId)) {
-      setNotice('Starting fork…');
-      beginWaiting({ id: value.clientRequestId, fork, operation: 'reply' });
-      return;
-    }
     setWaiting(undefined);
     setText('');
-    setConflict(false);
     setTrust(undefined);
     setNotice('Queued');
-    if (fork && value.sessionId)
-      void navigate({
-        to: '/m/$machineId/projects/$projectId/sessions/$sessionId',
-        params: {
-          machineId,
-          projectId: value.projectId ?? projectId,
-          sessionId: value.sessionId,
-        },
-      });
   }
-  function failure(
-    error: unknown,
-    operation: Waiting['operation'],
-    fork = false,
-  ) {
+  const availabilityKey = queryKeys.remoteAvailability(
+    machineId,
+    projectId,
+    sessionId,
+  );
+  // A read already in flight predates this change; drop it and read again.
+  async function refreshAvailability() {
+    await client.cancelQueries({ queryKey: availabilityKey });
+    await client.invalidateQueries({ queryKey: availabilityKey });
+  }
+  // A remote command settled: show its outcome. The text goes only once the
+  // message is on its way; a failed delivery keeps it for the next Send.
+  function remoteOutcome(value: CommandReceipt) {
+    const failed =
+      value.status === 'failed' || value.delivery?.state === 'failed';
+    client.setQueryData(
+      queryKeys.controlReceipt(machineId, value.clientRequestId),
+      value,
+    );
+    addRemoteCommand(
+      client,
+      machineId,
+      projectId,
+      sessionId,
+      value.clientRequestId,
+    );
+    remoteCommand.current = undefined;
+    setWaiting(undefined);
+    setNotice('');
+    if (!failed) setText('');
+    focusNext('composer');
+    if (failed) void refreshAvailability();
+  }
+  function failure(error: unknown, operation: Waiting['operation']) {
     refresh();
     if (error instanceof ControlError) {
       if (error.kind === 'uncertain') {
         setNotice('This may have been sent');
-        beginWaiting({ id: error.clientRequestId, fork, operation });
+        beginWaiting({ id: error.clientRequestId, operation });
         return;
       }
       if (error.reason === 'unknown-outcome')
         void client.invalidateQueries({ queryKey: queryKeys.machines() });
-      if (['live-elsewhere', 'liveness-unknown'].includes(error.reason ?? ''))
-        setConflict(true);
+      if (operation === 'remote') {
+        // Anything but a lost response ends the command: the next Send is a new one.
+        remoteCommand.current = undefined;
+        if (error.reason === 'remote-unavailable') {
+          if (error.availability)
+            client.setQueryData(availabilityKey, error.availability);
+          else void refreshAvailability();
+          const reason = error.availability
+            ? refusal(error.availability)
+            : undefined;
+          setNotice(
+            reason
+              ? [reason.text, reason.fix].filter(Boolean).join(' ')
+              : error.message,
+          );
+          focusNext('composer');
+          return;
+        }
+      }
+      if (
+        operation === 'reply' &&
+        ['live-elsewhere', 'liveness-unknown'].includes(error.reason ?? '')
+      ) {
+        // No fork and no resume of a live session: ask again which way this
+        // session can be reached, and keep the typed text.
+        void refreshAvailability();
+        setNotice(
+          error.reason === 'liveness-unknown'
+            ? "c9view can't tell whether another process holds this session."
+            : 'This session is open in a terminal. c9view is checking how to reach it.',
+        );
+        focusNext('composer');
+        return;
+      }
       if (error.trust) {
         setTrust(error.trust);
         setChanged(error.reason === 'settings-changed');
       }
     }
     setNotice(error instanceof Error ? error.message : 'Request failed.');
-    focusNext(operation === 'reply' ? 'composer' : 'card');
+    focusNext(
+      operation === 'reply' || operation === 'remote' ? 'composer' : 'card',
+    );
   }
-  async function send(fork = false, retry = false) {
+  async function send(retry = false) {
     if (busy.current || actionLock.current || waiting || !control.ready) return;
+    if (mode === 'refused') return;
     const draft = retry ? attempted.current.text : text;
     if (!draft.trim()) return;
-    attempted.current = { text: draft, fork };
+    attempted.current = { text: draft };
+    const remoteSend = mode === 'remote';
+    const command =
+      remoteCommand.current?.text === draft
+        ? remoteCommand.current
+        : { id: crypto.randomUUID(), text: draft };
+    if (remoteSend) remoteCommand.current = command;
     busy.current = true;
     setPending(true);
     setNotice('Sending…');
-    setConflict(false);
     try {
-      outcome(
-        await control.service.reply(projectId, sessionId, draft, fork),
-        fork,
-      );
+      if (remoteSend)
+        remoteOutcome(
+          await control.service.remoteSend(
+            projectId,
+            sessionId,
+            draft,
+            command.id,
+          ),
+        );
+      else outcome(await control.service.reply(projectId, sessionId, draft));
     } catch (error) {
-      failure(error, 'reply', fork);
+      failure(error, remoteSend ? 'remote' : 'reply');
     } finally {
       busy.current = false;
       setPending(false);
@@ -327,7 +462,7 @@ export function Composer({
       }
       setTrust(undefined);
       busy.current = false;
-      await send(attempted.current.fork, true);
+      await send(true);
     } finally {
       busy.current = false;
       setPending(false);
@@ -341,17 +476,28 @@ export function Composer({
     if (!value && !receipt.error) return;
     if (receipt.error) {
       if (receipt.error instanceof HttpError && receipt.error.status === 404) {
+        if (waiting.operation === 'remote') remoteCommand.current = undefined;
         recovery.current?.resolve(new Error(unknownOutcome));
         recovery.current = undefined;
-        setNotice(unknownOutcome);
+        setNotice(
+          waiting.operation === 'remote' ? STOPPED_TRACKING : unknownOutcome,
+        );
         setWaiting(undefined);
-        focusNext(waiting.operation === 'reply' ? 'composer' : 'card');
+        focusNext(
+          waiting.operation === 'reply' || waiting.operation === 'remote'
+            ? 'composer'
+            : 'card',
+        );
         void client.invalidateQueries({ queryKey: queryKeys.machines() });
         refresh();
       }
       return;
     }
     if (!value) return;
+    if (waiting.operation === 'remote') {
+      remoteOutcome(value);
+      return;
+    }
     if (value.status === 'failed') {
       recovery.current?.resolve(new Error(value.error ?? 'Command failed.'));
       recovery.current = undefined;
@@ -362,7 +508,7 @@ export function Composer({
       return;
     }
     if (waiting.operation === 'trust' && value.status !== 'done') return;
-    if (waiting.operation === 'reply') outcome(value, waiting.fork);
+    if (waiting.operation === 'reply') outcome(value);
     else if (waiting.operation === 'trust') {
       setWaiting(undefined);
       setTrust(undefined);
@@ -523,12 +669,32 @@ export function Composer({
           }}
           className="space-y-1.5"
         >
+          {mode === 'remote' && (
+            <p id="remote-heading" className="px-2 text-xs text-muted">
+              {REMOTE_HEADING}
+            </p>
+          )}
+          <RemoteNotice
+            availability={remote}
+            refused={mode === 'refused'}
+            commands={commands}
+            needsDecision={
+              mode === 'remote' &&
+              (status?.column === 'need_input' ||
+                remote?.sessionState === 'waiting')
+            }
+            slash={mode === 'remote' && text.startsWith('/')}
+          />
           <div className="rounded-3xl border border-line bg-raised shadow-sm transition-shadow focus-within:border-line-strong focus-within:shadow-md focus-within:ring-2 focus-within:ring-accent/30">
             <textarea
               ref={composer}
               id="session-reply"
               aria-label="Reply to session"
-              placeholder="Reply to Claude…"
+              placeholder={
+                mode === 'reply'
+                  ? 'Reply to Claude…'
+                  : 'Message the terminal session…'
+              }
               value={text}
               onChange={(event) => setText(event.target.value.slice(0, LIMIT))}
               onKeyDown={(event) => {
@@ -552,7 +718,7 @@ export function Composer({
               maxLength={LIMIT}
               rows={1}
               disabled={pending || !!waiting || !!trust}
-              aria-describedby={`${text.length >= COUNTER_FROM ? 'reply-count ' : ''}reply-status`}
+              aria-describedby={`${text.length >= COUNTER_FROM ? 'reply-count ' : ''}${mode === 'remote' ? 'remote-heading ' : ''}${mode === 'reply' ? '' : 'remote-notice '}reply-status`}
               className="block max-h-[40dvh] w-full resize-none overflow-y-auto bg-transparent px-4 pt-3.5 pb-1 text-base text-ink outline-none placeholder:text-muted disabled:opacity-60"
             />
             <div className="flex items-center justify-between gap-2 px-2 pb-2">
@@ -614,12 +780,23 @@ export function Composer({
                   <button
                     key="send"
                     type="submit"
-                    aria-label="Send"
+                    aria-label={mode === 'reply' ? 'Send' : REMOTE_SEND_LABEL}
+                    title={mode === 'reply' ? undefined : REMOTE_SEND_LABEL}
                     aria-keyshortcuts="Enter"
-                    disabled={!text.trim() || pending || !!waiting || !!trust}
+                    disabled={
+                      !text.trim() ||
+                      pending ||
+                      !!waiting ||
+                      !!trust ||
+                      mode === 'refused'
+                    }
                     className={`${roundButton} bg-accent text-page`}
                   >
-                    <ArrowUp size={18} aria-hidden="true" />
+                    {mode === 'reply' ? (
+                      <ArrowUp size={18} aria-hidden="true" />
+                    ) : (
+                      <SendHorizontal size={18} aria-hidden="true" />
+                    )}
                   </button>
                 )}
               </div>
@@ -632,14 +809,6 @@ export function Composer({
                 <span aria-hidden="true">{elapsed}s elapsed</span>
                 <Button onClick={stopWaiting}>Stop waiting</Button>
               </>
-            )}
-            {conflict && (
-              <Button
-                disabled={pending || !!waiting}
-                onClick={() => void send(true, true)}
-              >
-                Fork and reply
-              </Button>
             )}
           </div>
           <p

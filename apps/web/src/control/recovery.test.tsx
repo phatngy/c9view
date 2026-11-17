@@ -60,10 +60,17 @@ async function tick(ms = 10) {
     await vi.advanceTimersByTimeAsync(ms);
   });
 }
+const notLive = {
+  sessionId: 's',
+  available: false,
+  reason: 'not-live',
+  checkedAt: '2026-11-01T00:00:00.000Z',
+};
 async function mount(
   read: () => Response | Promise<Response>,
   cards = false,
   post?: (url: string) => Response,
+  availability: object = notLive,
 ) {
   vi.useFakeTimers();
   const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
@@ -77,6 +84,8 @@ async function mount(
       ]);
     if (url.endsWith('/control/runs'))
       return json(cards ? snapshot : { runs: [], requests: [] });
+    if (url.endsWith('/remote') && init?.method !== 'POST')
+      return json(availability);
     if (init?.method === 'POST')
       return post?.(url) ?? json({ error: 'Unavailable' }, 503);
     return read();
@@ -325,28 +334,40 @@ it('Stop waiting on uncertain trust unlocks the draft and never retries its refu
   ).toHaveLength(1);
 });
 
-it('Stop waiting unlocks Fork and reply without replaying the uncertain fork', async () => {
-  let posts = 0;
+it('Stop waiting unlocks remote recovery and a deliberate resend is a new command', async () => {
   const { fetcher } = await mount(
     () => new Promise<Response>(() => {}),
     false,
-    () =>
-      ++posts === 1
-        ? json({ error: 'Held elsewhere', reason: 'live-elsewhere' }, 409)
-        : json({}, 503),
+    () => json({}, 503),
+    { ...notLive, available: true, reason: undefined },
   );
-  reply();
+  fireEvent.change(screen.getByRole('textbox', { name: 'Reply to session' }), {
+    target: { value: 'Fixture reply' },
+  });
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Send to the terminal session' }),
+  );
   await tick();
-  fireEvent.click(screen.getByRole('button', { name: 'Fork and reply' }));
-  await tick();
+  expect(screen.queryByRole('button', { name: 'Fork and reply' })).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: 'Stop waiting' }));
   await tick();
-  expect(screen.getByRole('button', { name: 'Fork and reply' })).toBeEnabled();
-  expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled();
   expect(screen.getByRole('textbox')).toBeEnabled();
-  expect(
-    fetcher.mock.calls.filter(([, init]) => init?.method === 'POST'),
-  ).toHaveLength(2);
+  expect(screen.getByRole('textbox')).toHaveValue('Fixture reply');
+  const sends = () =>
+    fetcher.mock.calls.filter(
+      ([url, init]) => url.endsWith('/remote') && init?.method === 'POST',
+    );
+  expect(sends()).toHaveLength(1);
+  // The owner gave up waiting, so sending again is a new command.
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Send to the terminal session' }),
+  );
+  await tick();
+  expect(sends()).toHaveLength(2);
+  const ids = sends().map(
+    ([, init]) => JSON.parse(init!.body as string).clientRequestId,
+  );
+  expect(ids[0]).not.toBe(ids[1]);
 });
 
 it('preserves a failed receipt error while unlocking its card', async () => {

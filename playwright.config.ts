@@ -1,6 +1,9 @@
+import { randomUUID } from 'node:crypto';
 import { defineConfig, devices } from '@playwright/test';
 import { controlBaseURL, controlToken } from './tests/e2e/control-fixture.js';
 import { budgetBaseURL, pageBudgetBytes } from './tests/e2e/budget.js';
+
+process.env.C9VIEW_E2E_TERMINAL_TOKEN ??= randomUUID();
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -57,6 +60,24 @@ export default defineConfig({
         baseURL: controlBaseURL,
       },
     },
+    {
+      name: 'chromium-remote',
+      testMatch: ['remote.spec.ts'],
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1440, height: 900 },
+        baseURL: controlBaseURL,
+      },
+    },
+    {
+      name: 'chromium-remote-phone',
+      testMatch: ['remote.spec.ts'],
+      use: {
+        ...devices['Pixel 7'],
+        viewport: { width: 390, height: 844 },
+        baseURL: controlBaseURL,
+      },
+    },
   ],
   webServer: [
     {
@@ -77,7 +98,10 @@ export default defineConfig({
     },
     {
       command: 'node --experimental-strip-types tests/e2e/control-server.ts',
-      env: { C9VIEW_TOKEN: controlToken },
+      env: {
+        C9VIEW_TOKEN: controlToken,
+        C9VIEW_E2E_TERMINAL_TOKEN: process.env.C9VIEW_E2E_TERMINAL_TOKEN!,
+      },
       url: `${controlBaseURL}/api/health`,
       reuseExistingServer: false,
       timeout: 30_000,
