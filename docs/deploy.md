@@ -47,6 +47,25 @@ The node chooses `C9VIEW_CLAUDE_BIN` when set, otherwise `claude` on PATH, other
 
 Cloning accepts only `https://`, `ssh://` and `user@host:path` URLs, with no password in the URL. It runs through a separate hardened git runner: no shell, no prompts, no `file`/`ext` protocols, no submodules or templates, no repository hooks, an environment built from scratch (`PATH`, `HOME`, `LANG`, `SSH_AUTH_SOCK`, `XDG_RUNTIME_DIR`, `DBUS_SESSION_BUS_ADDRESS` plus fixed `GIT_*` safety values), and a time limit of `C9VIEW_CLONE_TIMEOUT_MIN` minutes (default 10). Credentials come from your own credential helper or SSH agent; an unknown SSH host fails until you add it to `known_hosts`. A created or cloned folder is never trusted automatically: the owner reviews the trust summary and presses "Trust this folder" before the first session starts. Session labels are stored in the node state folder (`~/.claude/c9view/node/state.db`), only with control on.
 
+### Sending to a terminal session (remote send)
+
+With control on, the owner can also send a message into a Claude Code session that is open in a terminal on the same machine. It uses Claude Code's cross-session messaging socket, named in that session's live status file (`sessions/<pid>.json`). It needs no extra setting and no hook. It adds two time limits:
+
+- `C9VIEW_REMOTE_SEND_TIMEOUT_SEC` (default 3): how long the one socket write may take. A timeout is shown as "may have been sent" and is never resent.
+- `C9VIEW_REMOTE_NOT_SEEN_SEC` (default 20): how long c9view waits to find the message in the transcript before it shows "not seen yet". It keeps watching afterwards, and a message the session releases later is still confirmed.
+
+What this feature requires, and what it refuses:
+
+- Login is required on every host, as for all control. Every send is a guarded POST and is rechecked on the node right before it connects.
+- Linux and WSL only, for now. macOS and native Windows show "not supported on this machine".
+- The node must run as the same OS user as the session and in the same PID namespace, and see the host's `/proc`. A container without host process visibility cannot prove the session is alive and owned, so every send fails closed with "can't tell whether another process holds this session". The socket must be in one of Claude Code's own folders for that user (`$XDG_RUNTIME_DIR/cc-socks`, `/run/user/<uid>/cc-socks`, `cc-socks-<uid>` under the temp folder or `/tmp`), owned by you, not writable by others, with a socket mode of 0600 and named `<pid>.sock`.
+- Only interactive terminal sessions (`kind` `interactive` with `entrypoint` `cli`). `claude -p`, background and daemon sessions are refused.
+- Claude Code 2.1.318 or newer, the version the spike verified (also checked on 2.1.325). Older or unknown versions are refused with "Update Claude Code". Re-run the spike on every Claude Code upgrade ([research R13](../specs/003-remote-control/research.md#r13-re-spike-items), [data sources](data-sources.md#cross-session-messaging-003)).
+- Refusal fixes: restart the session after updating Claude Code; set or remove `crossSessionInbound: "refuse"` in that session's settings; turn on cross-session messaging in the session if it has no address.
+- Warnings, which never block a send: `hold` (the settings say the session holds messages until you let them in at the terminal) and `may-hold` (nothing is set and the session is in bypass mode, or its mode is not known). Managed policy and `--settings` values cannot be read by c9view, so these are advisory and "not seen yet" is the fallback.
+
+c9view never stores the socket path, never opens the `*.key` files beside the status files, never keeps a `peerToken`, and creates or changes nothing in `~/.claude` or the project: it writes one message frame to the socket. The session itself then writes the message to its own transcript.
+
 ## c9view state folder
 
 c9view keeps its persistent state in `~/.claude/c9view/`, overridden by `C9VIEW_STATE_DIR`. The SQLite index remains a rebuildable cache at `C9VIEW_DB`. The default state folder follows `HOME`, independently of `C9VIEW_CLAUDE_DIR` and `XDG_STATE_HOME`. Claude data readers ignore the state folder, including aliases inside the Claude directory.

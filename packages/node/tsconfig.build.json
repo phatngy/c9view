@@ -10,6 +10,8 @@
   "exclude": [
     "src/**/*.test.ts",
     "src/test-app.ts",
-    "src/transport.contract.ts"
+    "src/transport.contract.ts",
+    "src/remote/fake-session.ts",
+    "src/remote/test-harness.ts"
   ]
 }

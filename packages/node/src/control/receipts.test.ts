@@ -84,3 +84,31 @@ it('M2 a cloning receipt does not expire, and its TTL counts from the last updat
   now = 13_000;
   expect(receipts.get(id)).toBeUndefined();
 });
+
+describe('T037a has', () => {
+  it('is true while the reservation or receipt lives, false after expiry or for unknown keys, and never changes state', async () => {
+    let now = 0;
+    const receipts = new Receipts('boot', 10, 5, () => now);
+    expect(receipts.has('remote', 'a')).toBe(false);
+    let release!: () => void;
+    const pending = receipts.run('remote', 'a', {}, 'boot', async () => {
+      await new Promise<void>((r) => {
+        release = r;
+      });
+      return {};
+    });
+    await Promise.resolve();
+    expect(receipts.has('remote', 'a')).toBe(true);
+    release();
+    await pending;
+    expect(receipts.has('remote', 'a')).toBe(true);
+    expect(receipts.has('reply', 'a')).toBe(false);
+    now = 11;
+    expect(receipts.has('remote', 'a')).toBe(false);
+    // The sweep moved it to a tombstone: a retry is still an unknown outcome.
+    await expect(
+      receipts.run('remote', 'a', {}, 'boot', async () => ({})),
+    ).rejects.toMatchObject({ reason: 'unknown-outcome' });
+    expect(receipts.has('remote', 'b')).toBe(false);
+  });
+});

@@ -50,6 +50,8 @@ export function loadControlConfig(
       .split(delimiter)
       .filter(Boolean),
     cloneTimeoutMin: parse('C9VIEW_CLONE_TIMEOUT_MIN', positive, 10),
+    remoteSendTimeoutSec: parse('C9VIEW_REMOTE_SEND_TIMEOUT_SEC', positive, 3),
+    remoteNotSeenSec: parse('C9VIEW_REMOTE_NOT_SEEN_SEC', positive, 20),
   };
 }
 export type ControlConfig = ReturnType<typeof loadControlConfig>;

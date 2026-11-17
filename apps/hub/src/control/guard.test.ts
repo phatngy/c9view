@@ -21,6 +21,13 @@ async function setup() {
     acted();
     return c.json({ ok: true });
   });
+  const remoteActed = vi.fn();
+  let remoteStatus: 202 | 409 | 503 = 202;
+  node.post('/projects/p/sessions/s/remote', (c) => {
+    remoteActed();
+    return c.json({ ok: true }, remoteStatus);
+  });
+  node.get('/projects/p/sessions/s/remote', (c) => c.json({ available: true }));
   const request = vi.fn<NodeTransport['request']>(async (envelope) => {
     const result = await node.request(envelope.path, {
       method: envelope.method,
@@ -54,7 +61,14 @@ async function setup() {
     'x-c9view-boot-id': bootId,
     cookie: login.headers.get('set-cookie')!.split(';')[0]!,
   };
-  return { app, request, acted, headers };
+  return {
+    app,
+    request,
+    acted,
+    headers,
+    remoteActed,
+    setRemoteStatus: (status: 202 | 409 | 503) => void (remoteStatus = status),
+  };
 }
 
 it.each(paths)('guards %s before contacting the node', async (path) => {
@@ -175,6 +189,79 @@ it('keeps GET requests outside the mutation guard and omits clientBootId', async
   });
   expect(request).toHaveBeenCalledWith(
     { method: 'GET', path: '/control/runs', query: {} },
+    expect.any(AbortSignal),
+  );
+});
+
+const remotePaths = [
+  '/api/projects/p/sessions/s/remote',
+  '/api/m/local/projects/p/sessions/s/remote',
+];
+it.each(remotePaths)('T025 guards remote send %s before contacting the node', async (path) => {
+  const { app, request, headers, remoteActed } = await setup();
+  const body = JSON.stringify({
+    clientRequestId: '00000000-0000-4000-8000-000000000009',
+    text: 'synthetic',
+  });
+  for (const [key, value] of [
+    ['origin', undefined],
+    ['origin', 'https://foreign.invalid'],
+    ['origin', 'null'],
+    ['x-c9view-control', undefined],
+    ['x-c9view-control', '0'],
+    ['content-type', undefined],
+    ['content-type', 'text/plain'],
+    ['cookie', undefined],
+    ['cookie', 'c9view_session=forged'],
+    ['x-c9view-boot-id', undefined],
+    ['x-c9view-boot-id', 'not-a-uuid'],
+  ] as const) {
+    const invalid: Record<string, string> = { ...headers };
+    if (value === undefined) delete invalid[key];
+    else invalid[key] = value;
+    const result = await app.request(path, { method: 'POST', headers: invalid, body });
+    expect(result.status, `${key}=${value}`).toBe(403);
+    expect(await result.json()).toEqual({ error: 'Forbidden' });
+  }
+  expect(request).not.toHaveBeenCalled();
+  const accepted = await app.request(path, {
+    method: 'POST',
+    headers: { ...headers, authorization: 'Bearer never-forward', 'x-extra': 'never-forward' },
+    body,
+  });
+  expect(accepted.status).toBe(202);
+  expect(request).toHaveBeenCalledTimes(1);
+  expect(request.mock.calls[0]![0]).toEqual({
+    method: 'POST',
+    path: '/projects/p/sessions/s/remote',
+    query: {},
+    body: new TextEncoder().encode(body),
+    clientBootId: bootId,
+  });
+  expect(remoteActed).toHaveBeenCalledOnce();
+});
+
+it.each([409, 503] as const)('T025 relays a %s remote answer once and never retries', async (status) => {
+  const { app, request, headers, remoteActed, setRemoteStatus } = await setup();
+  setRemoteStatus(status);
+  const result = await app.request(remotePaths[1]!, {
+    method: 'POST',
+    headers,
+    body: '{}',
+  });
+  expect(result.status).toBe(status);
+  expect(request).toHaveBeenCalledTimes(1);
+  expect(remoteActed).toHaveBeenCalledTimes(1);
+});
+
+it('T025 availability GET is relayed without the mutation guard and without a boot id', async () => {
+  const { app, request, headers } = await setup();
+  const result = await app.request('/api/m/local/projects/p/sessions/s/remote', {
+    headers: { cookie: headers.cookie },
+  });
+  expect(result.status).toBe(200);
+  expect(request).toHaveBeenCalledWith(
+    { method: 'GET', path: '/projects/p/sessions/s/remote', query: {} },
     expect.any(AbortSignal),
   );
 });

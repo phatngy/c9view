@@ -46,6 +46,11 @@ export class Receipts {
     )?.receipt;
     return receipt ? structuredClone(receipt) : undefined;
   }
+  /** Read-only: true while this operation's reservation or receipt is still kept. */
+  has(operation: string, id: string): boolean {
+    this.sweep();
+    return this.entries.has(`${operation}:${id}`);
+  }
   /** A receipt still `cloning` does not expire; otherwise the TTL counts from the last update. */
   private touch(entry: Reservation) {
     entry.expires =
