@@ -19,7 +19,9 @@ export { readHooks } from './hooks.js';
 export type { Hook } from './hooks.js';
 export { readPlugins } from './plugins.js';
 export type { Plugin, PluginInventory } from './plugins.js';
+export { readTextResult } from './shared.js';
 export type {
+  TextRead,
   Scope,
   Source,
   SettingsLayer,

@@ -5,6 +5,7 @@ import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import type { ControlService } from './service.js';
 import { ControlError } from './errors.js';
 import { readCommand } from './http.js';
+import { remoteRoutes } from '../remote/routes.js';
 const command = { clientRequestId: z.uuid() };
 const mode = z.enum(['default', 'acceptEdits', 'plan']);
 export function controlRoutes(
@@ -70,6 +71,7 @@ export function controlRoutes(
         )
       : c.json({ error: 'Control operation failed' }, 500),
   );
+  app.route('/', remoteRoutes(service, textMaxChars, bodyMaxBytes));
   app.get('/control/runs', (c) => c.json(service.snapshot()));
   app.get('/control/receipts/:clientRequestId', (c) => {
     const receipt = service.receipt(c.req.param('clientRequestId'));

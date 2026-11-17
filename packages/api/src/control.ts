@@ -173,6 +173,8 @@ export interface CommandReceipt {
   projectId?: string;
   /** Redacted. */
   error?: string;
+  /** Set only for operation `remote`. */
+  delivery?: RemoteDelivery;
 }
 
 export type ControlConflictReason =
@@ -183,19 +185,27 @@ export type ControlConflictReason =
   | 'untrusted-folder'
   | 'settings-changed'
   | 'decided'
-  | 'run-exists';
+  | 'run-exists'
+  | 'remote-unavailable';
 
 /** 409 body. */
 export interface ControlConflict {
   error: string;
   reason: ControlConflictReason;
   trust?: TrustSummary;
+  /** With `remote-unavailable`: the fresh check that refused the send. */
+  availability?: RemoteAvailability;
 }
 
 /** 400 body. */
 export interface ControlBadRequest {
   error: string;
-  reason?: 'outside-roots' | 'bad-url' | 'not-empty' | 'bypass-not-allowed';
+  reason?:
+    | 'outside-roots'
+    | 'bad-url'
+    | 'not-empty'
+    | 'bypass-not-allowed'
+    | 'bad-text';
 }
 
 /** Hints on the node's event hub, wrapped by the hub as MachineEvent. IDs only. */
@@ -208,7 +218,13 @@ export type ControlEvent =
       sessionId: string;
     }
   | { type: 'control.request.resolved'; requestId: string }
-  | { type: 'control.project'; clientRequestId: string };
+  | { type: 'control.project'; clientRequestId: string }
+  | {
+      type: 'control.remote';
+      clientRequestId: string;
+      projectId: string;
+      sessionId: string;
+    };
 
 /** GET /workspace/roots (6d). 404 without roots or with control off. */
 export interface WorkspaceRoots {
@@ -239,4 +255,61 @@ export interface SessionLabelEntry {
 /** GET /labels (6d). */
 export interface SessionLabels {
   labels: SessionLabelEntry[];
+}
+
+// Remote send to a session that is live in a terminal (003). Paths are relative
+// to /api/m/:machineId. Nothing here carries a socket path, PID, version
+// string, token or message text.
+
+/** Why remote send is not offered. `own-run` and `not-live` mean "use 002's reply". */
+export type RemoteUnavailableReason =
+  | 'control-unavailable'
+  | 'unsupported-platform'
+  | 'own-run'
+  | 'not-live'
+  | 'liveness-unknown'
+  | 'address-invalid'
+  | 'not-interactive'
+  | 'too-old'
+  | 'unknown-protocol'
+  | 'no-address'
+  | 'token-required'
+  | 'inbound-refused';
+
+/** GET /projects/:projectId/sessions/:sessionId/remote */
+export interface RemoteAvailability {
+  sessionId: string;
+  available: boolean;
+  /** Set if and only if the session is not available. */
+  reason?: RemoteUnavailableReason;
+  /** With `too-old`. */
+  minVersion?: string;
+  /** Advisory warning on an available session; never blocks a send. */
+  inbound?: 'hold' | 'may-hold';
+  sessionState?: 'idle' | 'busy' | 'waiting' | 'unknown';
+  /** ISO. */
+  checkedAt: string;
+}
+
+/** POST /projects/:projectId/sessions/:sessionId/remote. Strict: unknown fields are 400. */
+export interface RemoteSendBody {
+  /** 1–20,000 characters; must not contain `cross-session-message` (case-insensitive). */
+  text: string;
+  /** UUID. */
+  clientRequestId: string;
+}
+
+export type RemoteDeliveryState =
+  'sent' | 'delivered' | 'not-seen' | 'uncertain' | 'failed';
+
+export interface RemoteDelivery {
+  state: RemoteDeliveryState;
+  /** Only with `delivered`. */
+  turn?: 'new-turn' | 'next-step';
+  /** Only with `failed`. */
+  reason?: 'session-ended' | 'unreachable';
+  /** ISO. */
+  sentAt?: string;
+  /** ISO; the transcript record's own timestamp. */
+  deliveredAt?: string;
 }

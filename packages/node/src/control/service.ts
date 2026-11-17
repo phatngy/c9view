@@ -14,6 +14,8 @@ import type {
   SessionLabels,
   WorkspaceBrowse,
   LabelBody,
+  RemoteAvailability,
+  RemoteSendBody,
   ReplyBody,
   RunActionBody,
   TrustBody,
@@ -41,6 +43,10 @@ import { browse } from '../projects/browse.js';
 import { realRoots } from '../projects/roots.js';
 import { assertStateLocation, FolderTrust } from './trust.js';
 import { ControlError } from './errors.js';
+import {
+  createRemoteService,
+  type RemoteOptions,
+} from '../remote/service.js';
 /** Clones that may run at once on one node; more answer 429 `clone-cap`. */
 const MAX_CONCURRENT_CLONES = 3;
 
@@ -83,6 +89,18 @@ export interface ControlService {
   workspaceRoots(): Promise<string[]>;
   browse(path: string | undefined, hidden: boolean): Promise<WorkspaceBrowse>;
   createProject(body: NewProjectBody, bootId?: string): Promise<CommandReceipt>;
+  /** 003: can the owner's message go into this terminal session? */
+  remoteAvailability(
+    projectId: string,
+    sessionId: string,
+  ): Promise<RemoteAvailability>;
+  /** 003: deliver one frame to a live terminal session (at most once per command). */
+  remoteSend(
+    projectId: string,
+    sessionId: string,
+    body: RemoteSendBody,
+    bootId?: string,
+  ): Promise<CommandReceipt>;
   label(
     projectId: string,
     sessionId: string,
@@ -102,6 +120,8 @@ export interface ControlDependencies {
   env?: NodeJS.ProcessEnv;
   stateDir?: string;
   binary?: string;
+  /** Test seams for remote send. */
+  remote?: RemoteOptions;
 }
 export function createControlService(
   store: DataStore,
@@ -213,6 +233,23 @@ export function createControlService(
       },
     );
   };
+  const remote = createRemoteService({
+    claudeDir: store.config.claudeDir,
+    env,
+    sendTimeoutSec: config.remoteSendTimeoutSec,
+    notSeenSec: config.remoteNotSeenSec,
+    receipts,
+    enabled: () => !closed && config.control,
+    reserve,
+    inOrder,
+    sessionExists: async (projectId, sessionId) =>
+      !!(await store.findSession(projectId, sessionId)),
+    ownRun: (projectId, sessionId) => !!runs.bySession(projectId, sessionId),
+    emit,
+    subscribe: (listener) =>
+      store.events.subscribe(listener as Parameters<typeof store.events.subscribe>[0]),
+    ...(dependencies.remote ? { options: dependencies.remote } : {}),
+  });
   async function project(id: string) {
     const found = (await store.snapshot()).find((p) => p.project.id === id);
     if (!found?.project.path) throw new ControlError(404, 'Project not found');
@@ -497,6 +534,10 @@ export function createControlService(
         opened.add(found.path);
         return begin(found.projectId, body, 'project', undefined, found.path);
       }),
+    remoteAvailability: (projectId, sessionId) =>
+      remote.availability(projectId, sessionId),
+    remoteSend: (projectId, sessionId, body, boot) =>
+      remote.send(projectId, sessionId, body, boot),
     label: (projectId, sessionId, body, boot) =>
       reserve(
         'label',
@@ -518,6 +559,7 @@ export function createControlService(
       if (closed) return;
       closed = true;
       cloning.abort();
+      remote.close();
       requests.close();
       await runs.close();
       state.close();
