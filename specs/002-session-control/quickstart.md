@@ -30,7 +30,7 @@ C9VIEW_CONTROL=1 C9VIEW_AUTH=token C9VIEW_WORKSPACE_ROOTS=/tmp/c9view-scratch/ro
 ```
 
 1. New session in a scratch project; reply; approve a Bash call; deny one with a message; answer a question; interrupt; stop.
-2. Reply to a session open in a terminal → 409 "live elsewhere" → "Fork and reply" opens the fork.
+2. Reply to a session open in a terminal: the composer offers "Send to the terminal session" (003); no fork is offered. _(Amended 2026-11-05 by 003.)_
 3. New project in the scratch root (with "Initialize git"), and import a small public repo over `https`; the trust step lists a project hook in the repo; nothing starts until "Trust this folder".
 4. Set a label on a session; restart without `--control`: no label shown.
 5. Check at 1440×900 and 390×844, keyboard only and with a screen reader for the cards.
