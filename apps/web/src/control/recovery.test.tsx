@@ -348,7 +348,6 @@ it('Stop waiting unlocks remote recovery and a deliberate resend is a new comman
     screen.getByRole('button', { name: 'Send to the terminal session' }),
   );
   await tick();
-  expect(screen.queryByRole('button', { name: 'Fork and reply' })).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: 'Stop waiting' }));
   await tick();
   expect(screen.getByRole('textbox')).toBeEnabled();

@@ -80,7 +80,6 @@ export interface ControlRuns {
 export interface ReplyBody {
   /** 1–20,000 characters. */
   text: string;
-  fork?: boolean;
   /** UUID. */
   clientRequestId: string;
 }

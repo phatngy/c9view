@@ -61,20 +61,6 @@ it('T019 enforces run cap before spawning and closes all on shutdown', async () 
   await t.service.close();
   expect(t.sdk.runs[0]!.closed).toBe(true);
 });
-it('T021 fork uses SDK forkSession and follows init session ID into the receipt', async () => {
-  const t = await setup();
-  const body = { ...t.body(), fork: true };
-  await t.service.reply('project', 'session', body, t.bootId);
-  await waitFor(() => expect(t.sdk.runs).toHaveLength(1));
-  const run = t.sdk.runs[0]!;
-  expect(run.options).toMatchObject({ resume: 'session', forkSession: true });
-  run.init('forked-session');
-  await waitFor(() =>
-    expect(t.service.receipt(body.clientRequestId)?.sessionId).toBe(
-      'forked-session',
-    ),
-  );
-});
 it('T020 checks liveness twice and never spawns after a conflicting second check', async () => {
   const liveness = vi
     .fn()
@@ -153,15 +139,8 @@ it('T030 T033 default settings bypass is downgraded; node bypass forces all thre
     bypass.body(),
     bypass.bootId,
   );
-  await bypass.service.reply(
-    'project',
-    'session',
-    { ...bypass.body(), fork: true },
-    bypass.bootId,
-  );
-  await waitFor(() => expect(bypass.sdk.runs).toHaveLength(3));
+  await waitFor(() => expect(bypass.sdk.runs).toHaveLength(2));
   expect(bypass.sdk.runs.map((r) => r.options.permissionMode)).toEqual([
-    'bypassPermissions',
     'bypassPermissions',
     'bypassPermissions',
   ]);
@@ -206,22 +185,6 @@ it('T091 tombstone saturation refuses new mutations and advertises unavailable',
   });
   expect(t.sdk.runs).toHaveLength(3);
 });
-it('T024 fork is permitted when the original is held by a terminal process', async () => {
-  const liveness = vi.fn(async () => {
-    throw new Error('live elsewhere');
-  });
-  const t = await setup({}, { liveness });
-  const body = { ...t.body(), fork: true };
-  const receipt = await t.service.reply('project', 'session', body, t.bootId);
-  expect(receipt).not.toHaveProperty('sessionId');
-  await waitFor(() => expect(t.sdk.runs).toHaveLength(1));
-  expect(liveness).not.toHaveBeenCalled();
-  expect(t.sdk.runs[0]!.options).toMatchObject({
-    resume: 'session',
-    forkSession: true,
-  });
-});
-
 it.each(['live-elsewhere', 'liveness-unknown'] as const)(
   'T020 returns %s before accepting a resume',
   async (reason) => {
@@ -240,7 +203,9 @@ it.each(['live-elsewhere', 'liveness-unknown'] as const)(
       },
     );
     expect(response.status).toBe(409);
-    expect(await response.json()).toMatchObject({ reason });
+    const payload = await response.json();
+    expect(payload).toMatchObject({ reason });
+    expect(payload.error).not.toMatch(/fork/i);
     expect(t.service.snapshot().runs).toEqual([]);
     expect(t.sdk.runs).toEqual([]);
   },

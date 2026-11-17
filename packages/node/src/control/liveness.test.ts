@@ -23,9 +23,11 @@ it('T020 T023 refuses live PID or foreign namespace, accepts missing entries', a
       pidDomain: await pidNamespace(),
     }),
   );
-  await expect(check('session')).rejects.toMatchObject({
+  const liveError = await check('session').catch((error: unknown) => error);
+  expect(liveError).toMatchObject({
     reason: 'live-elsewhere',
   });
+  expect(String(liveError)).not.toMatch(/fork/i);
   await writeFile(
     join(directory, 'synthetic.json'),
     JSON.stringify({
@@ -34,9 +36,11 @@ it('T020 T023 refuses live PID or foreign namespace, accepts missing entries', a
       pidDomain: 'foreign',
     }),
   );
-  await expect(check('session')).rejects.toMatchObject({
+  const unknownError = await check('session').catch((error: unknown) => error);
+  expect(unknownError).toMatchObject({
     reason: 'liveness-unknown',
   });
+  expect(String(unknownError)).not.toMatch(/fork/i);
 });
 
 it('skips unrelated malformed entries but fails closed for target filename or partial content', async () => {

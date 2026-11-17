@@ -274,8 +274,7 @@ export function createControlService(
     if (source && !(await store.findSession(projectId, source)))
       throw new ControlError(404, 'Session not found');
     await folders.check(folder);
-    const fork = 'fork' in body && body.fork === true;
-    if (source && !fork && !runs.bySession(projectId, source))
+    if (source && !runs.bySession(projectId, source))
       await liveness(source);
     const settings = mergeSettings(
       await readSettings(store.config.claudeDir, folder),
@@ -297,11 +296,8 @@ export function createControlService(
         (defaultMode === 'acceptEdits' || defaultMode === 'plan'
           ? defaultMode
           : 'default'));
-    const sessionId = source && !fork ? source : randomUUID();
-    const concurrent =
-      source && !('fork' in body && body.fork)
-        ? runs.bySession(projectId, source)
-        : undefined;
+    const sessionId = source ?? randomUUID();
+    const concurrent = source ? runs.bySession(projectId, source) : undefined;
     if (concurrent) {
       runs.enqueue(concurrent, body.text, (patch) =>
         receipts.update(operation, body.clientRequestId, patch),
@@ -323,13 +319,13 @@ export function createControlService(
       async () => {
         await folders.check(folder);
         assertWritableDirectory(folder, 'project directory');
-        if (source && !fork) await liveness(source);
+        if (source) await liveness(source);
         const childEnv = childEnvironment(env, stateDir);
         if (store.config.claudeDir !== join(env.HOME ?? homedir(), '.claude'))
           childEnv.CLAUDE_CONFIG_DIR = store.config.claudeDir;
         return {
           cwd: folder,
-          ...(source ? { resume: source, forkSession: fork } : { sessionId }),
+          ...(source ? { resume: source } : { sessionId }),
           permissionMode: mode,
           env: childEnv,
           pathToClaudeCodeExecutable: binary,
@@ -358,7 +354,7 @@ export function createControlService(
     return {
       status: 'accepted' as const,
       runId: run.summary.runId,
-      ...(fork ? {} : { sessionId }),
+      sessionId,
       projectId,
     };
   }

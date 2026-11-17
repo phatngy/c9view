@@ -121,7 +121,7 @@ const availability = (patch: object) => ({
   checkedAt: '2026-11-01T00:00:00.000Z',
   ...patch,
 });
-it('T042 live-elsewhere switches to remote mode, keeps the text and offers no fork', async () => {
+it('T042 live-elsewhere switches to remote mode and keeps the text', async () => {
   let held = false;
   const { fetcher } = mount('ready', false, (url, init) => {
     if (url.endsWith('/remote') && init?.method !== 'POST')
@@ -136,13 +136,13 @@ it('T042 live-elsewhere switches to remote mode, keeps the text and offers no fo
   send();
   await screen.findByRole('button', { name: 'Send to the terminal session' });
   expect(screen.getByRole('textbox')).toHaveValue('Fixture reply');
-  expect(screen.queryByRole('button', { name: /fork/i })).toBeNull();
-  expect(screen.queryByText(/fork/i)).toBeNull();
   const posts = fetcher.mock.calls.filter(
     ([, init]) => init?.method === 'POST',
   );
   expect(posts).toHaveLength(1);
-  expect(JSON.parse(posts[0]![1]!.body as string)).not.toHaveProperty('fork');
+  const body: unknown = JSON.parse(posts[0]![1]!.body as string);
+  expect(body).toMatchObject({ text: 'Fixture reply' });
+  expect(body).not.toHaveProperty('fork');
 });
 it('T042 liveness-unknown keeps the text and offers only the reason', async () => {
   let held = false;
@@ -168,7 +168,6 @@ it('T042 liveness-unknown keeps the text and offers only the reason', async () =
     ).length,
   ).toBeGreaterThan(0);
   expect(screen.getByRole('textbox')).toHaveValue('Fixture reply');
-  expect(screen.queryByRole('button', { name: /fork/i })).toBeNull();
   expect(
     fetcher.mock.calls.filter(([, init]) => init?.method === 'POST'),
   ).toHaveLength(1);

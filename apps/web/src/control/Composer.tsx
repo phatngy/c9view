@@ -381,8 +381,7 @@ export function Composer({
         operation === 'reply' &&
         ['live-elsewhere', 'liveness-unknown'].includes(error.reason ?? '')
       ) {
-        // No fork and no resume of a live session: ask again which way this
-        // session can be reached, and keep the typed text.
+        // Recheck how this session can be reached, and keep the typed text.
         void refreshAvailability();
         setNotice(
           error.reason === 'liveness-unknown'

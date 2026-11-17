@@ -165,12 +165,11 @@ it('T049 offers remote mode with the exact heading, label and slash note', async
     text: 'Hello terminal',
     clientRequestId: expect.stringMatching(/^[\da-f-]{36}$/),
   });
-  // One POST, to the remote route only: no reply, no fork, no new session.
+  // One POST, to the remote route only: no reply and no new session.
   expect(posts()).toHaveLength(1);
   expect(fetcher.mock.calls.some(([url]) => url.endsWith('/messages'))).toBe(
     false,
   );
-  expect(screen.queryByText(/fork/i)).toBeNull();
   expect(box()).toHaveValue('');
 });
 
@@ -491,7 +490,7 @@ it.each<[Partial<RemoteAvailability>, string, string | undefined]>([
   expect(box()).toHaveValue('Keep this text');
   fireEvent.keyDown(box(), { key: 'Enter' });
   expect(posts()).toHaveLength(0);
-  expect(screen.queryByText(/fork|send when free|queue/i)).toBeNull();
+  expect(screen.queryByText(/send when free|queue/i)).toBeNull();
 });
 
 it.each<['hold' | 'may-hold', string]>([

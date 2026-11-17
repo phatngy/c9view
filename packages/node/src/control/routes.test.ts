@@ -114,6 +114,7 @@ it('T012 T021 T029 T037 routes validate boot, body sizes and modes and recover a
 });
 
 it.each([
+  ['reply', { fork: true }],
   ['reply', { permissionMode: 'auto' }],
   ['reply', { permissionMode: 'dontAsk' }],
   ['reply', { permissionMode: 'bypassPermissions' }],

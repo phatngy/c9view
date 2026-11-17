@@ -132,7 +132,7 @@ const isPhone = () => test.info().project.name.endsWith('phone');
 const overflow = (page: Page) =>
   page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
 
-test('Send goes into the same session once, with no new session and no fork', async ({
+test('Send goes into the same session once, with no new session', async ({
   page,
 }) => {
   const terminal = await startTerminal('send');
@@ -151,7 +151,6 @@ test('Send goes into the same session once, with no new session and no fork', as
       'This session is open in a terminal. Your message goes into it as a message from another session.',
     ),
   ).toBeVisible();
-  await expect(page.getByText(/fork/i)).toHaveCount(0);
   await send(page, 'Hello from the web');
   await expect(outcomes(page).getByText(sentText)).toBeVisible({
     timeout: 2000,
@@ -173,7 +172,7 @@ test('Send goes into the same session once, with no new session and no fork', as
   expect(state.frames[0]!.body).toMatch(
     /^Sent by this session's owner from c9view\.\n\nHello from the web$/,
   );
-  // One POST, to the remote route: no reply, no new session, no fork.
+  // One POST, to the remote route: no reply and no new session.
   expect(posts).toEqual([
     `${PROJECT_API}/sessions/${terminal.sessionId}/remote`,
   ]);
@@ -411,7 +410,7 @@ for (const [name, options, reason, fix] of refusals)
     if (fix) await expect(outcomes(page)).toContainText(fix);
     await expect(sendButton(page)).toBeDisabled();
     await expect(composer(page)).toHaveValue('Keep me');
-    await expect(page.getByText(/fork|send when free|queue/i)).toHaveCount(0);
+    await expect(page.getByText(/send when free|queue/i)).toHaveCount(0);
     expect((await terminal.state()).frames).toHaveLength(0);
   });
 
@@ -449,7 +448,6 @@ test('Refused: another process may hold the session (liveness unknown)', async (
   await expect(outcomes(page)).toContainText(
     'Nothing is sent or resumed until c9view can tell.',
   );
-  await expect(page.getByText(/fork/i)).toHaveCount(0);
 });
 
 test('Hold and may-hold warnings leave Send enabled', async ({ page }) => {
