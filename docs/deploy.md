@@ -39,7 +39,7 @@ Sessions use the Claude login available to the OS user running the node, or that
 
 The node chooses `C9VIEW_CLAUDE_BIN` when set, otherwise `claude` on PATH, otherwise the Agent SDK's bundled binary. An invalid explicit binary or no available executable refuses startup; set `C9VIEW_CLAUDE_BIN` to an executable Claude Code binary. The node reports the binary/version it uses.
 
-`--bypass` or `C9VIEW_CONTROL_BYPASS=1` requires control. It applies to every c9view run on that node, including resumed and forked sessions, and runs cannot leave bypass mode. Every startup warns: **every c9view run skips tool permission approvals**. The browser cannot turn bypass on. Enable it only when you intend to allow those tools to run without approval.
+`--bypass` or `C9VIEW_CONTROL_BYPASS=1` requires control. It applies to every c9view run on that node, including resumed sessions _(fork removed 2026-11-17 by 003)_, and runs cannot leave bypass mode. Every startup warns: **every c9view run skips tool permission approvals**. The browser cannot turn bypass on. Enable it only when you intend to allow those tools to run without approval.
 
 ### Workspace roots and new projects
 

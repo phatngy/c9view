@@ -61,11 +61,11 @@ description: 'Task list for Session Control'
 ### User Story 2 — reply (P1)
 
 - [x] T019 [P] [US2] `packages/node/src/control/runs.test.ts`: one run per session, the run cap (409/429), a reply goes onto an existing run's stream instead of a second process, queued while busy, idle timeout closes the run, shutdown closes all
-- [x] T020 [P] [US2] `packages/node/src/control/liveness.test.ts`: a live terminal process → 409 `live-elsewhere`; unknown liveness → 409 `liveness-unknown`; checked again just before spawning
-- [x] T021 [P] [US2] `packages/node/src/control/service.test.ts`: reply returns 202 before the fake SDK finishes starting; a 48 KiB-plus body → 413; fork passes `forkSession` and the receipt gains the new ID; a repeated reply with the same `clientRequestId` acts once; a response lost after acceptance is recovered through `GET …/control/receipts/:id`; a repeat after a simulated restart → `unknown-outcome`
+- [x] T020 [P] [US2] `packages/node/src/control/liveness.test.ts`: a live terminal process → 409 `live-elsewhere`; unknown liveness → 409 `liveness-unknown`; checked again just before spawning. _(Amended 2026-11-05 by 003: the 409 texts no longer say "fork and reply instead".)_
+- [x] T021 [P] [US2] `packages/node/src/control/service.test.ts`: reply returns 202 before the fake SDK finishes starting; a 48 KiB-plus body → 413; a repeated reply with the same `clientRequestId` acts once; a response lost after acceptance is recovered through `GET …/control/receipts/:id`; a repeat after a simulated restart → `unknown-outcome`. _(Fork part removed 2026-11-05 by 003.)_
 - [x] T022 [US2] `packages/node/src/control/runs.ts`: registry, input queue, lifecycle states, idle close (`C9VIEW_CONTROL_IDLE_MIN`), optional `maxTurns`/`maxBudgetUsd`
 - [x] T023 [US2] `packages/node/src/control/liveness.ts`: wraps `packages/node/src/data/status.ts`; excludes c9view's own runs
-- [x] T024 [US2] `ControlService.reply` in `service.ts`: reservation, trust check, liveness, join run or resume with `cwd` = project folder; fork; follow `session_id` from the init message
+- [x] T024 [US2] `ControlService.reply` in `service.ts`: reservation, trust check, liveness, join run or resume with `cwd` = project folder; follow `session_id` from the init message. _(Fork removed 2026-11-05 by 003.)_
 
 ### User Story 3 — approvals and questions (P1)
 
@@ -86,7 +86,7 @@ description: 'Task list for Session Control'
 
 ### User Story 8 — bypass (P3, server)
 
-- [x] T033 [P] [US8] `service.test.ts`: with the flag, new, resumed and forked runs get `bypassPermissions`, `setPermissionMode` can't leave it (409), `/api/machines` reports `bypass: true`; without it, settings resolving to bypass start in `default`
+- [x] T033 [P] [US8] `service.test.ts`: with the flag, new and resumed runs get `bypassPermissions`, `setPermissionMode` can't leave it (409), `/api/machines` reports `bypass: true`; without it, settings resolving to bypass start in `default`
 - [x] T034 [US8] Bypass handling in `service.ts` and `sdk.ts` (spike options), capability in `hello.ts`
 
 ### Cross-cutting checks for 6a
@@ -103,7 +103,7 @@ description: 'Task list for Session Control'
 ## Phase 4: User Stories 2, 3, 5, 8 (web) — PR 6b
 
 - [x] T041 [P] [US2] `apps/web/src/control/control.test.tsx`: composer hidden when control is not `ready`; Send posts `ReplyBody` with the guard header, `clientRequestId` and `X-C9view-Boot-Id`; queued state shown
-- [x] T042 [P] [US2] `control.test.tsx`: a 409 `live-elsewhere`/`liveness-unknown` offers "Fork and reply" and navigates to the fork
+- [x] T042 [P] [US2] `control.test.tsx`: a 409 `live-elsewhere` switches the composer to 003's remote send; `liveness-unknown` shows the reason, keeps the text and offers no fork. _(Amended 2026-11-05 by 003; rewritten in 003-c.)_
 - [x] T043 [P] [US2] `control.test.tsx`: after a timeout or 503 the UI shows "This may have been sent" and resolves it through the receipt; `unknown-outcome` says it may or may not have run
 - [x] T044 [P] [US3] `control.test.tsx`: permission and question cards work from the keyboard, send the right bodies, and announce new requests in a live region
 - [x] T045 [P] [US3] `apps/web/src/live/live.test.tsx`: a `control.request` event refetches runs and shows the card from the GET; after a reconnect the runs are refetched
