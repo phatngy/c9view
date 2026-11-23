@@ -1,4 +1,5 @@
 import {
+  getMessagePosition,
   getMessages,
   getSession,
   readRawRecords,
@@ -360,4 +361,13 @@ export function snapshotSessions(db: IndexDatabase): IndexedSession[] {
     cwdCounts: JSON.parse(row.cwdCounts) as Record<string, number>,
     unknownTypes: JSON.parse(row.unknownTypes) as Record<string, number>,
   }));
+}
+
+/** Position of a message or tool call among the visible messages of an indexed session. */
+export function indexedPosition(
+  db: IndexDatabase,
+  sessionId: string,
+  id: string,
+) {
+  return getMessagePosition(db, sessionId, id);
 }

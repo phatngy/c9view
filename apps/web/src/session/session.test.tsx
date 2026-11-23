@@ -114,7 +114,8 @@ function mockFetch(
     if (projectPending && url === '/api/m/local/projects/project-1')
       return new Promise(() => {});
     let body: unknown;
-    if (url.includes('/status/history')) body = history;
+    if (url.includes('/position')) body = undefined;
+    else if (url.includes('/status/history')) body = history;
     else if (url.includes('?from=end')) body = pages.end ?? pages[0];
     else if (url.includes('?cursor='))
       body =
@@ -142,7 +143,20 @@ function pagedFetch(all: Message[], size = 1) {
   const fetcher = vi.fn(async (url: string) => {
     const params = new URL(url, 'http://localhost').searchParams;
     let body: unknown = projectDetail;
-    if (params.has('from') || params.has('cursor')) {
+    const position = /\/messages\/([^/]+)\/position/.exec(url);
+    if (position) {
+      const id = decodeURIComponent(position[1]!);
+      const ordinal = all.findIndex((m) => m.uuid === id);
+      const limit = Number(params.get('limit'));
+      if (ordinal < 0)
+        return { ok: false, status: 404, json: async () => ({ error: 'x' }) };
+      body = {
+        ordinal,
+        totalMessages: all.length,
+        cursor: ordinal - (ordinal % limit),
+        limit,
+      };
+    } else if (params.has('from') || params.has('cursor')) {
       const requestedLimit = Number(params.get('limit') ?? size);
       const before = Number(params.get('before') ?? all.length);
       const start = params.has('from')
@@ -785,14 +799,38 @@ describe('session navigation', () => {
       false,
     );
   });
+  it('asks for the position of a message beyond the page cap and loads its page', async () => {
+    const all = Array.from({ length: 60 }, (_, i) => message(`far-${i}`));
+    const fetcher = pagedFetch(all);
+    window.history.replaceState(null, '', '/#m-far-3');
+    openSession();
+    await waitFor(() =>
+      expect(document.getElementById('m-far-3')).toHaveClass(
+        'message-highlight',
+      ),
+    );
+    const urls = fetcher.mock.calls.map(([url]) => url);
+    expect(urls.some((url) => url.includes('/messages/far-3/position'))).toBe(
+      true,
+    );
+    // The page cut short by the budget is followed until the message appears.
+    expect(urls.some((url) => url.includes('cursor=3&limit=50'))).toBe(true);
+    expect(screen.queryByText(/Message not found/)).toBeNull();
+  });
+  it('reports a message that the node cannot find after the cap', async () => {
+    pagedFetch(Array.from({ length: 60 }, (_, i) => message(`far-${i}`)));
+    window.history.replaceState(null, '', '/#m-absent');
+    openSession();
+    expect(
+      await screen.findByText('Message not found in this session.'),
+    ).toBeInTheDocument();
+  });
   it('reports and clears a missing hash target after paging is exhausted', async () => {
     const fetcher = mockFetch({ 0: detail([message('present')]) });
     window.history.replaceState(null, '', '/#tool-absent');
     openSession();
     expect(
-      await screen.findByText(
-        'Message not found in loaded pages; jumps load at most 20 pages.',
-      ),
+      await screen.findByText('Message not found in this session.'),
     ).toBeInTheDocument();
     await waitFor(() => expect(pageRequests(fetcher)).toHaveLength(1));
   });

@@ -1,5 +1,8 @@
 import { expect, test } from '@playwright/test';
-import type { SessionDetailResponse } from '../../packages/api/src/index.js';
+import type {
+  MessagePositionResponse,
+  SessionDetailResponse,
+} from '../../packages/api/src/index.js';
 import {
   budgetBaseURL,
   defaultServerBaseURL,
@@ -111,4 +114,34 @@ test('budgeted session pages preserve message order and show partial content', a
   expect(earlier.every((url) => url.searchParams.get('fill') === 'end')).toBe(
     true,
   );
+});
+
+test('the position route finds a message and its cursor loads the page', async ({
+  request,
+}) => {
+  const all = await request.get(
+    `${defaultServerBaseURL}/api${sessionPath}?cursor=0&limit=1000`,
+  );
+  const baseline = (await all.json()) as SessionDetailResponse;
+  const last = baseline.messages.at(-1)!;
+  const found = await request.get(
+    `${budgetBaseURL}${sessionAPI}/messages/${encodeURIComponent(last.uuid)}/position?limit=1`,
+  );
+  expect(found.ok()).toBe(true);
+  const position = (await found.json()) as MessagePositionResponse;
+  expect(position).toMatchObject({
+    ordinal: baseline.messages.length - 1,
+    totalMessages: baseline.messages.length,
+    cursor: baseline.messages.length - 1,
+    limit: 1,
+  });
+  const loaded = await request.get(
+    `${budgetBaseURL}${sessionAPI}?cursor=${position.cursor}&limit=${position.limit}`,
+  );
+  const detail = (await loaded.json()) as SessionDetailResponse;
+  expect(detail.messages.map((message) => message.uuid)).toEqual([last.uuid]);
+  const missing = await request.get(
+    `${budgetBaseURL}${sessionAPI}/messages/absent/position`,
+  );
+  expect(missing.status()).toBe(404);
 });

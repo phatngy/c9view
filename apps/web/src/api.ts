@@ -22,6 +22,7 @@ import type {
   OverviewResponse,
   ProjectDetailResponse,
   ProjectsResponse,
+  MessagePositionResponse,
   SessionDetailResponse,
   SessionPollResponse,
   HealthResponse,
@@ -212,6 +213,19 @@ export const api = {
             ? `cursor=${page}&limit=${SESSION_PAGE_SIZE}`
             : `cursor=${page.cursor}&limit=${page.limit}${page.fill ? `&fill=${page.fill}` : ''}`
       }`,
+      signal,
+    ),
+  messagePosition: (
+    machineId: MachineId,
+    projectId: string,
+    sessionId: string,
+    id: string,
+    limit = SESSION_PAGE_SIZE,
+    signal?: AbortSignal,
+  ) =>
+    machineGet<MessagePositionResponse>(
+      machineId,
+      `${projectPath(projectId)}/sessions/${encodeURIComponent(sessionId)}/messages/${encodeURIComponent(id)}/position?limit=${limit}`,
       signal,
     ),
   sessionPoll: (

@@ -11,7 +11,13 @@ import {
   useState,
 } from 'react';
 import { useBreadcrumbs } from './shell/breadcrumbs.js';
-import { HttpError, useProject, useSession, useSessionPoll } from './api.js';
+import {
+  api,
+  HttpError,
+  useProject,
+  useSession,
+  useSessionPoll,
+} from './api.js';
 import { SessionChanges } from './files/SessionChanges.js';
 import { Failure, Loading } from './ui.js';
 import { Conversation } from './session/Conversation.js';
@@ -26,6 +32,8 @@ import { useNavigate, useSearch } from '@tanstack/react-router';
 import { useMachineId } from './machine.js';
 import { refreshSession } from './live/index.js';
 import { scrollConversationToBottom } from './session/WindowedMessages.js';
+import { loadPositionedPages } from './session/paging.js';
+import { queryKeys } from './queryKeys.js';
 import { buildSearchIndex, searchableText } from './session/model.js';
 export { Conversation } from './session/Conversation.js';
 
@@ -80,6 +88,10 @@ function SessionView({
   const [toolTarget, setToolTarget] = useState<string>();
   const [notice, setNotice] = useState('');
   const attempts = useRef(0);
+  const located = useRef<string>(undefined);
+  const locating = useRef(false);
+  // True after a jump loaded a page far from the end; newer pages load on request.
+  const [detached, setDetached] = useState(false);
   const [newSessionTimedOut, setNewSessionTimedOut] = useState(false);
   const startingPoll = useRef(0);
   const startingSince = useRef(0);
@@ -205,6 +217,7 @@ function SessionView({
   const onNearTop = useCallback(() => void loadOlder('auto'), [loadOlder]);
   function jump(id: string, tool = false) {
     attempts.current = 0;
+    located.current = undefined;
     setJumpVersion((n) => n + 1);
     setNotice('');
     setTarget(id);
@@ -226,6 +239,7 @@ function SessionView({
     const readHash = () => {
       const hash = window.location.hash;
       setJumpVersion((n) => n + 1);
+      located.current = undefined;
       if (hash.startsWith('#m-')) {
         attempts.current = 0;
         setTarget(hash.slice(3));
@@ -256,13 +270,49 @@ function SessionView({
         !hasPrevious ||
         attempts.current >= 19);
     if (!targetMissing) return;
-    // Report the terminal miss before clearing the target so live tailing resumes.
-    setNotice(
-      'Message not found in loaded pages; jumps load at most 20 pages.',
-    );
-    setTarget(undefined);
-    setToolTarget(undefined);
+    const clear = (message: string) => {
+      // Report the terminal miss before clearing the target so live tailing resumes.
+      setNotice(message);
+      setTarget(undefined);
+      setToolTarget(undefined);
+    };
+    // Ask the node where the message is once, then load its page directly.
+    if (locating.current) return;
+    if (located.current === target) return clear('Message not found.');
+    located.current = target;
+    locating.current = true;
+    const key = queryKeys.session(machineId, projectId, sessionId);
+    void (async () => {
+      try {
+        const position = await api.messagePosition(
+          machineId,
+          projectId,
+          sessionId,
+          target,
+        );
+        const loaded = await loadPositionedPages(position, target, (param) =>
+          api.session(machineId, projectId, sessionId, param),
+        );
+        attempts.current = 0;
+        setDetached(true);
+        client.setQueryData(key, loaded);
+      } catch (e) {
+        clear(
+          e instanceof HttpError && e.status === 404
+            ? 'Message not found in this session.'
+            : e instanceof Error
+              ? e.message
+              : 'Could not locate the message.',
+        );
+      } finally {
+        locating.current = false;
+      }
+    })();
   }, [
+    client,
+    machineId,
+    projectId,
+    sessionId,
     target,
     pages,
     targetFound,
@@ -300,9 +350,22 @@ function SessionView({
     fetchPreviousPage,
   ]);
   useEffect(() => {
-    if (hasNext && !isFetching && !target && !query.isFetchNextPageError)
+    if (
+      hasNext &&
+      !isFetching &&
+      !target &&
+      !detached &&
+      !query.isFetchNextPageError
+    )
       void fetchNextPage({ cancelRefetch: false });
-  }, [hasNext, isFetching, fetchNextPage, target, query.isFetchNextPageError]);
+  }, [
+    hasNext,
+    isFetching,
+    fetchNextPage,
+    target,
+    detached,
+    query.isFetchNextPageError,
+  ]);
   useEffect(() => {
     const newest = pages?.pages.at(-1);
     const total = poll.data?.totalMessages;
@@ -390,6 +453,7 @@ function SessionView({
   }
   async function jumpLatest() {
     setLoadingLatest(true);
+    setDetached(false);
     try {
       let remaining = hasNext;
       for (let page = 0; page < 20 && remaining; page++) {
@@ -651,7 +715,7 @@ function SessionView({
           </button>
         ))}
       </nav>
-      {scrolledUp && (!narrow || mobileTab === 'chat') && (
+      {(scrolledUp || detached) && (!narrow || mobileTab === 'chat') && (
         <button
           className="jump-latest"
           disabled={loadingLatest || isFetching}

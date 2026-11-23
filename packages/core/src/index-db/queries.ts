@@ -184,3 +184,45 @@ export const usageByModel = (db: IndexDatabase, options: UsageFilters = {}) =>
   usage(db, sql<string>`${usageDaily.model}`, options).map(
     ({ key, ...rest }) => ({ model: key as string, ...rest }),
   );
+
+export interface MessagePosition {
+  /** Zero-based place among the visible messages, in paging order. */
+  ordinal: number;
+  /** Number of visible messages in the session. */
+  total: number;
+}
+/** Message types the session pages count; matches the paging order of byteOffset. */
+const VISIBLE_TYPES = "('user','assistant','system')";
+/**
+ * Position of one message among the visible messages of a session, in the order
+ * the session pages use (byte offset). `id` is a message uuid or the id of a tool
+ * call that the message made. Returns undefined when no visible message matches.
+ * Both lookups use the primary key and the (sessionId, byteOffset) index.
+ */
+export function getMessagePosition(
+  db: IndexDatabase,
+  sessionId: string,
+  id: string,
+): MessagePosition | undefined {
+  const row =
+    (db.sqlite
+      .prepare(
+        `SELECT byteOffset FROM messages WHERE sessionId = ? AND uuid = ? AND type IN ${VISIBLE_TYPES}`,
+      )
+      .get(sessionId, id) as { byteOffset: number } | undefined) ??
+    (db.sqlite
+      .prepare(
+        `SELECT byteOffset FROM messages WHERE sessionId = ? AND type = 'assistant'
+         AND EXISTS (SELECT 1 FROM json_each(messages.toolUses) WHERE key = ?)
+         ORDER BY byteOffset LIMIT 1`,
+      )
+      .get(sessionId, id) as { byteOffset: number } | undefined);
+  if (!row) return undefined;
+  const counts = db.sqlite
+    .prepare(
+      `SELECT sum(byteOffset < ?) AS ordinal, count(*) AS total FROM messages
+       WHERE sessionId = ? AND type IN ${VISIBLE_TYPES}`,
+    )
+    .get(row.byteOffset, sessionId) as { ordinal: number; total: number };
+  return { ordinal: counts.ordinal ?? 0, total: counts.total };
+}

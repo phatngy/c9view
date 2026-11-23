@@ -1,8 +1,13 @@
 import { redactStrings } from '../data/redaction.js';
-import { indexedMessages } from '../data/indexed.js';
+import { indexedMessages, indexedPosition } from '../data/indexed.js';
 import { Hono } from 'hono';
 import { listSubagents } from '@c9view/core';
-import type { ApiError, SessionDetailResponse } from '@c9view/api';
+import { z } from 'zod';
+import type {
+  ApiError,
+  MessagePositionResponse,
+  SessionDetailResponse,
+} from '@c9view/api';
 import type { DataStore } from '../data/store.js';
 import type { SessionPollResponse } from '@c9view/api';
 import { DEFAULT_NODE_LIMITS, type NodeLimits } from '../limits.js';
@@ -10,6 +15,8 @@ import { budgetItems, encodedBytes, serializePage } from '../budget.js';
 import { shrinkMessage } from './session-budget.js';
 // Cursor fields may grow by a few digits after the envelope is measured.
 const CURSOR_SLACK = 64;
+// Message uuids and tool call ids; keeps odd bytes out of lookups.
+const messageId = z.string().regex(/^[A-Za-z0-9_.:-]{1,200}$/);
 function pageNumber(
   raw: string | undefined,
   fallback: number,
@@ -124,5 +131,49 @@ export function sessionRoutes(
     };
     return c.json(redactStrings(response));
   });
+  app.get(
+    '/projects/:projectId/sessions/:sessionId/messages/:id/position',
+    async (c) => {
+      const id = messageId.safeParse(c.req.param('id'));
+      if (!id.success)
+        return c.json({ error: 'Invalid message id' } satisfies ApiError, 400);
+      const found = await store.findSession(
+        c.req.param('projectId'),
+        c.req.param('sessionId'),
+        true,
+      );
+      if (!found)
+        return c.json({ error: 'Session not found' } satisfies ApiError, 404);
+      const limit = Math.max(1, pageNumber(c.req.query('limit'), 200, 1000));
+      let place: { ordinal: number; total: number } | undefined;
+      if (store.readyIndex) {
+        place = indexedPosition(store.readyIndex, found.session.id, id.data);
+      } else {
+        const all = (found.cached.messages ??= (
+          await store.cache.mapped(found.path)
+        ).messages);
+        const ordinal = all.findIndex(
+          (m) =>
+            m.uuid === id.data ||
+            m.blocks.some((b) => b.type === 'tool_use' && b.id === id.data),
+        );
+        if (ordinal >= 0) place = { ordinal, total: all.length };
+      }
+      if (!place)
+        return c.json({ error: 'Message not found' } satisfies ApiError, 404);
+      const response: MessagePositionResponse = {
+        ordinal: place.ordinal,
+        totalMessages: place.total,
+        cursor: place.ordinal - (place.ordinal % limit),
+        limit,
+      };
+      const text = serializePage(
+        'message position',
+        response,
+        limits.pageBudgetBytes,
+      );
+      return c.body(text, 200, { 'content-type': 'application/json' });
+    },
+  );
   return app;
 }

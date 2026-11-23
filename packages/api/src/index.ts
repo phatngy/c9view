@@ -178,6 +178,19 @@ export interface SessionDetailResponse {
   truncated?: boolean;
 }
 
+// GET /api/projects/:projectId/sessions/:sessionId/messages/:id/position?limit=<n>
+// `id` is a message uuid or the id of a tool call. `ordinal` is the zero-based
+// place of that message in the paging order. `cursor` is the start of the page of
+// `limit` messages that holds it, ready for `GET .../sessions/:sessionId?cursor=&limit=`.
+// A page cut short by the byte budget can end before the message; follow nextCursor.
+// 404 when the session or message is not found; 400 for an invalid id.
+export interface MessagePositionResponse {
+  ordinal: number;
+  totalMessages: number;
+  cursor: number;
+  limit: number;
+}
+
 // GET /api/projects/:projectId/sessions/:sessionId/status  (cheap, for polling)
 export interface SessionPollResponse {
   status: SessionStatus;
