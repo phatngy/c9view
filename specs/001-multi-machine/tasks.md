@@ -158,12 +158,12 @@ description: 'Task list for Components and Multiple Machines'
 
 **Goal**: one Overview, project list and usage across machines (FR-017, FR-019 live reads). Starts after 002's 6a merges.
 
-- [ ] T059 [P] [US4] `apps/hub/src/aggregate.test.ts` with two fake transports: same `projectId` stays separate with `machineId`; a machine slower than `C9VIEW_MERGE_TIMEOUT_MS` is left out and listed in `partial`
-- [ ] T060 [P] [US4] `apps/hub/src/aggregate.test.ts`: online machines are read live; an offline machine contributes its last snapshot, marked offline
-- [ ] T061 [US4] `apps/hub/src/aggregate.ts`: merge `/api/overview`, `/api/projects`, `/api/usage` over every transport with `machineId` on each item and `partial`
-- [ ] T062 [US4] `apps/hub/src/app.ts`: mount merged endpoints before the alias
-- [ ] T063 [US4] `packages/api/src/`: additive `machineId?` on merged `ProjectSummary` and `SessionSummary`, and `partial?` on the merged responses
-- [ ] T064 [US4] Web `apps/web/src/overview.tsx` and board: key items by `(machineId, projectId)`; show the `partial` notice naming the missing machine
+- [x] T059 [P] [US4] `apps/hub/src/aggregate.test.ts` with two fake transports: same `projectId` stays separate with `machineId`; a machine slower than `C9VIEW_MERGE_TIMEOUT_MS` is left out and listed in `partial`
+- [x] T060 [P] [US4] `apps/hub/src/aggregate.test.ts`: online machines are read live; an offline machine contributes its last snapshot, marked offline
+- [x] T061 [US4] `apps/hub/src/aggregate.ts`: merge `/api/overview`, `/api/projects`, `/api/usage` over every transport with `machineId` on each item and `partial`
+- [x] T062 [US4] `apps/hub/src/app.ts`: mount merged endpoints before the alias
+- [x] T063 [US4] `packages/api/src/`: additive `machineId?` on merged `ProjectSummary` and `SessionSummary`, and `partial?` on the merged responses
+- [x] T064 [US4] Web `apps/web/src/overview.tsx` and board: key items by `(machineId, projectId)`; show the `partial` notice naming the missing machine
 
 ---
 
