@@ -2620,15 +2620,20 @@ it('tracks the first visible conversation row in the outline and disconnects on 
   fireEvent.click(screen.getByRole('button', { name: /Prompt: first/ }));
   expect(jump).toHaveBeenCalledWith('first');
   expect(second).not.toHaveAttribute('aria-current');
+  // A scroll-spy update from rows passed during the smooth scroll stays hidden.
   act(() => notify([change(2, true)], {} as IntersectionObserver));
   expect(screen.getByRole('button', { name: /Prompt: first/ })).toHaveAttribute(
     'aria-current',
     'true',
   );
-  fireEvent(
-    document.querySelector('.conversation-window')!,
-    new Event('scrollend'),
+  // Reaching the clicked row releases suppression, even without scrollend.
+  act(() => notify([change(0, true)], {} as IntersectionObserver));
+  act(() =>
+    notify([change(0, false), change(2, true)], {} as IntersectionObserver),
   );
+  expect(second).toHaveAttribute('aria-current', 'true');
+  fireEvent.click(screen.getByRole('button', { name: /Prompt: first/ }));
+  fireEvent.wheel(document.querySelector('.conversation-window')!);
   act(() => notify([change(2, true)], {} as IntersectionObserver));
   expect(second).toHaveAttribute('aria-current', 'true');
   unmount();
@@ -2751,6 +2756,7 @@ it('loads earlier history after a background refetch ends at the top edge withou
 });
 
 it('observes conversation rows when the conversation mounts after the outline', async () => {
+  const observeMutations = vi.spyOn(MutationObserver.prototype, 'observe');
   const observe = vi.fn();
   vi.stubGlobal(
     'IntersectionObserver',
@@ -2763,16 +2769,19 @@ it('observes conversation rows when the conversation mounts after the outline', 
   const batch = [message('late')];
   const jump = vi.fn();
   const { rerender } = render(
-    <>
+    <div className="session-page">
       <Outline messages={batch} jump={jump} />
-    </>,
+    </div>,
   );
   expect(observe).not.toHaveBeenCalled();
+  expect(observeMutations.mock.calls[0]?.[0]).toBe(
+    document.querySelector('.session-page'),
+  );
   rerender(
-    <>
+    <div className="session-page">
       <Outline messages={batch} jump={jump} />
       <Conversation messages={batch} />
-    </>,
+    </div>,
   );
   await waitFor(() =>
     expect(observe).toHaveBeenCalledWith(
@@ -2781,7 +2790,7 @@ it('observes conversation rows when the conversation mounts after the outline', 
   );
 });
 
-it('resumes outline observer updates after the 600 ms jump fallback', () => {
+it('resumes outline observer updates after the jump timeout fallback', () => {
   vi.useFakeTimers();
   try {
     let notify: IntersectionObserverCallback = () => {};
@@ -2812,7 +2821,10 @@ it('resumes outline observer updates after the 600 ms jump fallback', () => {
     fireEvent.click(first);
     act(() => notify([change], {} as IntersectionObserver));
     expect(first).toHaveAttribute('aria-current', 'true');
-    act(() => vi.advanceTimersByTime(600));
+    act(() => vi.advanceTimersByTime(2999));
+    act(() => notify([change], {} as IntersectionObserver));
+    expect(first).toHaveAttribute('aria-current', 'true');
+    act(() => vi.advanceTimersByTime(1));
     act(() => notify([change], {} as IntersectionObserver));
     expect(
       screen.getByRole('button', { name: /Prompt: second/ }),

@@ -14,6 +14,7 @@ export interface ResolvedProjectPath {
 
 export interface ProjectPathOptions {
   cwdHints?: string[];
+  cwdCounts?: Record<string, number>;
 }
 
 export interface ProjectSessionFile {
@@ -69,14 +70,17 @@ export async function resolveProjectPath(
   name: string,
   options: ProjectPathOptions = {},
 ): Promise<ResolvedProjectPath> {
-  const hints = options.cwdHints ?? [];
-  if (hints.length > 0) {
-    const counts = new Map<string, number>();
-    for (const hint of hints) {
-      if (typeof hint === 'string' && path.isAbsolute(hint))
-        counts.set(hint, (counts.get(hint) ?? 0) + 1);
-    }
-    const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  const counts = options.cwdCounts ?? countCwdHints(options.cwdHints ?? []);
+  if (Object.keys(counts).length > 0) {
+    const ranked = Object.entries(counts)
+      .filter(
+        ([hint, count]) =>
+          path.isAbsolute(hint) && Number.isFinite(count) && count > 0,
+      )
+      .sort(
+        ([pathA, countA], [pathB, countB]) =>
+          countB - countA || (pathA < pathB ? -1 : pathA > pathB ? 1 : 0),
+      );
     const mostCommon =
       ranked.find(([hint]) => encodeProjectPath(hint) === name)?.[0] ??
       ranked[0]?.[0];
@@ -92,6 +96,15 @@ export async function resolveProjectPath(
   if (filesystemPath)
     return { path: filesystemPath, exists: true, source: 'filesystem' };
   return { path: decodeProjectDir(name), exists: false, source: 'decoded' };
+}
+
+function countCwdHints(hints: string[]): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const hint of hints) {
+    if (typeof hint === 'string' && path.isAbsolute(hint))
+      counts[hint] = (counts[hint] ?? 0) + 1;
+  }
+  return counts;
 }
 
 async function resolveEncodedPath(name: string): Promise<string | null> {

@@ -14,7 +14,7 @@ export function SessionControls({
 }) {
   const [draft, setDraft] = useState(filter);
   const previousFilter = useRef(filter);
-  const lastCommitted = useRef(filter);
+  const lastCommitted = useRef<string | undefined>(filter);
   const draftRef = useRef(filter);
   const filterRef = useRef(filter);
   const onChangeRef = useRef(onChange);
@@ -39,6 +39,8 @@ export function SessionControls({
       if (filter !== lastCommitted.current) {
         draftRef.current = filter;
         setDraft(filter);
+      } else if (draftRef.current === '') {
+        lastCommitted.current = undefined;
       }
     }
   }, [filter]);

@@ -98,6 +98,27 @@ it('preserves typing after a commit while the URL prop catches up', () => {
   expect(input).toHaveValue('second');
 });
 
+it('forgets a committed value when the URL catches up while the input is empty', () => {
+  const props = {
+    view: 'board',
+    filter: '',
+    sort: 'activity-desc',
+    onChange: vi.fn(),
+  };
+  const { rerender } = render(<SessionControls {...props} />);
+  const input = screen.getByRole('searchbox', { name: 'Filter sessions' });
+  fireEvent.change(input, { target: { value: 'first' } });
+  fireEvent.keyDown(input, { key: 'Enter' });
+  fireEvent.change(input, { target: { value: '' } });
+
+  rerender(<SessionControls {...props} filter="first" />);
+  expect(input).toHaveValue('');
+
+  rerender(<SessionControls {...props} filter="" />);
+  rerender(<SessionControls {...props} filter="first" />);
+  expect(input).toHaveValue('first');
+});
+
 it('syncs an external filter prop change into the input', () => {
   const { rerender } = render(
     <SessionControls

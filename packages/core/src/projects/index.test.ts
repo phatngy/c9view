@@ -62,6 +62,24 @@ describe('project readers', () => {
     ).toEqual({ path: common, exists: false, source: 'transcript' });
   });
 
+  it('breaks equal-count cwd hint ties by path regardless of insertion order', async () => {
+    const first = '/tmp/c9view-cwd-alpha';
+    const second = '/tmp/c9view-cwd-beta';
+    const forward = await resolveProjectPath('no-match', {
+      cwdHints: [second, first],
+    });
+    const reverse = await resolveProjectPath('no-match', {
+      cwdHints: [first, second],
+    });
+    const countMapReversed = await resolveProjectPath('no-match', {
+      cwdCounts: { [second]: 2, [first]: 2 },
+    });
+
+    expect(forward.path).toBe(first);
+    expect(reverse.path).toBe(first);
+    expect(countMapReversed.path).toBe(first);
+  });
+
   it('falls back to decoding when there are no valid hints or filesystem paths', async () => {
     expect(
       await resolveProjectPath('-c9view-nonexistent-r9-project', {
