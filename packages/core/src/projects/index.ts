@@ -14,6 +14,7 @@ export interface ResolvedProjectPath {
 
 export interface ProjectPathOptions {
   cwdHints?: string[];
+  /** Takes priority over cwdHints when both are passed. */
   cwdCounts?: Record<string, number>;
 }
 

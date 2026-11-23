@@ -2598,8 +2598,13 @@ it('tracks the first visible conversation row in the outline and disconnects on 
     ),
   ];
   expect(observe.mock.calls.map(([node]) => node)).toEqual(rows);
-  const change = (index: number, isIntersecting: boolean) =>
-    ({ target: rows[index], isIntersecting }) as IntersectionObserverEntry;
+  const change = (index: number, isIntersecting: boolean, top = 0) =>
+    ({
+      target: rows[index],
+      isIntersecting,
+      boundingClientRect: { top },
+      rootBounds: { top: 0 },
+    }) as IntersectionObserverEntry;
   act(() =>
     notify([change(0, true), change(1, true)], {} as IntersectionObserver),
   );
@@ -2626,14 +2631,36 @@ it('tracks the first visible conversation row in the outline and disconnects on 
     'aria-current',
     'true',
   );
-  // Reaching the clicked row releases suppression, even without scrollend.
-  act(() => notify([change(0, true)], {} as IntersectionObserver));
+  // The target appearing at the bottom edge does not end suppression.
+  act(() => notify([change(0, true, 500)], {} as IntersectionObserver));
+  act(() => notify([change(2, true)], {} as IntersectionObserver));
+  expect(screen.getByRole('button', { name: /Prompt: first/ })).toHaveAttribute(
+    'aria-current',
+    'true',
+  );
+  // Reaching the top edge releases suppression, even without scrollend.
+  act(() => notify([change(0, true, 0)], {} as IntersectionObserver));
   act(() =>
     notify([change(0, false), change(2, true)], {} as IntersectionObserver),
   );
   expect(second).toHaveAttribute('aria-current', 'true');
+
   fireEvent.click(screen.getByRole('button', { name: /Prompt: first/ }));
-  fireEvent.wheel(document.querySelector('.conversation-window')!);
+  fireEvent.pointerDown(document.body);
+  act(() => notify([change(2, true)], {} as IntersectionObserver));
+  expect(screen.getByRole('button', { name: /Prompt: first/ })).toHaveAttribute(
+    'aria-current',
+    'true',
+  );
+
+  fireEvent.click(screen.getByRole('button', { name: /Prompt: first/ }));
+  const scroller = document.querySelector('.conversation-window')!;
+  act(() => scroller.dispatchEvent(new Event('scrollend')));
+  act(() => notify([change(2, true)], {} as IntersectionObserver));
+  expect(second).toHaveAttribute('aria-current', 'true');
+
+  fireEvent.click(screen.getByRole('button', { name: /Prompt: first/ }));
+  fireEvent.wheel(scroller);
   act(() => notify([change(2, true)], {} as IntersectionObserver));
   expect(second).toHaveAttribute('aria-current', 'true');
   unmount();
