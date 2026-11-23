@@ -218,3 +218,9 @@ T104 (G2) waits for the maintainer's approval and T085 before it is built. No CR
 - [x] T111 [P] Give `packages/node/src/boundaries.test.ts` ("rejects every forbidden node import…") and `apps/web/src/session/session.test.tsx` ("does not rebuild the 2,000-message search index while typing") an explicit `{ timeout: 30_000 }`, and the same for `packages/node/src/routes/sessions.test.ts` ("cuts a message larger than the whole budget and keeps paging"), checking that one for a real race if it still flakes, per the flaky tests seen on 2026-11-11 (partial)
 - [x] T112 [P] Reword the `AGENTS.md` conventions line so project creation, init and clone under workspace roots read as current behaviour, with `c9view node install-service/uninstall-service` still planned, per T084 (partial)
 - [x] T113 Stop `packages/node/src/projects/git-write.ts` from applying the user's global git config (set `GIT_CONFIG_GLOBAL=/dev/null` and keep `GIT_CONFIG_NOSYSTEM=1`), or document in research R7 why it is allowed (for example `url.insteadOf` rewrites after URL validation), with a test, per the hardened runner in R7 (partial)
+
+## Phase 10: Convergence (whole feature, after Phase 9; found by `/speckit-converge` on 2026-11-23)
+
+The behaviour converged: all FR, US, SC, plan and constitution checks pass. One LOW documentation gap remains.
+
+- [ ] T114 Reword the Principle II row of the Constitution Check in `specs/002-session-control/plan.md` from "child env drops every `C9VIEW_*` key" to say that the child env drops c9view's secrets (a named list, plus `C9VIEW_*` keys ending in TOKEN, SECRET, PASSWORD or KEY) and passes `C9VIEW_STATE_DIR`, matching `packages/node/src/control/env.ts`, per plan Constitution Check II, FR-005, R11 (contradicts)
