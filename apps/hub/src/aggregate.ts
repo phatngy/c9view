@@ -68,9 +68,19 @@ const overviewSchema = z.looseObject({
     .nullable(),
   byModel: z.array(modelSchema),
 });
-const projectsSchema = z.looseObject({
-  projects: z.array(z.looseObject({ id: z.string() })),
+const projectItemSchema = z.looseObject({
+  id: z.string(),
+  name: z.string(),
+  path: z.string(),
+  pathExists: z.boolean(),
+  sessionCount: number,
+  lastActivityAt: z.string().nullable(),
+  columns: columnsSchema,
+  tokens: tokenSchema,
+  costUsd: number,
 });
+// One malformed project sends its machine to `partial` (no half answers).
+const projectsSchema = z.looseObject({ projects: z.array(projectItemSchema) });
 const usageTotal = { costUsd: number, tokens: tokenSchema };
 const usageSchema = z.looseObject({
   tz: z.string(),
@@ -96,6 +106,9 @@ type Fetched =
 
 const decoder = new TextDecoder();
 
+/** Largest answer the hub reads from one machine for a merged endpoint. */
+export const MERGE_RESPONSE_MAX_BYTES = 8 * 1024 * 1024;
+
 /** One live read, capped by the merge timeout. Any failure leaves the machine out. */
 async function readLive(
   machine: HubMachine,
@@ -105,6 +118,7 @@ async function readLive(
   signal: AbortSignal,
 ): Promise<Fetched> {
   const machineId = machine.summary.machineId;
+  if (signal.aborted) return { machineId, ok: false };
   const controller = new AbortController();
   const stop = () => controller.abort();
   signal.addEventListener('abort', stop, { once: true });
@@ -121,7 +135,15 @@ async function readLive(
       controller.signal,
     );
     const chunks: Uint8Array[] = [];
-    for await (const chunk of response.body) chunks.push(chunk);
+    let size = 0;
+    for await (const chunk of response.body) {
+      size += chunk.byteLength;
+      if (size > MERGE_RESPONSE_MAX_BYTES) {
+        controller.abort();
+        throw new Error('Response too large');
+      }
+      chunks.push(chunk);
+    }
     if (response.status !== 200) throw new Error('Node error');
     return JSON.parse(decoder.decode(Buffer.concat(chunks)));
   })();
@@ -332,7 +354,7 @@ export function mergedEndpoints(
       return next();
     const { fetched, offline } = await gather(
       path.slice(4),
-      c.req.query(),
+      Object.fromEntries(new URL(c.req.url).searchParams),
       c.req.raw.signal,
     );
     const partial: string[] = [];
@@ -345,6 +367,11 @@ export function mergedEndpoints(
         if (parsed?.success) items.push(parsed.data as OverviewResponse);
         else partial.push(f.machineId);
       }
+      if (fetched.length && partial.length === fetched.length)
+        return c.json(
+          { error: 'No machine answered', partial, offline: offlineIds },
+          503,
+        );
       for (const m of offline)
         if (m.snapshot) items.push(overviewFromSnapshot(m.snapshot));
       return c.json({
@@ -366,6 +393,11 @@ export function mergedEndpoints(
             });
         else partial.push(f.machineId);
       }
+      if (fetched.length && partial.length === fetched.length)
+        return c.json(
+          { error: 'No machine answered', partial, offline: offlineIds },
+          503,
+        );
       for (const m of offline)
         for (const p of m.snapshot?.projects ?? [])
           projects.push({

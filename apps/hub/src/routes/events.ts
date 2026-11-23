@@ -14,7 +14,8 @@ export function eventRoutes(transport: NodeTransport | null) {
       {
         start(controller) {
           let finished = false;
-          let announcement: ReturnType<typeof setTimeout> | undefined = undefined;
+          let announcement: ReturnType<typeof setTimeout> | undefined =
+            undefined;
           const send = (text: string) => {
             if (finished) return;
             const chunk = encoder.encode(text);

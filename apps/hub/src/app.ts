@@ -33,6 +33,8 @@ export function createApp(
     auth?: MiddlewareHandler;
     allowedHosts?: string[];
     mergeTimeoutMs?: number;
+    /** Tests and pairing (7b): a prepared directory instead of the one built from `transport`. */
+    machines?: Machines;
   } = {},
 ) {
   const app = new Hono<{ Variables: { authenticated: boolean } }>();
@@ -51,7 +53,8 @@ export function createApp(
     options.transport === undefined
       ? createLocalTransport(runtime!, limits)
       : options.transport;
-  const machines = new Machines(transport, options.authMode ?? 'none');
+  const machines =
+    options.machines ?? new Machines(transport, options.authMode ?? 'none');
   const allowed = new Set([
     'localhost',
     '127.0.0.1',

@@ -26,6 +26,12 @@ Types in `@c9view/api` (`machines.ts`). All paths go through login (when enabled
 
 `GET /api/overview`, `GET /api/projects`, `GET /api/usage` with no machine: every machine's answer merged; each item has `machineId`; machines that miss `C9VIEW_MERGE_TIMEOUT_MS` are listed in `partial: MachineId[]`. Offline machines contribute their last snapshot (projects and sessions), marked offline. Before 7a these paths are the `local` alias. Search stays per machine.
 
+- A hub whose only machine is `local` returns the unstamped alias response: no `machineId`, no `partial`, no `offline`.
+- `offline: MachineId[]` lists machines answered from their last snapshot (or with none, if they never sent one).
+- A snapshot has no usage history, so offline machines add nothing to `/api/usage`; the Overview cost can exceed the usage totals while a machine is offline.
+- If machines were read live and none answered, the response is 503 with `partial`.
+- The web consumes the merged paths from 7d (T099, the "All machines" switcher); until then it calls only `/api/m/<id>/*`.
+
 ## Paged responses (6.0c)
 
 Fields are additive. Each route keeps its list field: session pages use `messages`, search `results`, directory listings `entries`, git status and diffs `files`, and session changes `files`.
