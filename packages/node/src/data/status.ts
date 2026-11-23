@@ -4,22 +4,23 @@ import { join } from 'node:path';
 import { z } from 'zod';
 import type { SessionStatus } from '@c9view/api';
 
-const entrySchema = z
-  .object({
-    pid: z.number().int().positive().optional().catch(undefined),
-    sessionId: z.string(),
-    cwd: z.string().optional().catch(undefined),
-    status: z.string().optional().catch(undefined),
-    updatedAt: z.union([z.string(), z.number()]).optional().catch(undefined),
-    statusUpdatedAt: z
-      .union([z.string(), z.number()])
-      .optional()
-      .catch(undefined),
-    name: z.string().optional().catch(undefined),
-    kind: z.string().optional().catch(undefined),
-    pidDomain: z.union([z.string(), z.number()]).optional().catch(undefined),
-  })
-  .passthrough();
+/**
+ * Explicit pick of the fields the code reads. Zod objects strip unknown keys,
+ * so a `peerToken` (or any other field) in a status file is dropped at parse
+ * time and never kept. Never use passthrough here.
+ */
+const entrySchema = z.object({
+  pid: z.number().int().positive().optional().catch(undefined),
+  sessionId: z.string(),
+  status: z.string().optional().catch(undefined),
+  name: z.string().optional().catch(undefined),
+  updatedAt: z.union([z.string(), z.number()]).optional().catch(undefined),
+  statusUpdatedAt: z
+    .union([z.string(), z.number()])
+    .optional()
+    .catch(undefined),
+  pidDomain: z.union([z.string(), z.number()]).optional().catch(undefined),
+});
 export type LiveEntry = z.infer<typeof entrySchema>;
 
 export function processAlive(pid: number): boolean {

@@ -9,13 +9,12 @@ import {
 } from '../data/status.js';
 import { ControlError } from './errors.js';
 export type Liveness = (sessionId: string) => Promise<void>;
-const liveSchema = z
-  .object({
-    sessionId: z.string(),
-    pid: z.number().int().positive().optional(),
-    pidDomain: z.union([z.string(), z.number()]).optional(),
-  })
-  .passthrough();
+// Explicit pick: unknown keys (such as `peerToken`) are stripped, never kept.
+export const liveSchema = z.object({
+  sessionId: z.string(),
+  pid: z.number().int().positive().optional(),
+  pidDomain: z.union([z.string(), z.number()]).optional(),
+});
 export function createLiveness(claudeDir: string): Liveness {
   return async (sessionId) => {
     const unknown = () =>
