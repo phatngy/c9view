@@ -22,22 +22,39 @@ export function Outline({
 }) {
   const [current, setCurrent] = useState<string>();
   const jumping = useRef(false);
+  const jumpTarget = useRef<string | undefined>(undefined);
   const jumpTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined,
   );
   useEffect(() => {
-    const finish = (event: Event) => {
-      if (
-        event.target instanceof Element &&
-        event.target.matches('.conversation-window')
-      ) {
-        jumping.current = false;
-        clearTimeout(jumpTimer.current);
-      }
+    const finish = () => {
+      jumping.current = false;
+      jumpTarget.current = undefined;
+      clearTimeout(jumpTimer.current);
     };
-    document.addEventListener('scrollend', finish, true);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (
+        [
+          'ArrowDown',
+          'ArrowUp',
+          'PageDown',
+          'PageUp',
+          'Home',
+          'End',
+          ' ',
+        ].includes(event.key)
+      )
+        finish();
+    };
+    document.addEventListener('wheel', finish, true);
+    document.addEventListener('touchstart', finish, true);
+    document.addEventListener('pointerdown', finish, true);
+    document.addEventListener('keydown', onKeyDown, true);
     return () => {
-      document.removeEventListener('scrollend', finish, true);
+      document.removeEventListener('wheel', finish, true);
+      document.removeEventListener('touchstart', finish, true);
+      document.removeEventListener('pointerdown', finish, true);
+      document.removeEventListener('keydown', onKeyDown, true);
       clearTimeout(jumpTimer.current);
     };
   }, []);
@@ -58,6 +75,15 @@ export function Outline({
           for (const change of changes) {
             if (change.isIntersecting) visible.add(change.target);
             else visible.delete(change.target);
+            if (
+              change.isIntersecting &&
+              (change.target as HTMLElement).dataset.messageRow ===
+                jumpTarget.current
+            ) {
+              jumping.current = false;
+              jumpTarget.current = undefined;
+              clearTimeout(jumpTimer.current);
+            }
           }
           if (jumping.current) return;
           const first = [...visible]
@@ -102,8 +128,11 @@ export function Outline({
       connect();
       if (cleanupRoot) mounting.disconnect();
     });
-    if (!cleanupRoot)
-      mounting.observe(document.body, { childList: true, subtree: true });
+    if (!cleanupRoot) {
+      const container =
+        document.querySelector('.session-page') ?? document.body;
+      mounting.observe(container, { childList: true, subtree: true });
+    }
     return () => {
       mounting.disconnect();
       cleanupRoot?.();
@@ -143,10 +172,12 @@ export function Outline({
               aria-current={current === entry.id ? 'true' : undefined}
               onClick={() => {
                 jumping.current = true;
+                jumpTarget.current = entry.id;
                 clearTimeout(jumpTimer.current);
                 jumpTimer.current = setTimeout(() => {
                   jumping.current = false;
-                }, 600);
+                  jumpTarget.current = undefined;
+                }, 3000);
                 setCurrent(entry.id);
                 jump(entry.id);
               }}

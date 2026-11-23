@@ -418,17 +418,16 @@ export async function indexSession(
 }
 
 export async function refreshProjectPath(db: IndexDatabase, projectId: string) {
-  const hints = db.orm
+  const sessions = db.orm
     .select({ counts: schema.sessions.cwdCounts })
     .from(schema.sessions)
     .where(eq(schema.sessions.projectId, projectId))
-    .all()
-    .flatMap((s) =>
-      Object.entries(s.counts).flatMap(([cwd, count]) =>
-        Array<string>(count).fill(cwd),
-      ),
-    );
-  const resolved = await resolveProjectPath(projectId, { cwdHints: hints });
+    .all();
+  const cwdCounts: Record<string, number> = {};
+  for (const session of sessions)
+    for (const [cwd, count] of Object.entries(session.counts))
+      cwdCounts[cwd] = (cwdCounts[cwd] ?? 0) + count;
+  const resolved = await resolveProjectPath(projectId, { cwdCounts });
   db.orm
     .update(schema.projects)
     .set({

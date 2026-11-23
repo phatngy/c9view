@@ -13,7 +13,12 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { indexAll, indexSession, openIndex } from './indexer.js';
+import {
+  indexAll,
+  indexSession,
+  openIndex,
+  refreshProjectPath,
+} from './indexer.js';
 import {
   getMessages,
   getSession,
@@ -66,6 +71,39 @@ const appended = (uuid: string, mid: string, n = 30) =>
     },
   });
 describe('SQLite index', () => {
+  it('aggregates cwd counts without expanding them and resolves equal-count ties stably', async () => {
+    const config = await setup();
+    const db = openIndex(config.dbPath);
+    const first = '/tmp/c9view-index-cwd-alpha';
+    const second = '/tmp/c9view-index-cwd-beta';
+    try {
+      const insertProject = db.sqlite.prepare(
+        "INSERT INTO projects (id, dir, path, pathExists, pathSource) VALUES (?, '', '', 0, 'decoded')",
+      );
+      const insertSession = db.sqlite.prepare(
+        `INSERT INTO sessions (id, projectId, file, fileSize, fileMtimeMs, fileIdentity, prefixHash, tailHash, cwdCounts) VALUES (?, ?, '', 0, 0, '', '', '', ?)`,
+      );
+      for (const [projectId, counts] of [
+        ['tie-forward', { [second]: 100_000, [first]: 100_000 }],
+        ['tie-reverse', { [first]: 100_000, [second]: 100_000 }],
+      ] as const) {
+        insertProject.run(projectId);
+        insertSession.run(
+          `${projectId}-session`,
+          projectId,
+          JSON.stringify(counts),
+        );
+        await refreshProjectPath(db, projectId);
+        const row = db.sqlite
+          .prepare('SELECT path FROM projects WHERE id = ?')
+          .get(projectId) as { path: string };
+        expect(row.path).toBe(first);
+      }
+    } finally {
+      db.close();
+    }
+  });
+
   it('indexes synthetic projects, subagents, redacted search, paging and raw records', async () => {
     const config = await setup();
     const db = openIndex(config.dbPath);

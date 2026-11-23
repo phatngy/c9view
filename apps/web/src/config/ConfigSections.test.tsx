@@ -85,6 +85,7 @@ afterEach(() => {
   );
   vi.useRealTimers();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 function section(name: string) {
