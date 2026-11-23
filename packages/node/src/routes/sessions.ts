@@ -152,11 +152,12 @@ export function sessionRoutes(
         const all = (found.cached.messages ??= (
           await store.cache.mapped(found.path)
         ).messages);
-        const ordinal = all.findIndex(
-          (m) =>
-            m.uuid === id.data ||
+        // A uuid match wins over a tool call id match, as in the index.
+        let ordinal = all.findIndex((m) => m.uuid === id.data);
+        if (ordinal < 0)
+          ordinal = all.findIndex((m) =>
             m.blocks.some((b) => b.type === 'tool_use' && b.id === id.data),
-        );
+          );
         if (ordinal >= 0) place = { ordinal, total: all.length };
       }
       if (!place)
