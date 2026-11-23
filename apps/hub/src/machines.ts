@@ -1,11 +1,17 @@
 import { Hono } from 'hono';
-import type { MachineSummary } from '@c9view/api';
+import type { MachineSummary, NodeSnapshot } from '@c9view/api';
 import type { AuthMode } from './auth/index.js';
 import type { NodeTransport } from '@c9view/node';
 
 export interface HubMachine {
   summary: MachineSummary;
   transport: NodeTransport | null;
+  /**
+   * Last projects and sessions seen while the machine was online. Merged
+   * endpoints use it only when the machine is offline (R19); pairing (7b)
+   * fills it, nothing else reads it.
+   */
+  snapshot?: NodeSnapshot | null;
 }
 
 /** Hub-owned directory; until pairing arrives its only entry is local. */
@@ -34,6 +40,21 @@ export class Machines {
 
   get(machineId: string): HubMachine | undefined {
     return this.entries.get(machineId);
+  }
+
+  /** Register a machine (pairing, 7b). Replaces an entry with the same id. */
+  add(machine: HubMachine): void {
+    this.entries.set(machine.summary.machineId, machine);
+  }
+
+  /** Remember the machine's latest snapshot for use while it is offline. */
+  setSnapshot(machineId: string, snapshot: NodeSnapshot | null): void {
+    const entry = this.entries.get(machineId);
+    if (entry) entry.snapshot = snapshot;
+  }
+
+  entriesList(): HubMachine[] {
+    return Array.from(this.entries.values());
   }
 
   list(): MachineSummary[] {

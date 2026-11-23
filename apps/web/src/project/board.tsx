@@ -46,8 +46,12 @@ export function Kanban({
               <Link
                 className={`project-session${column === 'inactive' ? ' project-session-compact' : ''}`}
                 to="/m/$machineId/projects/$projectId/sessions/$sessionId"
-                params={{ machineId, projectId, sessionId: session.id }}
-                key={session.id}
+                params={{
+                  machineId: session.machineId ?? machineId,
+                  projectId,
+                  sessionId: session.id,
+                }}
+                key={`${session.machineId ?? machineId}:${session.projectId}:${session.id}`}
               >
                 <div className="flex items-start justify-between gap-2">
                   <h3 className="line-clamp-2 font-medium">

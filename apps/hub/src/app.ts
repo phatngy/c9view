@@ -15,6 +15,7 @@ import {
   type ServerConfig,
 } from '@c9view/node';
 import { Machines, machineRoutes } from './machines.js';
+import { loadMergeTimeoutMs, mergedEndpoints } from './aggregate.js';
 import type { AuthMode } from './auth/index.js';
 import { transportResponse } from './relay.js';
 import { healthRoutes } from './routes/health.js';
@@ -31,6 +32,7 @@ export function createApp(
     webDist?: string;
     auth?: MiddlewareHandler;
     allowedHosts?: string[];
+    mergeTimeoutMs?: number;
   } = {},
 ) {
   const app = new Hono<{ Variables: { authenticated: boolean } }>();
@@ -136,6 +138,11 @@ export function createApp(
   app.route('/api', healthRoutes(transport, options.authMode ?? 'none'));
   app.route('/api', eventRoutes(transport));
   app.route('/api', machineRoutes(machines));
+  // Merged endpoints sit before the relay and the `local` alias (plan, mount order).
+  app.use(
+    '/api/*',
+    mergedEndpoints(machines, options.mergeTimeoutMs ?? loadMergeTimeoutMs()),
+  );
   const relay: MiddlewareHandler = async (c) => {
     if (
       c.req.method !== 'GET' &&

@@ -1,4 +1,6 @@
 export interface NamedProject {
+  /** Merged views (7a): projects are keyed by (machineId, id). */
+  machineId?: string;
   id: string;
   name: string;
   path: string;
@@ -7,6 +9,11 @@ export interface NamedProject {
 export interface ProjectNameHint {
   path: string;
   ordinal?: number;
+}
+
+/** Key of a project in the hint map: its id, scoped by machine in merged views. */
+export function projectKey(project: { machineId?: string; id: string }) {
+  return project.machineId ? `${project.machineId}:${project.id}` : project.id;
 }
 
 function pathParts(path: string) {
@@ -42,14 +49,20 @@ export function projectNameHints(projects: NamedProject[]) {
     });
     for (const [base, indexes] of collisions) {
       if (indexes.length === 1) {
-        hints.set(group[indexes[0]!]!.id, { path: base });
+        hints.set(projectKey(group[indexes[0]!]!), { path: base });
         continue;
       }
       const ordered = indexes
         .map((index) => group[index]!)
-        .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+        .sort((a, b) =>
+          projectKey(a) < projectKey(b)
+            ? -1
+            : projectKey(a) > projectKey(b)
+              ? 1
+              : 0,
+        );
       ordered.forEach((project, index) => {
-        hints.set(project.id, { path: base, ordinal: index + 1 });
+        hints.set(projectKey(project), { path: base, ordinal: index + 1 });
       });
     }
   }

@@ -7,9 +7,10 @@ import { useWorkspaceRoots } from './control/useWorkspaceRoots.js';
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { useOverview, useProjects } from './api.js';
 import { Badge, Button, SegmentedControl, Select, Stat } from './kit/index.js';
+import { PartialNotice } from './overview/PartialNotice.js';
 import { rangeOptions, useRangeUsage } from './overview/usage.js';
 import { boardColumns } from './project/sessions.js';
-import { projectNameHints } from './projectNames.js';
+import { projectKey, projectNameHints } from './projectNames.js';
 import {
   labels,
   Empty,
@@ -149,6 +150,15 @@ function OverviewContent() {
           )}
         </div>
       </header>
+      <PartialNotice
+        partial={[
+          ...new Set([
+            ...(overview.data?.partial ?? []),
+            ...(projects.data?.partial ?? []),
+          ]),
+        ]}
+        offline={overview.data?.offline}
+      />
       <div className="overview-stats" aria-busy={usage.isFetching}>
         <section
           className="panel overview-cost"
@@ -288,17 +298,20 @@ function OverviewContent() {
               </thead>
               <tbody>
                 {shownProjects.map((p) => (
-                  <tr key={p.id}>
+                  <tr key={`${p.machineId ?? machineId}:${p.id}`}>
                     <td>
                       <Link
                         to="/m/$machineId/projects/$projectId"
-                        params={{ machineId, projectId: p.id }}
+                        params={{
+                          machineId: p.machineId ?? machineId,
+                          projectId: p.id,
+                        }}
                       >
                         <h3 className="font-semibold">
                           <ProjectName
                             name={p.name}
                             id={p.id}
-                            hint={nameHints.get(p.id)}
+                            hint={nameHints.get(projectKey(p))}
                           />
                         </h3>
                       </Link>

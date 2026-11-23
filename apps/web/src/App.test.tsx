@@ -84,6 +84,48 @@ function open(path = '/m/local') {
   );
   return router;
 }
+describe('merged Overview (7a)', () => {
+  it('keeps same-id projects of two machines apart and names the partial machine', async () => {
+    mockApi({
+      '/api/m/local/overview': {
+        ...overview,
+        partial: ['m3'],
+        offline: ['m2'],
+      },
+      '/api/m/local/projects': {
+        projects: [
+          { ...project, machineId: 'm1' },
+          { ...project, machineId: 'm2', offline: true },
+        ],
+        partial: ['m3'],
+      },
+      '/api/machines': [
+        { machineId: 'm3', name: 'build-box' },
+        { machineId: 'm2', name: 'laptop' },
+      ],
+    });
+    open();
+    const table = await screen.findByRole('region', { name: 'Projects table' });
+    const links = within(table)
+      .getAllByRole('link')
+      .filter((link) => link.getAttribute('href')?.startsWith('/m/'));
+    expect(links.map((link) => link.getAttribute('href'))).toEqual([
+      `/m/m1/projects/${project.id}`,
+      `/m/m2/projects/${project.id}`,
+    ]);
+    const notice = await screen.findByTestId('partial-notice');
+    await waitFor(() => expect(notice).toHaveTextContent('build-box'));
+    expect(notice).toHaveTextContent(/did not answer in time/);
+    expect(notice).toHaveTextContent('Offline: laptop');
+  });
+
+  it('shows no notice for a single machine', async () => {
+    mockApi();
+    open();
+    await screen.findByRole('region', { name: 'Projects table' });
+    expect(screen.queryByTestId('partial-notice')).not.toBeInTheDocument();
+  });
+});
 describe('dashboard', () => {
   it('renders and filters project cards from the overview API', async () => {
     mockApi();

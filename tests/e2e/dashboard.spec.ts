@@ -6,6 +6,24 @@ import {
   expectPageLayout,
 } from './page-checks.js';
 
+test('merged endpoints with one machine keep the Overview whole and show no partial notice', async ({
+  page,
+  request,
+}) => {
+  // With only `local` the unscoped paths are the alias: no machineId, no partial.
+  const projects = (await (await request.get('/api/projects')).json()) as {
+    projects: { id: string }[];
+    partial?: string[];
+  };
+  expect(projects.projects.length).toBeGreaterThan(0);
+  expect(projects.partial).toBeUndefined();
+  await page.goto('/m/local');
+  await expect(
+    page.getByRole('region', { name: 'Projects table' }),
+  ).toBeVisible();
+  await expect(page.getByTestId('partial-notice')).toHaveCount(0);
+});
+
 test('Overview lists fixture projects and filters status and usage range', async ({
   page,
 }) => {
