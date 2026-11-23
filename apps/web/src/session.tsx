@@ -295,10 +295,12 @@ function SessionView({
         );
         attempts.current = 0;
         setDetached(true);
+        // A refetch in flight predates this data and would overwrite it.
+        await client.cancelQueries({ queryKey: key });
         client.setQueryData(key, loaded);
       } catch (e) {
         clear(
-          e instanceof HttpError && e.status === 404
+          e instanceof HttpError && (e.status === 404 || e.status === 400)
             ? 'Message not found in this session.'
             : e instanceof Error
               ? e.message
@@ -450,6 +452,12 @@ function SessionView({
       jump(match.uuid);
       if (capped) setNotice('Searched up to 20 pages; more messages remain.');
     }
+  }
+  async function loadNewer() {
+    if (query.isFetchingNextPage) return;
+    const result = await fetchNextPage({ cancelRefetch: false });
+    // Once the end is reached, live tailing loads newer pages again.
+    if (!result.error && !result.hasNextPage) setDetached(false);
   }
   async function jumpLatest() {
     setLoadingLatest(true);
@@ -653,6 +661,18 @@ function SessionView({
                   error={error ?? new Error('Could not load newer messages.')}
                   retry={() => fetchNextPage({ cancelRefetch: false })}
                 />
+              ) : detached && hasNext ? (
+                <div className="flex h-8 flex-none items-center justify-center text-xs text-muted max-lg:h-11">
+                  <button
+                    className="max-lg:min-h-11 focus-visible:outline-2 focus-visible:outline-accent"
+                    aria-disabled={query.isFetchingNextPage || undefined}
+                    onClick={() => void loadNewer()}
+                  >
+                    {query.isFetchingNextPage
+                      ? 'Loading newer messages…'
+                      : 'Load newer messages'}
+                  </button>
+                </div>
               ) : undefined
             }
             onJumpHandled={finishJump}

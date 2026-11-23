@@ -23,6 +23,7 @@ import type {
 } from '@c9view/api';
 import { routeTree } from '../router.js';
 import { useSession } from '../api.js';
+import { queryKeys } from '../queryKeys.js';
 import {
   projectDetail,
   sessionDetail,
@@ -816,6 +817,87 @@ describe('session navigation', () => {
     // The page cut short by the budget is followed until the message appears.
     expect(urls.some((url) => url.includes('cursor=3&limit=50'))).toBe(true);
     expect(screen.queryByText(/Message not found/)).toBeNull();
+  });
+  it('keeps the positioned pages when a refetch started before they arrived', async () => {
+    const all = Array.from({ length: 60 }, (_, i) => message(`far-${i}`));
+    const base = pagedFetch(all);
+    const impl = base.getMockImplementation()!;
+    const held: (() => void)[] = [];
+    let positioned = false;
+    let released = false;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        if (url.includes('/position')) {
+          positioned = true;
+          // A refetch of the old pages starts now and finishes only later.
+          void clients[0]!.refetchQueries({
+            queryKey: queryKeys.session('local', 'project-1', 'session-0'),
+          });
+        } else if (
+          positioned &&
+          !released &&
+          Number(/cursor=(\d+)/.exec(url)?.[1] ?? -1) >= 40
+        )
+          await new Promise<void>((resolve) => held.push(resolve));
+        return impl(url);
+      }),
+    );
+    window.history.replaceState(null, '', '/#m-far-3');
+    openSession();
+    await waitFor(() =>
+      expect(document.getElementById('m-far-3')).toHaveClass(
+        'message-highlight',
+      ),
+    );
+    expect(held.length).toBeGreaterThan(0);
+    released = true;
+    held.forEach((release) => release());
+    // The old refetch runs on to the end; its result must not replace the jump.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    });
+    expect(document.getElementById('m-far-3')).toBeInTheDocument();
+    expect(screen.queryByText(/Message not found/)).toBeNull();
+  });
+  it('loads newer messages from an edge after a positioned jump', async () => {
+    const all = Array.from({ length: 60 }, (_, i) => message(`far-${i}`));
+    const fetcher = pagedFetch(all);
+    window.history.replaceState(null, '', '/#m-far-3');
+    openSession();
+    await waitFor(() =>
+      expect(document.getElementById('m-far-3')).toHaveClass(
+        'message-highlight',
+      ),
+    );
+    // Newer pages do not stream in on their own.
+    expect(document.getElementById('m-far-5')).toBeNull();
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Load newer messages' }),
+    );
+    await waitFor(() =>
+      expect(document.getElementById('m-far-4')).toBeInTheDocument(),
+    );
+    expect(
+      fetcher.mock.calls.some(([url]) => url.includes('cursor=4&limit=50')),
+    ).toBe(true);
+  });
+  it('treats a bad message id like a missing message', async () => {
+    const base = pagedFetch([message('a')]);
+    const impl = base.getMockImplementation()!;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) =>
+        url.includes('/position')
+          ? { ok: false, status: 400, json: async () => ({ error: 'Invalid' }) }
+          : impl(url),
+      ),
+    );
+    window.history.replaceState(null, '', '/#m-bad%20id');
+    openSession();
+    expect(
+      await screen.findByText('Message not found in this session.'),
+    ).toBeInTheDocument();
   });
   it('reports a message that the node cannot find after the cap', async () => {
     pagedFetch(Array.from({ length: 60 }, (_, i) => message(`far-${i}`)));

@@ -16,6 +16,8 @@ afterEach(async () => {
 const lines = [
   { type: 'summary', summary: 'fixture', leafUuid: 'x' },
   ...Array.from({ length: 6 }, (_, n) => [
+    // A record no page shows sits between visible rows.
+    { type: 'summary', summary: `fixture ${n}`, leafUuid: `x${n}` },
     {
       type: 'assistant',
       uuid: `a${n}`,

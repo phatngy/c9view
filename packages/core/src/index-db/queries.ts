@@ -197,7 +197,9 @@ const VISIBLE_TYPES = "('user','assistant','system')";
  * Position of one message among the visible messages of a session, in the order
  * the session pages use (byte offset). `id` is a message uuid or the id of a tool
  * call that the message made. Returns undefined when no visible message matches.
- * Both lookups use the primary key and the (sessionId, byteOffset) index.
+ * The uuid lookup uses the primary key. The tool call fallback and the ordinal
+ * count scan the session's rows, O(n) per call, the same order as the paging
+ * code's messageRows.
  */
 export function getMessagePosition(
   db: IndexDatabase,
