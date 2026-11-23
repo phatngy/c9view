@@ -1,7 +1,7 @@
 import { afterEach, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { mkdir, writeFile, stat } from 'node:fs/promises';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { setupControl, waitFor } from '../control/test-support.js';
 import type { GitWriter } from './git-write.js';
 
@@ -116,13 +116,17 @@ it('T065 a failed clone is redacted, reported and removes what it created', asyn
   await expect(stat(join(t.work, 'q'))).rejects.toThrow();
 });
 it('T108 caps concurrent clones, answers 429 and frees the slot on success and failure', async () => {
-  const gates: (() => void)[] = [];
-  const fails: boolean[] = [];
+  // Clones start in any order (createProject awaits before calling clone), so
+  // gates and failure flags are keyed by the target folder name, not call order.
+  const gates = new Map<string, () => void>();
+  const failing = new Set<string>();
   const git: GitWriter = {
-    clone: (_url, _dir, signal) =>
+    clone: (_url, dir, signal) =>
       new Promise<void>((resolve, reject) => {
-        const fail = fails.shift() ?? false;
-        gates.push(() => (fail ? reject(new Error('boom')) : resolve()));
+        const name = basename(dir);
+        gates.set(name, () =>
+          failing.has(name) ? reject(new Error('boom')) : resolve(),
+        );
         signal?.addEventListener('abort', () => reject(new Error('aborted')));
       }),
     init: async () => undefined,
@@ -139,36 +143,32 @@ it('T108 caps concurrent clones, answers 429 and frees the slot on success and f
       result: t.service.createProject(request as never, t.bootId),
     };
   };
-  fails.push(false, true, false);
-  const first = ['a', 'b', 'c'].map(start);
-  for (const item of first) await item.result;
-  await waitFor(() => expect(gates).toHaveLength(3));
+  const status = (item: { request: { clientRequestId: string } }) =>
+    t.service.receipt(item.request.clientRequestId)?.status;
+  failing.add('b');
+  const first = { a: start('a'), b: start('b'), c: start('c') };
+  for (const item of Object.values(first)) await item.result;
+  await waitFor(() => expect(gates.size).toBe(3));
+  // A refused clone never reaches git.clone.
   await expect(start('d').result).rejects.toMatchObject({
     status: 429,
     reason: 'clone-cap',
   });
   // Success frees a slot.
-  gates[0]!();
-  await waitFor(() =>
-    expect(t.service.receipt(first[0]!.request.clientRequestId)?.status).toBe(
-      'ready',
-    ),
-  );
+  gates.get('a')!();
+  await waitFor(() => expect(status(first.a)).toBe('ready'));
   const e = start('e');
   await e.result;
-  await waitFor(() => expect(gates).toHaveLength(4));
+  await waitFor(() => expect(gates.size).toBe(4));
   await expect(start('f').result).rejects.toMatchObject({ status: 429 });
   // Failure frees a slot.
-  gates[1]!();
-  await waitFor(() =>
-    expect(t.service.receipt(first[1]!.request.clientRequestId)?.status).toBe(
-      'failed',
-    ),
-  );
+  gates.get('b')!();
+  await waitFor(() => expect(status(first.b)).toBe('failed'));
   const g = start('g');
   await g.result;
-  await waitFor(() => expect(gates).toHaveLength(5));
+  await waitFor(() => expect(gates.size).toBe(5));
   await expect(start('h').result).rejects.toMatchObject({ status: 429 });
+  expect([...gates.keys()].sort()).toEqual(['a', 'b', 'c', 'e', 'g']);
 });
 it('T108 an invalid location at the cap answers 400, and a failed plan frees nothing it did not take', async () => {
   const git: GitWriter = {
@@ -207,11 +207,11 @@ it('T108 an invalid location at the cap answers 400, and a failed plan frees not
   });
 });
 it('T108 cancelling clones (shutdown) settles them and releases their locations', async () => {
-  let started = false;
+  const started = new Set<string>();
   const git: GitWriter = {
-    clone: (_url, _dir, signal) =>
+    clone: (_url, dir, signal) =>
       new Promise<void>((_resolve, reject) => {
-        started = true;
+        started.add(basename(dir));
         signal?.addEventListener('abort', () => reject(new Error('aborted')));
       }),
     init: async () => undefined,
@@ -229,7 +229,7 @@ it('T108 cancelling clones (shutdown) settles them and releases their locations'
     'p',
   );
   expect(() => claimLocation(real)).toThrow(/already using/);
-  await waitFor(() => expect(started).toBe(true));
+  await waitFor(() => expect([...started]).toEqual(['p']));
   await t.close();
   await waitFor(() => expect(() => claimLocation(real)()).not.toThrow());
 });
