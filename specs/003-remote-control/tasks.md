@@ -188,7 +188,7 @@
 ## Phase 6: Polish and feature closure
 
 - [ ] T080 Have the maintainer perform the consented manual check in `specs/003-remote-control/quickstart.md` on Linux and record evidence for same-session continuity, busy delivery, held release, refusal, exit and 390 px keyboard/screen-reader use in `specs/003-remote-control/tasks.md`; agents and CI do not execute real Claude.
-- [ ] T081 Run `/speckit-converge` against `specs/003-remote-control/spec.md`, `specs/003-remote-control/plan.md` and `specs/003-remote-control/tasks.md`, resolve remaining implementation work, and update the `specs/README.md` feature row only when the feature is actually complete.
+- [x] T081 Run `/speckit-converge` against `specs/003-remote-control/spec.md`, `specs/003-remote-control/plan.md` and `specs/003-remote-control/tasks.md`, resolve remaining implementation work, and update the `specs/README.md` feature row only when the feature is actually complete.
 
 ## Dependencies and execution order
 
@@ -236,3 +236,9 @@ Land the constitution and peer parser first. Build the protected node path with 
 | FR-012; SC-001 | T009, T013, T037–T043, T050–T058, T080 |
 | FR-014; SC-008 | T057, T065–T067, T080 |
 | FR-015, FR-016, FR-020; SC-004 | T031–T036 (incl. T032a, T035a), T062–T065, T072–T079 |
+
+## Phase 7: Convergence (whole feature; found by `/speckit-converge` on 2026-11-23)
+
+One CRITICAL constitution gap (T082); every other FR, US, SC, plan and constitution check passes. Marking 003 Implemented waits for the maintainer and T080.
+
+- [x] T082 CRITICAL: parse `sessions/<pid>.json` with explicit-pick (or strip) schemas in `packages/node/src/data/status.ts` and `packages/node/src/control/liveness.ts` instead of `.passthrough()`, so a `peerToken` is never kept in a `LiveEntry` or any other parsed field, and add a test that a sentinel `peerToken` never reaches either parser's output per Constitution I, FR-004, SC-005 (contradicts)
