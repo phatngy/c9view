@@ -1,7 +1,7 @@
 import { afterEach, expect, it } from 'vitest';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { createLiveness } from './liveness.js';
+import { createLiveness, liveSchema } from './liveness.js';
 import { setupControl } from './test-support.js';
 import { pidNamespace } from '../data/status.js';
 const cleanup: (() => Promise<void>)[] = [];
@@ -60,4 +60,20 @@ it('skips unrelated malformed entries but fails closed for target filename or pa
   await expect(check('session')).rejects.toMatchObject({
     reason: 'liveness-unknown',
   });
+});
+
+it('T082 liveness parser drops a peerToken from a status file', () => {
+  const parsed = liveSchema.parse({
+    sessionId: 'session',
+    pid: 123,
+    pidDomain: 'pid:[1]',
+    peerToken: 'sentinel-peer-token-T082',
+    unknownField: 'tolerated',
+  });
+  expect(parsed).toEqual({
+    sessionId: 'session',
+    pid: 123,
+    pidDomain: 'pid:[1]',
+  });
+  expect(JSON.stringify(parsed)).not.toContain('sentinel-peer-token-T082');
 });

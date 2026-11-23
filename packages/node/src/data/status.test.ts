@@ -1,5 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
-import { classifyStatus, processAlive, type LiveEntry } from './status.js';
+import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import {
+  classifyStatus,
+  processAlive,
+  readLiveEntries,
+  type LiveEntry,
+} from './status.js';
 const now = Date.parse('2026-10-25T01:00:00Z');
 const live = (status = 'idle', extra: Partial<LiveEntry> = {}): LiveEntry => ({
   sessionId: 's',
@@ -121,6 +129,32 @@ describe('early kanban rules', () => {
       expect(processAlive(123)).toBe(false);
     } finally {
       kill.mockRestore();
+    }
+  });
+});
+
+describe('T082 peerToken is never kept', () => {
+  it('readLiveEntries drops peerToken and unknown fields', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'c9view-t082-'));
+    try {
+      await mkdir(join(dir, 'sessions'));
+      await writeFile(
+        join(dir, 'sessions', '1.json'),
+        JSON.stringify({
+          sessionId: 's',
+          pid: 123,
+          status: 'idle',
+          peerToken: 'sentinel-peer-token-T082',
+          other: { nested: 'sentinel-peer-token-T082' },
+        }),
+      );
+      const entries = await readLiveEntries(dir);
+      expect(entries.get('s')).toMatchObject({ pid: 123, status: 'idle' });
+      expect(JSON.stringify([...entries])).not.toContain(
+        'sentinel-peer-token-T082',
+      );
+    } finally {
+      await rm(dir, { recursive: true, force: true });
     }
   });
 });
