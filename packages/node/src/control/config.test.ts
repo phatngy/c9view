@@ -105,3 +105,20 @@ it('T005 parses all configurable limits and binary selection', () => {
     cloneTimeoutMin: 4,
   });
 });
+
+it('T115 gate accepts each API-key method and refuses none or an empty key', async () => {
+  const { hasApiKeyAuth, assertApiKeyAuth, API_KEY_AUTH_MESSAGE } =
+    await import('./config.js');
+  expect(hasApiKeyAuth({ ANTHROPIC_API_KEY: 'k' })).toBe(true);
+  for (const key of [
+    'CLAUDE_CODE_USE_BEDROCK',
+    'CLAUDE_CODE_USE_VERTEX',
+    'CLAUDE_CODE_USE_FOUNDRY',
+    'CLAUDE_CODE_USE_ANTHROPIC_AWS',
+  ])
+    expect(hasApiKeyAuth({ [key]: '1' })).toBe(true);
+  expect(hasApiKeyAuth({ ANTHROPIC_API_KEY: '' })).toBe(false);
+  expect(hasApiKeyAuth({ CLAUDE_CODE_USE_VERTEX: '0' })).toBe(false);
+  expect(hasApiKeyAuth({ CLAUDE_CODE_OAUTH_TOKEN: 'x' })).toBe(false);
+  expect(() => assertApiKeyAuth({})).toThrow(API_KEY_AUTH_MESSAGE);
+});

@@ -54,7 +54,7 @@ export async function setupRemote(
       sdk: sdk.adapter,
       binary: '/fake/claude',
       stateDir: join(fake.claudeDir, 'c9view'),
-      env: fake.env,
+      env: { ...fake.env, ANTHROPIC_API_KEY: 'test-key-not-real' },
       remote: { pollMs: 20, ...options.remote },
       ...options.deps,
     });

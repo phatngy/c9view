@@ -25,6 +25,7 @@ import type { ControlConfig } from './config.js';
 import {
   assertWritableDirectory,
   resolveClaudeBinary,
+  assertApiKeyAuth,
   claudeBinaryVersion,
 } from './config.js';
 import type { SdkAdapter } from './sdk.js';
@@ -43,10 +44,7 @@ import { browse } from '../projects/browse.js';
 import { realRoots } from '../projects/roots.js';
 import { assertStateLocation, FolderTrust } from './trust.js';
 import { ControlError } from './errors.js';
-import {
-  createRemoteService,
-  type RemoteOptions,
-} from '../remote/service.js';
+import { createRemoteService, type RemoteOptions } from '../remote/service.js';
 /** Clones that may run at once on one node; more answer 429 `clone-cap`. */
 const MAX_CONCURRENT_CLONES = 3;
 
@@ -139,6 +137,7 @@ export function createControlService(
     store.config.claudeDir,
     store.config.workspaceRoots,
   );
+  assertApiKeyAuth(env);
   const binary = dependencies.binary ?? resolveClaudeBinary(config, env);
   const version = dependencies.binary
     ? undefined
@@ -247,7 +246,9 @@ export function createControlService(
     ownRun: (projectId, sessionId) => !!runs.bySession(projectId, sessionId),
     emit,
     subscribe: (listener) =>
-      store.events.subscribe(listener as Parameters<typeof store.events.subscribe>[0]),
+      store.events.subscribe(
+        listener as Parameters<typeof store.events.subscribe>[0],
+      ),
     ...(dependencies.remote ? { options: dependencies.remote } : {}),
   });
   async function project(id: string) {
@@ -274,8 +275,7 @@ export function createControlService(
     if (source && !(await store.findSession(projectId, source)))
       throw new ControlError(404, 'Session not found');
     await folders.check(folder);
-    if (source && !runs.bySession(projectId, source))
-      await liveness(source);
+    if (source && !runs.bySession(projectId, source)) await liveness(source);
     const settings = mergeSettings(
       await readSettings(store.config.claudeDir, folder),
     ).effective;

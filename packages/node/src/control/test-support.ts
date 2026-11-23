@@ -20,6 +20,7 @@ export async function setupControl(
     trusted?: boolean;
     liveness?: (id: string) => Promise<void>;
     roots?: boolean;
+    env?: NodeJS.ProcessEnv;
     git?: import('../projects/git-write.js').GitWriter;
   } = {},
 ) {
@@ -57,7 +58,7 @@ export async function setupControl(
     sdk: sdk.adapter,
     binary: '/fake/claude',
     stateDir: join(claudeDir, 'c9view'),
-    env: {},
+    env: options.env ?? { ANTHROPIC_API_KEY: 'test-key-not-real' },
     ...(options.git ? { git: options.git } : {}),
     ...(options.liveness ? { liveness: options.liveness } : {}),
   });

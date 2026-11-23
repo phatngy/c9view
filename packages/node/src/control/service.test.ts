@@ -210,3 +210,14 @@ it.each(['live-elsewhere', 'liveness-unknown'] as const)(
     expect(t.sdk.runs).toEqual([]);
   },
 );
+
+it('T117 refuses control without an API-key method and never mentions a value', async () => {
+  const error = await setupControl(
+    {},
+    { env: { CLAUDE_CODE_OAUTH_TOKEN: 'synthetic-subscription' } },
+  ).catch((e: unknown) => e as Error);
+  expect(error).toBeInstanceOf(Error);
+  expect((error as Error).message).toContain('ANTHROPIC_API_KEY');
+  expect((error as Error).message).toContain('claude.ai subscription login');
+  expect((error as Error).message).not.toContain('synthetic-subscription');
+});

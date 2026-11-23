@@ -224,3 +224,14 @@ T104 (G2) waits for the maintainer's approval and T085 before it is built. No CR
 The behaviour converged: all FR, US, SC, plan and constitution checks pass. One LOW documentation gap remains.
 
 - [x] T114 Reword the Principle II row of the Constitution Check in `specs/002-session-control/plan.md` from "child env drops every `C9VIEW_*` key" to say that the child env drops c9view's secrets (a named list, plus `C9VIEW_*` keys ending in TOKEN, SECRET, PASSWORD or KEY) and passes `C9VIEW_STATE_DIR`, matching `packages/node/src/control/env.ts`, per plan Constitution Check II, FR-005, R11 (contradicts)
+
+## Phase 11: Agent SDK login policy (T087 decision, 2026-11-23)
+
+The maintainer decided T087: follow Anthropic's rules, so sessions that c9view starts use the Agent SDK's API-key methods only, never a claude.ai login.
+
+- [ ] T115 Gate control on an API-key method in `packages/node/src/control/config.ts` and `service.ts`: `ANTHROPIC_API_KEY` non-empty, or `CLAUDE_CODE_USE_BEDROCK`, `_VERTEX`, `_FOUNDRY` or `_ANTHROPIC_AWS` set; presence check only; otherwise refuse startup with the policy message, with unit tests for each method, an empty key and none, per FR-005 (amended 2026-11-23)
+- [ ] T116 [P] Drop `CLAUDE_CODE_OAUTH_TOKEN` from the child environment in `packages/node/src/control/env.ts`, keeping `ANTHROPIC_AUTH_TOKEN`, API-key and cloud variables, with a test, per FR-005
+- [ ] T117 [P] Test that control without an API-key method gives the refusal in `packages/node/src/control/service.test.ts`; set a dummy `ANTHROPIC_API_KEY` (`test-key-not-real`) in `tests/e2e/control-server.ts` and the node test harnesses
+- [ ] T118 [P] `docs/deploy.md` Session control: API-key-only rule, the methods, the policy quote and link, no claude.ai login even when one exists, remote send (003) unaffected
+- [ ] T119 [P] Amend FR-005 and the Assumptions bullet in [spec.md](spec.md), mark open question 3 resolved in [design-notes.md](design-notes.md), add a sentence to research R11, with dated notes that keep the old wording visible
+- [ ] T120 [P] Check `AGENTS.md`, `README.md` and the docs for wording that presents c9view as "Claude Code" or "Claude Code Agent" (Anthropic's SDK branding rule) and for any statement of which Claude login sessions use
