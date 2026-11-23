@@ -171,7 +171,7 @@ description: 'Task list for Session Control'
 - [ ] T086 Maintainer's manual end-to-end check per [quickstart.md](quickstart.md#manual-end-to-end-check-maintainer-with-consent-to-use-real-tokens)
 - [ ] T087 Owner confirms the Agent SDK login policy before c9view is published to npm with control ([design-notes.md](design-notes.md) open question 3)
 - [x] T088 `specs/README.md`: update the feature's status
-- [ ] T089 Run `/speckit-converge` for this feature
+- [x] T089 Run `/speckit-converge` for this feature
 - [ ] T090 Revisit "always allow" and a `control` status source after use ([design-notes.md](design-notes.md) open questions 4 and 7), as new specs if wanted
 
 ## Dependencies and order
@@ -223,4 +223,4 @@ T104 (G2) waits for the maintainer's approval and T085 before it is built. No CR
 
 The behaviour converged: all FR, US, SC, plan and constitution checks pass. One LOW documentation gap remains.
 
-- [ ] T114 Reword the Principle II row of the Constitution Check in `specs/002-session-control/plan.md` from "child env drops every `C9VIEW_*` key" to say that the child env drops c9view's secrets (a named list, plus `C9VIEW_*` keys ending in TOKEN, SECRET, PASSWORD or KEY) and passes `C9VIEW_STATE_DIR`, matching `packages/node/src/control/env.ts`, per plan Constitution Check II, FR-005, R11 (contradicts)
+- [x] T114 Reword the Principle II row of the Constitution Check in `specs/002-session-control/plan.md` from "child env drops every `C9VIEW_*` key" to say that the child env drops c9view's secrets (a named list, plus `C9VIEW_*` keys ending in TOKEN, SECRET, PASSWORD or KEY) and passes `C9VIEW_STATE_DIR`, matching `packages/node/src/control/env.ts`, per plan Constitution Check II, FR-005, R11 (contradicts)
