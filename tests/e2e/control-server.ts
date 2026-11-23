@@ -80,6 +80,15 @@ const server = spawn(
       ...process.env,
       // Dummy key so session starts work; the fake SDK never prints it.
       ANTHROPIC_API_KEY: noApiKey ? '' : 'test-key-not-real',
+      // The no-key server must not pick up a host's cloud provider switch.
+      ...(noApiKey
+        ? Object.fromEntries(
+            ['BEDROCK', 'VERTEX', 'FOUNDRY', 'ANTHROPIC_AWS'].map((name) => [
+              `CLAUDE_CODE_USE_${name}`,
+              '',
+            ]),
+          )
+        : {}),
       XDG_RUNTIME_DIR: runtimeDir,
       // Short enough for "not seen yet" to show within a spec.
       C9VIEW_REMOTE_NOT_SEEN_SEC: '3',
