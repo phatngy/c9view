@@ -266,13 +266,13 @@ FR-067 maps jsdiff computation to core and rendering to the web; the web does no
 
 - [ ] T079 Consider preserving parent URL state on Back: Overview range/status/project and project tab/view/filter; touch `apps/web/src/shell/breadcrumbs.tsx`, `apps/web/src/router.tsx` and `apps/web/src/shell/breadcrumbs.test.tsx`. (GAP-005)
 
-- [ ] T080 Reset lastCommitted when external URL changes leave the project filter equal to the last commit but the input empty; touch `apps/web/src/project/controls.tsx` and `apps/web/src/project/controls.test.tsx`. (GAP-006)
+- [x] T080 Reset lastCommitted when external URL changes leave the project filter equal to the last commit but the input empty; touch `apps/web/src/project/controls.tsx` and `apps/web/src/project/controls.test.tsx`. (GAP-006)
 
-- [ ] T081 Add deterministic tie-breaking for equal-count cwd hints and pass the counts map rather than expanding it on each scan; touch `packages/core/src/projects/index.ts`, `packages/core/src/index-db/indexer.ts`, `packages/core/src/projects/index.test.ts` and `packages/core/src/projects/indexer.test.ts`. (GAP-007)
+- [x] T081 Add deterministic tie-breaking for equal-count cwd hints and pass the counts map rather than expanding it on each scan; touch `packages/core/src/projects/index.ts`, `packages/core/src/index-db/indexer.ts`, `packages/core/src/projects/index.test.ts` and `packages/core/src/projects/indexer.test.ts`. (GAP-007)
 
-- [ ] T082 Improve outline click suppression beyond scrollend or 600 ms and narrow the late-mount MutationObserver that watches document.body until conversation mount; touch `apps/web/src/session/Navigation.tsx` and `apps/web/src/session/session.test.tsx`. (GAP-008)
+- [x] T082 Improve outline click suppression beyond scrollend or 600 ms and narrow the late-mount MutationObserver that watches document.body until conversation mount; touch `apps/web/src/session/Navigation.tsx` and `apps/web/src/session/session.test.tsx`. (GAP-008)
 
-- [ ] T083 Restore window.setTimeout and clearTimeout spies in config tests; touch `apps/web/src/config/ConfigSections.test.tsx`. (GAP-009)
+- [x] T083 Restore window.setTimeout and clearTimeout spies in config tests; touch `apps/web/src/config/ConfigSections.test.tsx`. (GAP-009)
 
 - [ ] T084 Assess synthesized bold italic and mono italic and add font faces if they look poor; touch `apps/web/src/main.tsx`, `apps/web/src/style.css`, `apps/web/src/fonts.test.ts` and `apps/web/src/typography.test.ts`. Tailwind `text-base`/`text-lg` now map to 14/16 px, so the sidebar wordmark shrank from 18 to 16 px; revisit if wanted. (GAP-010)
 
