@@ -137,9 +137,10 @@ export function Outline({
     return () => {
       mounting.disconnect();
       cleanupRoot?.();
-      clearTimeout(jumpTimer.current);
     };
   }, [messages, entries]);
+  // The jump fallback must survive re-renders (new messages mid-jump).
+  useEffect(() => () => clearTimeout(jumpTimer.current), []);
   const markers = { command: '/', prompt: '›', plan: '◆', question: '?' };
   const colors = {
     command: 'text-accent',

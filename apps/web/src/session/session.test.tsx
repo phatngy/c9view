@@ -2817,6 +2817,57 @@ it('observes conversation rows when the conversation mounts after the outline', 
   );
 });
 
+it('keeps the jump timeout fallback when messages arrive mid-jump', () => {
+  vi.useFakeTimers();
+  try {
+    let notify: IntersectionObserverCallback = () => {};
+    vi.stubGlobal(
+      'IntersectionObserver',
+      class {
+        constructor(callback: IntersectionObserverCallback) {
+          notify = callback;
+        }
+        observe = vi.fn();
+        unobserve = vi.fn();
+        disconnect = vi.fn();
+      },
+    );
+    const batch = [message('first'), message('second')];
+    const view = render(
+      <>
+        <Conversation messages={batch} />
+        <Outline messages={batch} jump={vi.fn()} />
+      </>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Prompt: first/ }));
+    const more = [...batch, message('third')];
+    view.rerender(
+      <>
+        <Conversation messages={more} />
+        <Outline messages={more} jump={vi.fn()} />
+      </>,
+    );
+    act(() => vi.advanceTimersByTime(3000));
+    const rows = document.querySelectorAll('[data-message-row]');
+    act(() =>
+      notify(
+        [
+          {
+            target: rows[1],
+            isIntersecting: true,
+          } as IntersectionObserverEntry,
+        ],
+        {} as IntersectionObserver,
+      ),
+    );
+    expect(
+      screen.getByRole('button', { name: /Prompt: second/ }),
+    ).toHaveAttribute('aria-current', 'true');
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
 it('resumes outline observer updates after the jump timeout fallback', () => {
   vi.useFakeTimers();
   try {
