@@ -294,7 +294,8 @@ function SessionView({
           api.session(machineId, projectId, sessionId, param),
         );
         attempts.current = 0;
-        setDetached(true);
+        // Stay attached (live tailing) when the jump already reached the end.
+        setDetached(loaded.pages.at(-1)?.nextCursor != null);
         // A refetch in flight predates this data and would overwrite it.
         await client.cancelQueries({ queryKey: key });
         client.setQueryData(key, loaded);
