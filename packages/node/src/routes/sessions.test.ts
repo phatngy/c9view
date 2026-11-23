@@ -3,7 +3,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadConfig } from '@c9view/core';
-import type { SessionDetailResponse } from '@c9view/api';
+import type {
+  MessagePositionResponse,
+  SessionDetailResponse,
+} from '@c9view/api';
 import { DataStore } from '../data/store.js';
 import { startIndex } from '../data/start-index.js';
 import { createApp } from '../test-app.js';
@@ -219,6 +222,64 @@ describe.each(['file cache', 'SQLite index'])(
     it('pages backwards from the end without gaps', async () => {
       const served = await app();
       expect(await backward(served)).toEqual(expected);
+    });
+
+    describe('message position', () => {
+      const position = (served: Awaited<ReturnType<typeof app>>, id: string) =>
+        served.request(`${base}/messages/${id}/position?limit=50`);
+
+      it('gives the ordinal and the page cursor of first, middle and last messages', async () => {
+        const served = await app();
+        for (const uuid of ['a0', 'u59', 'u119']) {
+          const response = await position(served, uuid);
+          expect(response.status).toBe(200);
+          const body = (await response.json()) as MessagePositionResponse;
+          const ordinal = expected.indexOf(uuid);
+          expect(body).toEqual({
+            ordinal,
+            totalMessages: COUNT,
+            cursor: ordinal - (ordinal % 50),
+            limit: 50,
+          });
+          // The cursor is one the messages route accepts and the page holds the message.
+          const loaded = await page(
+            served,
+            `cursor=${body.cursor}&limit=${body.limit}`,
+          );
+          expect(loaded.messages.map((m) => m.uuid)).toContain(uuid);
+        }
+      });
+
+      it('resolves a tool call id to its message', async () => {
+        const served = await app();
+        const body = (await (
+          await position(served, 't7')
+        ).json()) as MessagePositionResponse;
+        expect(body.ordinal).toBe(expected.indexOf('a7'));
+      });
+
+      it('answers 404 for a missing message or session and 400 for a bad id', async () => {
+        const served = await app();
+        expect((await position(served, 'missing')).status).toBe(404);
+        const other = await served.request(
+          '/api/projects/-fixture-large/sessions/nope/messages/a0/position',
+        );
+        expect(other.status).toBe(404);
+        for (const bad of ['a%20b', 'a%2F..%2Fb', 'a%00', 'x'.repeat(201)])
+          expect((await position(served, bad)).status).toBe(400);
+      });
+
+      it('stays within the page budget', async () => {
+        const served = createApp(store.config, {
+          store,
+          limits: { pageBudgetBytes: 16_384 },
+        });
+        const response = await position(served, 'u100');
+        expect(response.status).toBe(200);
+        expect(Buffer.byteLength(await response.text())).toBeLessThanOrEqual(
+          16_384,
+        );
+      });
     });
   },
 );
