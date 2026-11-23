@@ -162,7 +162,7 @@ description: 'Task list for Session Control'
 - [x] T082 [US7] `apps/web/src/control/SessionLabel.tsx` in the session header; label in place of the title on cards and lists
 - [x] T083 [US7] Rename in Claude Code itself only if T002 found a supported way; otherwise record it as not supported in [spec.md](spec.md) Assumptions
 - [x] T084 [US6] `AGENTS.md`: confirm the write rule covers create, init and clone under roots (already amended); `docs/deploy.md`: workspace roots
-- [ ] T085 [US6] Maintainer renders the dialogs at 1440×900 and 390×844
+- [x] T085 [US6] Maintainer renders the dialogs at 1440×900 and 390×844
 
 ---
 
@@ -170,7 +170,7 @@ description: 'Task list for Session Control'
 
 - [ ] T086 Maintainer's manual end-to-end check per [quickstart.md](quickstart.md#manual-end-to-end-check-maintainer-with-consent-to-use-real-tokens)
 - [ ] T087 Owner confirms the Agent SDK login policy before c9view is published to npm with control ([design-notes.md](design-notes.md) open question 3)
-- [ ] T088 `specs/README.md`: update the feature's status
+- [x] T088 `specs/README.md`: update the feature's status
 - [ ] T089 Run `/speckit-converge` for this feature
 - [ ] T090 Revisit "always allow" and a `control` status source after use ([design-notes.md](design-notes.md) open questions 4 and 7), as new specs if wanted
 
@@ -208,7 +208,7 @@ MVP is 6a + 6b: reply and approvals from the session page (US1–US3, US5). Then
 
 T104 (G2) waits for the maintainer's approval and T085 before it is built. No CRITICAL or HIGH gaps were found.
 
-- [ ] T104 After the maintainer approves the feature (and T085 is done), set 002's status to Implemented in `specs/README.md` (table and Steps rows) and in `spec.md`, and tick T088, per FR-023, T088, T089 (partial)
+- [x] T104 After the maintainer approves the feature (and T085 is done), set 002's status to Implemented in `specs/README.md` (table and Steps rows) and in `spec.md`, and tick T088, per FR-023, T088, T089 (partial)
 - [x] T105 Give the control-on e2e fixture a workspace root (`tests/e2e/control-server.ts` sets `C9VIEW_WORKSPACE_ROOTS` to empty) and add Playwright tests for New project (location, trust step, first run) and for editing a session label, per Constitution Workflow (UI changes add a Playwright test), T074, T079 (missing)
 - [x] T106 Make `claimLocation` in `packages/node/src/projects/inflight.ts` reject a path that is an ancestor or a descendant of an active claim (using `inside()`), so a clone into `a/b` and a create or clone into `a/b/c` cannot run together, with a test, per FR-023 (partial)
 - [x] T107 [P] Replace the first-active-run logic in `apps/web/src/control/Composer.tsx` with `currentRun` from `runState.ts`, so one definition of the current run is used, with a test, per T103 (partial)

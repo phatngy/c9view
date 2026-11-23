@@ -4,7 +4,7 @@
 
 **Created**: 2026-11-04
 
-**Status**: Draft
+**Status**: Implemented
 
 **Input**: User description: "Convert the earlier design draft `session-control.md` to a Spec Kit feature: Step 6 session control — reply, start sessions, approve tool calls and answer questions from the web through the Agent SDK running on the node, with the guard on the hub, retry-safe command receipts with a boot identity, events as refresh hints, folder trust, new or imported projects, session names and labels, and a per-node bypass flag. Depends on 001-multi-machine PRs 6.0a and 6.0b."
 
