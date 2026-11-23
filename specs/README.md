@@ -5,7 +5,7 @@ One folder per feature, `NNN-feature/`, created by [Spec Kit](https://github.com
 | Feature                                            | Status      |
 | -------------------------------------------------- | ----------- |
 | [000-baseline](000-baseline/spec.md)               | Shipped     |
-| [001-multi-machine](001-multi-machine/spec.md)     | Specified   |
+| [001-multi-machine](001-multi-machine/spec.md)     | In progress |
 | [002-session-control](002-session-control/spec.md) | Implemented |
 | [003-remote-control](003-remote-control/spec.md)   | Specified   |
 
@@ -23,7 +23,7 @@ One folder per feature, `NNN-feature/`, created by [Spec Kit](https://github.com
 | 4       | [000-baseline](000-baseline/spec.md)               | Shipped     | Token and cost charts, search and export.                                                                    |
 | 4b      | [000-baseline](000-baseline/spec.md)               | Shipped     | Design system, app shell, chat-style sessions, phone layouts and visual polish.                              |
 | 5       | [000-baseline](000-baseline/spec.md)               | Shipped     | CLI, Docker and Compose, optional login, tunnel setup guide.                                                 |
-| 6.0     | [001-multi-machine](001-multi-machine/spec.md)     | Specified   | Split into web UI, hub and node; machine-scoped API and web; response budgets; unified c9view state folder.  |
+| 6.0     | [001-multi-machine](001-multi-machine/spec.md)     | Implemented | Split into web UI, hub and node; machine-scoped API and web; response budgets; unified c9view state folder.  |
 | 6       | [002-session-control](002-session-control/spec.md) | Implemented | Opt-in session control through the Agent SDK, including replies, approvals, questions and starting sessions. |
 | 6b      | [003-remote-control](003-remote-control/spec.md)   | Specified   | Send a message into a session live in a terminal through cross-session messaging; remove "Fork and reply".   |
 | 7       | [001-multi-machine](001-multi-machine/spec.md)     | Specified   | Hub and node modes, pairing and one dashboard across machines.                                               |
