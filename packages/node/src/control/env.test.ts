@@ -25,3 +25,20 @@ it('T008 T092 strips hub secrets but retains owner login and resolves hook and C
       .CLAUDE_CONFIG_DIR,
   ).toBe('/tmp/x');
 });
+it('T116 drops the subscription token but keeps API-key and cloud variables', () => {
+  const env = childEnvironment(
+    {
+      CLAUDE_CODE_OAUTH_TOKEN: 'x',
+      ANTHROPIC_AUTH_TOKEN: 'a',
+      ANTHROPIC_API_KEY: 'k',
+      CLAUDE_CODE_USE_BEDROCK: '1',
+    },
+    '/tmp/state',
+  );
+  expect(env).not.toHaveProperty('CLAUDE_CODE_OAUTH_TOKEN');
+  expect(env).toMatchObject({
+    ANTHROPIC_AUTH_TOKEN: 'a',
+    ANTHROPIC_API_KEY: 'k',
+    CLAUDE_CODE_USE_BEDROCK: '1',
+  });
+});

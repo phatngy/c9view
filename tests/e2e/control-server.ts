@@ -73,6 +73,8 @@ const server = spawn(
     stdio: ['ignore', 'pipe', 'pipe'],
     env: {
       ...process.env,
+      // Dummy key so control is ready; the fake SDK never prints it.
+      ANTHROPIC_API_KEY: 'test-key-not-real',
       XDG_RUNTIME_DIR: runtimeDir,
       // Short enough for "not seen yet" to show within a spec.
       C9VIEW_REMOTE_NOT_SEEN_SEC: '3',

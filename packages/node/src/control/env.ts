@@ -11,6 +11,8 @@ const stripped = new Set([
   'C9VIEW_ALLOWED_HOSTS',
   'C9VIEW_TRUST_PROXY',
   'C9VIEW_LEGACY_STATE_DIR',
+  // A claude.ai subscription token: never passed (Agent SDK login policy).
+  'CLAUDE_CODE_OAUTH_TOKEN',
 ]);
 export function childEnvironment(
   env: NodeJS.ProcessEnv,
