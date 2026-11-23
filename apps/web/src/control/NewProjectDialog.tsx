@@ -10,7 +10,7 @@ import { queryKeys } from '../queryKeys.js';
 import { ControlError, unknownOutcome } from './api.js';
 import { BypassBadge } from './BypassBadge.js';
 import { FolderPicker } from './FolderPicker.js';
-import { useControl } from './useControl.js';
+import { API_KEY_REQUIRED_MESSAGE, useControl } from './useControl.js';
 
 const LIMIT = 20_000;
 // A clone may take up to the node's 10-minute limit. The node keeps a `cloning`
@@ -136,7 +136,12 @@ function ProjectForm({
 
   /** `clone` sends the URL; the follow-up after a clone opens the folder as is. */
   async function submit(clone: boolean, retry = false) {
-    if (!control.ready || (!retry && (pending || waiting))) return;
+    if (
+      !control.ready ||
+      control.apiKeyRequired ||
+      (!retry && (pending || waiting))
+    )
+      return;
     const d = retry
       ? draft.current
       : { location, gitUrl, gitInit, name, text, mode };
@@ -259,6 +264,14 @@ function ProjectForm({
         void submit(true);
       }}
     >
+      {control.apiKeyRequired && (
+        <p
+          role="note"
+          className="rounded-lg border border-danger/30 bg-danger/5 p-3 text-sm"
+        >
+          {API_KEY_REQUIRED_MESSAGE}
+        </p>
+      )}
       {control.bypass && (
         <div className="rounded-lg border border-danger/30 bg-danger/5 p-3 text-sm">
           <BypassBadge />
@@ -405,7 +418,12 @@ function ProjectForm({
           type="submit"
           variant="primary"
           disabled={
-            pending || cloning || !!trust || !text.trim() || !location.trim()
+            pending ||
+            cloning ||
+            !!trust ||
+            !text.trim() ||
+            !location.trim() ||
+            control.apiKeyRequired
           }
         >
           {pending || cloning ? 'Working…' : 'Create and start'}

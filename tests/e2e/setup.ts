@@ -1,6 +1,10 @@
 import { expect, request, type FullConfig } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
-import { controlBaseURL, controlToken } from './control-fixture.js';
+import {
+  controlBaseURL,
+  controlToken,
+  noKeyBaseURL,
+} from './control-fixture.js';
 
 export default async function setup(config: FullConfig) {
   const baseURLs = new Set(
@@ -13,7 +17,7 @@ async function waitForIndex(baseURL: string) {
   const api = await request.newContext({
     baseURL,
   });
-  const control = baseURL === controlBaseURL;
+  const control = baseURL === controlBaseURL || baseURL === noKeyBaseURL;
   try {
     // The control server requires login; its fixture tree is a temporary copy.
     if (control)

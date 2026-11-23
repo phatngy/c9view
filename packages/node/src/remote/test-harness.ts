@@ -22,6 +22,8 @@ export async function setupRemote(
     remote?: RemoteOptions;
     deps?: Partial<ControlDependencies>;
     bootId?: string;
+    /** Set false to leave the node's environment without an API-key method. */
+    apiKey?: boolean;
   } = {},
 ) {
   const fake = await createFakeSession(options.fake);
@@ -54,7 +56,10 @@ export async function setupRemote(
       sdk: sdk.adapter,
       binary: '/fake/claude',
       stateDir: join(fake.claudeDir, 'c9view'),
-      env: { ...fake.env, ANTHROPIC_API_KEY: 'test-key-not-real' },
+      env:
+        options.apiKey === false
+          ? fake.env
+          : { ...fake.env, ANTHROPIC_API_KEY: 'test-key-not-real' },
       remote: { pollMs: 20, ...options.remote },
       ...options.deps,
     });

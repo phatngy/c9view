@@ -36,6 +36,19 @@ const scripted =
   () =>
     new ScriptedSocket(script) as unknown as Socket;
 
+describe('T117 remote send without an API-key method', () => {
+  it('still delivers to a live terminal session and reports sdkAuth', async () => {
+    const h = await setup({ apiKey: false });
+    expect(h.service.capability.sdkAuth).toBe('api-key-required');
+    expect(h.service.capability.state).toBe('ready');
+    const receipt = await send(h);
+    expect(receipt).toMatchObject({
+      status: 'done',
+      delivery: { state: 'sent' },
+    });
+  });
+});
+
 describe('T023 send and receipts', () => {
   it('writes exactly one frame, settles as sent, and starts no run, session or process', async () => {
     const h = await setup();

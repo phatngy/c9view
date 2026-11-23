@@ -25,7 +25,8 @@ import type { ControlConfig } from './config.js';
 import {
   assertWritableDirectory,
   resolveClaudeBinary,
-  assertApiKeyAuth,
+  hasApiKeyAuth,
+  API_KEY_AUTH_MESSAGE,
   claudeBinaryVersion,
 } from './config.js';
 import type { SdkAdapter } from './sdk.js';
@@ -44,7 +45,10 @@ import { browse } from '../projects/browse.js';
 import { realRoots } from '../projects/roots.js';
 import { assertStateLocation, FolderTrust } from './trust.js';
 import { ControlError } from './errors.js';
-import { createRemoteService, type RemoteOptions } from '../remote/service.js';
+import {
+  createRemoteService,
+  type RemoteOptions,
+} from '../remote/service.js';
 /** Clones that may run at once on one node; more answer 429 `clone-cap`. */
 const MAX_CONCURRENT_CLONES = 3;
 
@@ -137,11 +141,21 @@ export function createControlService(
     store.config.claudeDir,
     store.config.workspaceRoots,
   );
-  assertApiKeyAuth(env);
   const binary = dependencies.binary ?? resolveClaudeBinary(config, env);
   const version = dependencies.binary
     ? undefined
     : claudeBinaryVersion(binary, childEnvironment(env, stateDir));
+  const sdkAuth = () => (hasApiKeyAuth(env) ? 'ok' : 'api-key-required');
+  // Every operation that starts a Claude Code process through the SDK calls
+  // this first, before it touches a folder, a session or a receipt patch.
+  const requireApiKey = () => {
+    if (sdkAuth() !== 'ok')
+      throw new ControlError(409, API_KEY_AUTH_MESSAGE, 'api-key-required');
+  };
+  if (config.control && sdkAuth() !== 'ok')
+    console.warn(
+      'c9view: control is on but no API-key method is set; starting or resuming sessions is refused (remote send still works).',
+    );
   const state = dependencies.state ?? openControlState(stateDir);
   const folders = new FolderTrust(store.config.claudeDir, state);
   const labels = createLabels(
@@ -246,9 +260,7 @@ export function createControlService(
     ownRun: (projectId, sessionId) => !!runs.bySession(projectId, sessionId),
     emit,
     subscribe: (listener) =>
-      store.events.subscribe(
-        listener as Parameters<typeof store.events.subscribe>[0],
-      ),
+      store.events.subscribe(listener as Parameters<typeof store.events.subscribe>[0]),
     ...(dependencies.remote ? { options: dependencies.remote } : {}),
   });
   async function project(id: string) {
@@ -269,13 +281,15 @@ export function createControlService(
     source?: string,
     knownFolder?: string,
   ) {
+    requireApiKey();
     const folder = knownFolder
       ? await checkedFolder(knownFolder)
       : await project(projectId);
     if (source && !(await store.findSession(projectId, source)))
       throw new ControlError(404, 'Session not found');
     await folders.check(folder);
-    if (source && !runs.bySession(projectId, source)) await liveness(source);
+    if (source && !runs.bySession(projectId, source))
+      await liveness(source);
     const settings = mergeSettings(
       await readSettings(store.config.claudeDir, folder),
     ).effective;
@@ -365,6 +379,7 @@ export function createControlService(
       return {
         state: reason ? 'unavailable' : 'ready',
         bypass: config.bypass,
+        sdkAuth: sdkAuth(),
         ...(reason ? { reason } : {}),
       };
     },
@@ -475,6 +490,8 @@ export function createControlService(
     },
     createProject: (body, boot) =>
       reserve('project', body, boot, async () => {
+        // Without a git URL this makes a folder and starts a first run.
+        if (body.gitUrl === undefined) requireApiKey();
         if ((await realRoots(store.config.workspaceRoots)).length === 0)
           throw new ControlError(404, 'Not found');
         const url =

@@ -16,6 +16,11 @@ import {
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
+// Second instance for control-nokey.spec.ts: no API-key method in the node's
+// environment, on its own ports.
+const noApiKey = process.env.C9VIEW_E2E_NO_API_KEY === '1';
+const nodePort = process.env.C9VIEW_E2E_CONTROL_PORT ?? '7793';
+const controllerPort = process.env.C9VIEW_E2E_TERMINAL_PORT ?? '7794';
 const temporary = realpathSync(mkdtempSync(join(tmpdir(), 'c9view-e2e-ctl-')));
 const claudeDir = join(temporary, '.claude');
 const folder = join(temporary, 'workspace', 'control-demo');
@@ -59,7 +64,7 @@ const server = spawn(
     'start',
     '--control',
     '--port',
-    '7793',
+    nodePort,
     '--host',
     '127.0.0.1',
     '--auth',
@@ -73,8 +78,8 @@ const server = spawn(
     stdio: ['ignore', 'pipe', 'pipe'],
     env: {
       ...process.env,
-      // Dummy key so control is ready; the fake SDK never prints it.
-      ANTHROPIC_API_KEY: 'test-key-not-real',
+      // Dummy key so session starts work; the fake SDK never prints it.
+      ANTHROPIC_API_KEY: noApiKey ? '' : 'test-key-not-real',
       XDG_RUNTIME_DIR: runtimeDir,
       // Short enough for "not seen yet" to show within a spec.
       C9VIEW_REMOTE_NOT_SEEN_SEC: '3',
@@ -180,7 +185,7 @@ const controller = createServer((request, response) => {
   };
   if (
     !terminalToken ||
-    request.headers.host !== '127.0.0.1:7794' ||
+    request.headers.host !== `127.0.0.1:${controllerPort}` ||
     request.headers.origin !== undefined ||
     request.headers['x-e2e-terminal-token'] !== terminalToken
   )
@@ -220,7 +225,7 @@ const controller = createServer((request, response) => {
       .catch(() => reply(500, { error: 'could not start' }));
   });
 });
-controller.listen(7794, '127.0.0.1');
+controller.listen(Number(controllerPort), '127.0.0.1');
 
 let stopping = false;
 function stop() {

@@ -9,7 +9,7 @@ import { useMachineId } from '../machine.js';
 import { queryKeys } from '../queryKeys.js';
 import { ControlError, unknownOutcome } from './api.js';
 import { BypassBadge } from './BypassBadge.js';
-import { useControl } from './useControl.js';
+import { API_KEY_REQUIRED_MESSAGE, useControl } from './useControl.js';
 
 const LIMIT = 20_000;
 const RECEIPT_WAIT_LIMIT = 120_000;
@@ -97,7 +97,12 @@ export function NewSessionDialog({
   }
 
   async function submit(retry = false, trusted = false) {
-    if ((pending && !trusted) || (waitingId && !trusted) || !control.ready)
+    if (
+      (pending && !trusted) ||
+      (waitingId && !trusted) ||
+      !control.ready ||
+      control.apiKeyRequired
+    )
       return;
     const draft = retry ? attempted.current : { text, name, mode };
     if (!draft.text.trim() || draft.text.length > LIMIT) return;
@@ -226,6 +231,14 @@ export function NewSessionDialog({
           void submit();
         }}
       >
+        {control.apiKeyRequired && (
+          <p
+            role="note"
+            className="rounded-lg border border-danger/30 bg-danger/5 p-3 text-sm"
+          >
+            {API_KEY_REQUIRED_MESSAGE}
+          </p>
+        )}
         {control.bypass && (
           <div className="rounded-lg border border-danger/30 bg-danger/5 p-3 text-sm">
             <BypassBadge />
@@ -328,7 +341,9 @@ export function NewSessionDialog({
           <Button
             type="submit"
             variant="primary"
-            disabled={pending || !!waitingId || !text.trim()}
+            disabled={
+              pending || !!waitingId || !text.trim() || control.apiKeyRequired
+            }
           >
             {pending ? 'Starting…' : 'Start session'}
           </Button>

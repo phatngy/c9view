@@ -8,7 +8,16 @@ export interface ControlCapability {
   state: 'off' | 'ready' | 'unavailable';
   bypass: boolean;
   reason?: string;
+  /**
+   * Whether this node can start Claude Code processes through the Agent SDK:
+   * `api-key-required` when its environment selects no API-key method.
+   * Remote send to a live terminal session does not depend on it. Absent on
+   * nodes that predate it; treat absent as `ok`.
+   */
+  sdkAuth?: SdkAuth;
 }
+
+export type SdkAuth = 'ok' | 'api-key-required';
 
 /** Browser-settable modes. `bypassPermissions` is never accepted in a body (400). */
 export type PermissionMode = 'default' | 'acceptEdits' | 'plan';
@@ -185,7 +194,8 @@ export type ControlConflictReason =
   | 'settings-changed'
   | 'decided'
   | 'run-exists'
-  | 'remote-unavailable';
+  | 'remote-unavailable'
+  | 'api-key-required';
 
 /** 409 body. */
 export interface ControlConflict {
