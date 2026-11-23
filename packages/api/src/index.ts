@@ -50,9 +50,17 @@ export interface OverviewResponse {
   /** From stats-cache.json, null if missing. */
   daily: { date: string; messages: number; sessions: number; toolCalls: number }[] | null;
   byModel: { model: string; tokens: TokenTotals; costUsd: number }[];
+  /** Merged response only (7a): machines that missed the merge timeout. */
+  partial?: string[];
+  /** Merged response only (7a): offline machines counted from their last snapshot. */
+  offline?: string[];
 }
 
 export interface ProjectSummary {
+  /** Merged responses only (7a): hub-added, never in node payloads. */
+  machineId?: string;
+  /** Merged responses only (7a): the machine is offline; this is its last snapshot. */
+  offline?: boolean;
   id: string;
   name: string;
   path: string;
@@ -67,9 +75,13 @@ export interface ProjectSummary {
 // GET /api/projects
 export interface ProjectsResponse {
   projects: ProjectSummary[];
+  /** Merged response only (7a): machines that missed the merge timeout. */
+  partial?: string[];
 }
 
 export interface SessionSummary {
+  /** Merged responses only (7a): hub-added, never in node payloads. */
+  machineId?: string;
   id: string;
   projectId: string;
   title: string;
@@ -314,10 +326,14 @@ export interface UsageResponse {
   from: string;
   to: string;
   days: (UsageTotal & { date: string; byModel: UsageModel[] })[];
-  byProject: (UsageTotal & { projectId: string; name: string })[];
+  byProject: (UsageTotal & { projectId: string; name: string; machineId?: string })[];
   byModel: UsageModel[];
   totals: UsageTotal;
   cacheHit: { date: string; ratio: number | null }[];
+  /** Merged response only (7a): machines that missed the merge timeout. */
+  partial?: string[];
+  /** Merged response only (7a): offline machines, which have no usage history. */
+  offline?: string[];
 }
 export * from './machines.js';
 export * from './control.js';
