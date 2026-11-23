@@ -78,7 +78,7 @@ The same folder also holds `<pid>.<hash>.key` files with a `peerToken` for cross
 
 ## Cross-session messaging (003)
 
-Checked on Linux with Claude Code 2.1.318 on 2026-11-05, and again on 2.1.325 on 2026-11-16 (003 [spike](../specs/003-remote-control/spike.md)). The minimum supported version is 2.1.318. Linux only: macOS (socket folder, process start time) and the `bg` and `daemon` kinds were not tested, so sending is unavailable there.
+Checked on Linux with Claude Code 2.1.318 on 2026-11-05, again on 2.1.325 on 2026-11-16, and re-checked on 2.1.330 (2026-11-23) (003 [spike](../specs/003-remote-control/spike.md)). The minimum supported version is 2.1.318. Linux only: macOS (socket folder, process start time) and the `bg` and `daemon` kinds were not tested, so sending is unavailable there.
 
 - **Socket**: `messagingSocketPath` in the live status file, a plain path such as `/run/user/<uid>/cc-socks/<pid>.sock`, mode 0600. No token is needed on Linux, and c9view sends no auth line.
 - **Frame**: one JSON line ending in `\n`: `{"msgV":1,"msg_id":"<uuid>","type":"user","message":{"role":"user","content":"<wrapper>"},"priority":"next","from":"uds:/dev/null/c9view"}`. The wrapper is `<cross-session-message from="uds:/dev/null/c9view" from-name="c9view">`, an attribution line and the owner's text. c9view sends no `from-mode`. Frames without `msgV` are delivered but lose `msg_id`, `from` and the name.

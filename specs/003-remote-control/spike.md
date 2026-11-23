@@ -274,3 +274,33 @@ None. The format, origin fields, `procStart` and the default all hold on 2.1.325
 ### Cleanup
 
 Sessions `a`, `h` exited with `/exit`; `r` and the second kill-test session were `SIGKILL`ed by pid; the `-p` run ended by itself. tmux server `c9respike` killed. The leftover socket, JSON and `.key` of the second killed pid were deleted by name (not opened). No `claude --model haiku` process of this run remains. No settings file outside the scratch folders and no other repo file was touched.
+
+## Re-check (2026-11-23)
+
+Claude Code **2.1.330** (`/home/phatnv/.local/bin/claude --version` = `2.1.330 (Claude Code)`, `peerProtocol: 1`, same `peerFeatures`), Linux 5.15, own tmux server `-L c9recheck`. One session `a`, started with `/home/phatnv/.local/bin/claude --model haiku` (no alias, no bypass flag), auto permission mode, no settings file in the scratch folder and no `crossSessionInbound` in the user settings. About 5 Haiku turns (3 idle or mid-turn peer messages, one typed prompt with `sleep 8` calls). Scripts `send.py` (R4 frame, no auth line; the content carries a `<cross-session-message from="uds:/dev/null/c9view" from-name="c9view">` wrapper, which is where `origin.name` and `origin.body` come from, as in the earlier runs), `info.py`, `tr.py` under `/tmp/claude-1000/-home-phatnv-phatnv-workspace-github-personal-c9view/9be92e15-d28a-4b9f-a26c-631c9c2c9aff/scratchpad/recheck-330/scripts/`. No `.key` file opened; no `peerToken` in the status JSON.
+
+### Results
+
+| # | Question | Answer | Evidence | Confidence |
+|---|----------|--------|----------|------------|
+| 10 | Basics: status JSON, socket, external sender, transcript origin | **Pass** | `sessions/<pid>.json` has `messagingSocketPath` (`/run/user/1000/cc-socks/<pid>.sock`, mode `srw-------`, `0o140600`), `version:"2.1.330"`, `peerProtocol:1`, `procStart` (string), `pidDomain` (`linux:<hash>:pid:[4026531836]`), `kind:"interactive"`, `entrypoint:"cli"`, `status:"idle"`. Frame to idle `a` with no auth line: no reply bytes, `enqueue` 16:38:10.100, `dequeue` .108, `user` .122, answer `OK2`. `user` record: `isMeta:true`, `turnOrigin:"peer"`, `promptSource:"system"`, `permissionMode:"auto"`, `origin:{"kind":"peer","from":"uds:/dev/null/c9view","verifiedPeerPid":9147,"verifiedPeerProcStart":"762088","msg_id":"22222222-...0002","name":"c9view","body":"Sent by this session's owner from c9view.\n\nReply OK2 only"}`. A frame without the wrapper (first send, `OK1`) gave the same record without `name` and `body`. | High |
+| 1 | Mid-turn `attachment.queued_command` keeps `origin.msg_id`, `from`, `name` | **Yes** | Frame sent 7 s into a turn of three `sleep 8` calls: `enqueue` 16:39:14.779, `remove` `reason:"absorbed_mid_turn"` 16:39:17.855 (`commandUuid` = `source_uuid`, `deliveryId` = `delivery_id`, no `msg_id`), and `attachment.queued_command` with `origin:{"kind":"peer","from":"uds:/dev/null/c9view","verifiedPeerPid":9666,"verifiedPeerProcStart":"768554","msg_id":"44444444-...0004","name":"c9view","body":"..."}`, `isMeta:true`. The final answer included `MID2OK`. | High |
+| 3 | `procStart` equals `/proc/<pid>/stat` field 22 | **Yes** | pid 8226: JSON `"procStart": "757502"`, field 22 (after the last `)`) = 757502. `verifiedPeerProcStart` has the same decimal-string format. | High |
+| 4 | Unset `crossSessionInbound`, receiver in `auto`, still delivers | **Yes** | Three messages (idle with and without wrapper, mid-turn) all delivered with no setting anywhere; the sender's `from-mode` was absent. | High |
+
+Skipped as agreed: size, kill, `-p`, `hold` and `refuse` (nothing above looked different).
+
+### Differences from 2.1.325
+
+- Version is 2.1.330.
+- `sessions/<pid>.json` fields unchanged since 2.1.318 (including `asksForConvertedSkills`, `nameSince`, `updatedAt`, `statusUpdatedAt`). `bridgeSessionId` is still present for an interactive session; no `peerToken` field.
+- The mid-turn attachment now also carries `timestamp` and `reminderId` (not previously noted); the `origin` shape is unchanged.
+- Everything else matched: frame, wrapper-derived `name` and `body`, `origin` fields, `isMeta`, `turnOrigin`, `procStart`, socket folder and mode, the unset default.
+
+### Implications
+
+None. The minimum stays 2.1.318; `docs/data-sources.md` now says the behaviour was also re-checked on 2.1.330. No 003 code assumption changes: `discovery.ts` picks fields explicitly, so `bridgeSessionId` and other extras are ignored, and 003 sending uses none of them.
+
+### Cleanup
+
+Session `a` ended with `/exit` (pid 8226); its socket and JSON were removed by Claude Code. tmux server `c9recheck` killed. No process of this run remains; no settings or other repo file touched.
