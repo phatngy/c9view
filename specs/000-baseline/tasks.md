@@ -258,7 +258,7 @@ FR-067 maps jsdiff computation to core and rendering to the web; the web does no
 
 - [ ] T075 Optionally set feature_numbering to timestamp so parallel features do not need an explicit directory; update `.specify/init-options.json`. (GAP-001)
 
-- [ ] T076 Add an endpoint that finds a message position so jumps reach any message regardless of the page cap; touch `apps/server/src/routes/sessions.ts`, `apps/server/src/data/indexed.ts`, `packages/core/src/index-db/queries.ts`, `packages/api/src/index.ts` and `apps/web/src/session/paging.ts`. (GAP-002)
+- [x] T076 Add an endpoint that finds a message position so jumps reach any message regardless of the page cap; touch `apps/server/src/routes/sessions.ts`, `apps/server/src/data/indexed.ts`, `packages/core/src/index-db/queries.ts`, `packages/api/src/index.ts` and `apps/web/src/session/paging.ts`. (GAP-002)
 
 - [ ] T077 Optionally add stat sparklines and change versus the previous period, first returning the prior range from the API; touch `apps/server/src/routes/usage.ts`, `apps/server/src/data/usage.ts`, `packages/api/src/index.ts`, `apps/web/src/overview.tsx` and `apps/web/src/charts/UsageCharts.tsx`. (GAP-003)
 
