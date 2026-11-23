@@ -3,6 +3,7 @@
 // get a random UUID from the hub at pairing. Node payloads never carry a
 // machineId; the hub stamps it.
 import type { ProjectSummary, SessionSummary } from './index.js';
+import type { SdkAuth } from './control.js';
 
 /** `'local'` for the hub's in-process node, else a hub-assigned UUID. Types only: this package ships as source. */
 export type MachineId = string;
@@ -11,7 +12,7 @@ export type CapabilityState = 'off' | 'ready' | 'unavailable';
 
 /** Advisory only: refreshed on every hello, the node rechecks on every call. */
 export interface MachineCapabilities {
-  control: { state: CapabilityState; reason?: string };
+  control: { state: CapabilityState; reason?: string; sdkAuth?: SdkAuth };
   bypass: boolean;
 }
 

@@ -3,6 +3,8 @@
 export const controlBaseURL = 'http://127.0.0.1:7793';
 // Test-only controller for fake terminal sessions, served by control-server.ts.
 export const terminalControllerURL = 'http://127.0.0.1:7794';
+// Control server without an API-key method (control-nokey.spec.ts).
+export const noKeyBaseURL = 'http://127.0.0.1:7795';
 export const controlToken = 'c9view-e2e-synthetic-token-0123456789abcdef';
 export const controlProjectPath = '/m/local/projects/-synthetic-control';
 export const controlSessionPath = (name: 'reply' | 'allow' | 'deny') =>

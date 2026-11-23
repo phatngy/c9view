@@ -20,7 +20,7 @@ import { HttpError } from '../api.js';
 import { useMachineId } from '../machine.js';
 import { queryKeys } from '../queryKeys.js';
 import { ControlError, unknownOutcome } from './api.js';
-import { useControl } from './useControl.js';
+import { API_KEY_REQUIRED_MESSAGE, useControl } from './useControl.js';
 import {
   BypassBadge,
   PermissionCard,
@@ -158,6 +158,9 @@ export function Composer({
       : remote.available
         ? 'remote'
         : 'refused';
+  // Only starting or resuming a process needs a key; an own run in progress
+  // and remote send to a live terminal session do not.
+  const needsKey = control.apiKeyRequired && mode === 'reply' && !activeRun;
   const commands = useRemoteCommands(
     control.service,
     projectId,
@@ -403,7 +406,7 @@ export function Composer({
   }
   async function send(retry = false) {
     if (busy.current || actionLock.current || waiting || !control.ready) return;
-    if (mode === 'refused') return;
+    if (mode === 'refused' || needsKey) return;
     const draft = retry ? attempted.current.text : text;
     if (!draft.trim()) return;
     attempted.current = { text: draft };
@@ -673,6 +676,15 @@ export function Composer({
               {REMOTE_HEADING}
             </p>
           )}
+          {needsKey && (
+            <p
+              id="api-key-required"
+              role="note"
+              className="px-2 text-xs text-muted"
+            >
+              {API_KEY_REQUIRED_MESSAGE}
+            </p>
+          )}
           <RemoteNotice
             availability={remote}
             refused={mode === 'refused'}
@@ -716,7 +728,7 @@ export function Composer({
               }}
               maxLength={LIMIT}
               rows={1}
-              disabled={pending || !!waiting || !!trust}
+              disabled={pending || !!waiting || !!trust || needsKey}
               aria-describedby={`${text.length >= COUNTER_FROM ? 'reply-count ' : ''}${mode === 'remote' ? 'remote-heading ' : ''}${mode === 'reply' ? '' : 'remote-notice '}reply-status`}
               className="block max-h-[40dvh] w-full resize-none overflow-y-auto bg-transparent px-4 pt-3.5 pb-1 text-base text-ink outline-none placeholder:text-muted disabled:opacity-60"
             />
@@ -787,6 +799,7 @@ export function Composer({
                       pending ||
                       !!waiting ||
                       !!trust ||
+                      needsKey ||
                       mode === 'refused'
                     }
                     className={`${roundButton} bg-accent text-page`}

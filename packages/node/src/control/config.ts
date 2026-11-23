@@ -66,22 +66,20 @@ export function assertWritableDirectory(path: string, label: string) {
   }
 }
 export const API_KEY_AUTH_MESSAGE =
-  "Session control needs an Anthropic API key (ANTHROPIC_API_KEY) or a cloud provider (Bedrock, Vertex, Foundry or Claude Platform on AWS). c9view does not use claude.ai subscription login (Anthropic's Agent SDK policy).";
+  "Starting or resuming a session from c9view needs an Anthropic API key (ANTHROPIC_API_KEY) or a cloud provider (CLAUDE_CODE_USE_BEDROCK, CLAUDE_CODE_USE_VERTEX, CLAUDE_CODE_USE_FOUNDRY or CLAUDE_CODE_USE_ANTHROPIC_AWS). c9view does not use claude.ai subscription login (Anthropic's Agent SDK policy). Sending to a live terminal session still works.";
 const providerFlags = [
   'CLAUDE_CODE_USE_BEDROCK',
   'CLAUDE_CODE_USE_VERTEX',
   'CLAUDE_CODE_USE_FOUNDRY',
   'CLAUDE_CODE_USE_ANTHROPIC_AWS',
 ];
+const truthy = new Set(['1', 'true', 'yes', 'on']);
 /** Presence check only: no value is read into a field, logged or returned. */
 export function hasApiKeyAuth(env: NodeJS.ProcessEnv = process.env): boolean {
-  if ((env.ANTHROPIC_API_KEY ?? '') !== '') return true;
-  return providerFlags.some(
-    (key) => !['', '0', 'false'].includes((env[key] ?? '').toLowerCase()),
+  if ((env.ANTHROPIC_API_KEY ?? '').trim() !== '') return true;
+  return providerFlags.some((key) =>
+    truthy.has((env[key] ?? '').trim().toLowerCase()),
   );
-}
-export function assertApiKeyAuth(env: NodeJS.ProcessEnv = process.env) {
-  if (!hasApiKeyAuth(env)) throw new ControlConfigError(API_KEY_AUTH_MESSAGE);
 }
 /** Resolution only: never executes the binary or loads the SDK module. */
 export function resolveClaudeBinary(

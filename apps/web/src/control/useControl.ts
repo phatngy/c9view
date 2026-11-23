@@ -5,6 +5,10 @@ import { queryKeys } from '../queryKeys.js';
 import { useLivePolling } from '../live/state.js';
 import { controlApi } from './api.js';
 
+/** Same text the node sends with the `api-key-required` refusal. */
+export const API_KEY_REQUIRED_MESSAGE =
+  "Starting or resuming a session from c9view needs an Anthropic API key (ANTHROPIC_API_KEY) or a cloud provider (CLAUDE_CODE_USE_BEDROCK, CLAUDE_CODE_USE_VERTEX, CLAUDE_CODE_USE_FOUNDRY or CLAUDE_CODE_USE_ANTHROPIC_AWS). c9view does not use claude.ai subscription login (Anthropic's Agent SDK policy). Sending to a live terminal session still works.";
+
 export function useControl() {
   const machineId = useMachineId();
   const client = useQueryClient();
@@ -26,6 +30,8 @@ export function useControl() {
   return {
     ...query,
     ready,
+    apiKeyRequired:
+      machine?.capabilities.control.sdkAuth === 'api-key-required',
     bypass: machine?.capabilities.bypass ?? false,
     machine,
     service,

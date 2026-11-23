@@ -23,8 +23,12 @@ export function createNodeHello(control?: {
     Object.defineProperty(hello.capabilities, 'control', {
       enumerable: true,
       get: () => {
-        const { state, reason } = control.capability;
-        return { state, ...(reason ? { reason } : {}) };
+        const { state, reason, sdkAuth } = control.capability;
+        return {
+          state,
+          ...(reason ? { reason } : {}),
+          ...(sdkAuth ? { sdkAuth } : {}),
+        };
       },
     });
     Object.defineProperty(hello.capabilities, 'bypass', {

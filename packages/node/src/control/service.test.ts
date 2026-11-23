@@ -211,13 +211,34 @@ it.each(['live-elsewhere', 'liveness-unknown'] as const)(
   },
 );
 
-it('T117 refuses control without an API-key method and never mentions a value', async () => {
-  const error = await setupControl(
-    {},
-    { env: { CLAUDE_CODE_OAUTH_TOKEN: 'synthetic-subscription' } },
-  ).catch((e: unknown) => e as Error);
-  expect(error).toBeInstanceOf(Error);
-  expect((error as Error).message).toContain('ANTHROPIC_API_KEY');
-  expect((error as Error).message).toContain('claude.ai subscription login');
-  expect((error as Error).message).not.toContain('synthetic-subscription');
+it('T117 without an API-key method control starts, reports it, and refuses each SDK operation before acting', async () => {
+  const t = await setup({}, { env: { CLAUDE_CODE_OAUTH_TOKEN: 'synthetic' } });
+  expect(t.service.capability).toMatchObject({
+    state: 'ready',
+    sdkAuth: 'api-key-required',
+  });
+  const refused = { status: 409, reason: 'api-key-required' };
+  const text = 'synthetic prompt';
+  const attempts = [
+    t.service.reply('project', 'session', t.body(), t.bootId),
+    t.service.start('project', t.body(), t.bootId),
+    t.service.createProject(
+      { ...t.body(), location: `${t.work}/new`, text },
+      t.bootId,
+    ),
+  ];
+  for (const attempt of attempts) {
+    const error = await attempt.catch((e: unknown) => e as Error);
+    expect(error).toMatchObject(refused);
+    expect((error as Error).message).toContain('ANTHROPIC_API_KEY');
+    expect((error as Error).message).toContain('Sending to a live terminal');
+    expect((error as Error).message).not.toContain('synthetic');
+  }
+  expect(t.sdk.runs).toEqual([]);
+  expect(t.service.snapshot().runs).toEqual([]);
+});
+
+it('T117 with an API-key method the capability is ok', async () => {
+  const t = await setup();
+  expect(t.service.capability.sdkAuth).toBe('ok');
 });
