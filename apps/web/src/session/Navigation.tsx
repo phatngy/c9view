@@ -26,7 +26,10 @@ export function Outline({
   const jumpTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined,
   );
+  const entries = useMemo(() => outlineEntries(messages), [messages]);
   useEffect(() => {
+    if (typeof IntersectionObserver === 'undefined') return;
+    let cleanupRoot: (() => void) | undefined;
     const finish = () => {
       jumping.current = false;
       jumpTarget.current = undefined;
@@ -46,25 +49,14 @@ export function Outline({
       )
         finish();
     };
-    document.addEventListener('wheel', finish, true);
-    document.addEventListener('touchstart', finish, true);
-    document.addEventListener('pointerdown', finish, true);
-    document.addEventListener('keydown', onKeyDown, true);
-    return () => {
-      document.removeEventListener('wheel', finish, true);
-      document.removeEventListener('touchstart', finish, true);
-      document.removeEventListener('pointerdown', finish, true);
-      document.removeEventListener('keydown', onKeyDown, true);
-      clearTimeout(jumpTimer.current);
-    };
-  }, []);
-  const entries = useMemo(() => outlineEntries(messages), [messages]);
-  useEffect(() => {
-    if (typeof IntersectionObserver === 'undefined') return;
-    let cleanupRoot: (() => void) | undefined;
     const connect = () => {
-      const root = document.querySelector('.conversation-window');
+      const root = document.querySelector<HTMLElement>('.conversation-window');
       if (!root || cleanupRoot) return;
+      root.addEventListener('wheel', finish, true);
+      root.addEventListener('touchstart', finish, true);
+      root.addEventListener('pointerdown', finish, true);
+      root.addEventListener('keydown', onKeyDown, true);
+      root.addEventListener('scrollend', finish);
       const visible = new Set<Element>();
       const observed = new Set<Element>();
       const order = new Map(
@@ -77,8 +69,12 @@ export function Outline({
             else visible.delete(change.target);
             if (
               change.isIntersecting &&
+              jumpTarget.current !== undefined &&
               (change.target as HTMLElement).dataset.messageRow ===
-                jumpTarget.current
+                jumpTarget.current &&
+              change.rootBounds !== null &&
+              Math.abs(change.boundingClientRect.top - change.rootBounds.top) <=
+                8
             ) {
               jumping.current = false;
               jumpTarget.current = undefined;
@@ -120,6 +116,11 @@ export function Outline({
       cleanupRoot = () => {
         mutations.disconnect();
         observer.disconnect();
+        root.removeEventListener('wheel', finish, true);
+        root.removeEventListener('touchstart', finish, true);
+        root.removeEventListener('pointerdown', finish, true);
+        root.removeEventListener('keydown', onKeyDown, true);
+        root.removeEventListener('scrollend', finish);
       };
     };
     connect();
@@ -136,6 +137,7 @@ export function Outline({
     return () => {
       mounting.disconnect();
       cleanupRoot?.();
+      clearTimeout(jumpTimer.current);
     };
   }, [messages, entries]);
   const markers = { command: '/', prompt: '›', plan: '◆', question: '?' };
