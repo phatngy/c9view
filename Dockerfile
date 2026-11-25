@@ -12,6 +12,13 @@ RUN corepack pnpm --filter @c9view/cli deploy --legacy --prod /out
 RUN mkdir -p /out/web-dist && cp -R apps/web/dist/. /out/web-dist/
 
 FROM node:22-bookworm-slim AS runtime
+ARG VERSION=dev
+ARG REVISION=unknown
+LABEL org.opencontainers.image.title="c9view" \
+      org.opencontainers.image.source="https://github.com/phatngy/c9view" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.version="$VERSION" \
+      org.opencontainers.image.revision="$REVISION"
 RUN groupadd --gid 10001 c9view && useradd --uid 10001 --gid 10001 --create-home c9view \
     && mkdir -p /var/lib/c9view && chown 10001:10001 /var/lib/c9view
 WORKDIR /app

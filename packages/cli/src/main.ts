@@ -6,10 +6,8 @@ if (
 ) {
   try {
     // Import the small built hook module directly: the core barrel loads SQLite.
-    const moduleUrl = new URL(
-      '../dist/hooks/hook-entry.js',
-      import.meta.resolve('@c9view/core'),
-    );
+    const { hookEntryUrl } = await import('./hook-entry-path.js');
+    const moduleUrl = hookEntryUrl();
     const { runHook } = (await import(moduleUrl.href)) as {
       runHook: () => Promise<void>;
     };

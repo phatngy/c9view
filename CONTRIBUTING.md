@@ -39,6 +39,17 @@ corepack pnpm test:e2e
 
 Format with `corepack pnpm format`. A change to what a page shows or how it lays out must add or update a Playwright end-to-end test. Install Chromium once with `corepack pnpm exec playwright install chromium`.
 
+## Releasing
+
+Maintainers only. Do not bump any version: workspace packages stay private at `0.0.0`, and the published `@phatngy/c9view` version comes from the tag. Push a tag `vX.Y.Z` (or `vX.Y.Z-rc.1` for a prerelease) on `main`. `.github/workflows/release.yml` then lints, tests and builds, assembles and smoke-tests the package (`packages/cli/scripts/release/`), publishes it to npm (prereleases to the `next` dist-tag), pushes `ghcr.io/phatngy/c9view` for amd64 and arm64, and creates a GitHub Release with generated notes. CI runs the same pack and smoke test on every PR.
+
+One-time setup:
+
+- npm: on npmjs.com open the `@phatngy/c9view` package settings (publish a first version by hand, or create the package) and add a Trusted Publisher for GitHub repository `phatngy/c9view`, workflow `release.yml`. No token is then needed. Alternatively add an `NPM_TOKEN` repository secret (a granular token that can publish the package); the workflow uses it when set.
+- GHCR: after the first push, set the `c9view` package visibility to public in the GitHub package settings if you want anonymous pulls.
+
+To try the packaging locally: `corepack pnpm build`, then in `packages/cli` run `node --experimental-strip-types scripts/release/pack.ts --version 0.0.0-local` and `node --experimental-strip-types scripts/release/smoke.ts`.
+
 ## Code conventions
 
 - Strict TypeScript, ESM only, no default exports except where a framework requires them.

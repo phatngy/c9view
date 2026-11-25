@@ -2,6 +2,7 @@ import { stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createInterface } from 'node:readline/promises';
+import { hookEntryUrl } from './hook-entry-path.js';
 import {
   hookStateDir,
   defaultStateDir,
@@ -49,12 +50,7 @@ export async function runHooksCommand(
     claudeDir,
     hookCommand(
       process.execPath,
-      fileURLToPath(
-        new URL(
-          '../dist/hooks/hook-entry.js',
-          import.meta.resolve('@c9view/core'),
-        ),
-      ),
+      fileURLToPath(hookEntryUrl()),
       hookStateDir() === defaultStateDir() ? undefined : hookStateDir(),
     ),
     action === 'install',

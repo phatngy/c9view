@@ -15,7 +15,9 @@
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "release:pack": "node --experimental-strip-types scripts/release/pack.ts",
+    "release:smoke": "node --experimental-strip-types scripts/release/smoke.ts"
   },
   "dependencies": {
     "@c9view/core": "workspace:*",
@@ -23,6 +25,7 @@
   },
   "devDependencies": {
     "@types/node": "^26.6.5",
+    "esbuild": "^0.28.2",
     "typescript": "^6.0.3",
     "vitest": "^5.0.5"
   },

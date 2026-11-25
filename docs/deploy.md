@@ -12,7 +12,7 @@ corepack pnpm build
 node packages/cli/dist/main.js start --open
 ```
 
-Once the npm release is published, use `npx c9view` (no command means `start`). The npm package is not published yet.
+The npm package and container image are not published yet; see "Install a release" below for how they will be used once the first release tag is pushed.
 
 The default is `http://127.0.0.1:7777`. Options: `--port`, `--host`, `--claude-dir`, `--db`, `--open`, repeatable `--allowed-host` and `--workspace-root`, and `--auth none|token|password`. Environment equivalents are `PORT`, `HOST`, `C9VIEW_CLAUDE_DIR`, `C9VIEW_DB`, `C9VIEW_ALLOWED_HOSTS` (comma separated), `C9VIEW_AUTH`, and `C9VIEW_WORKSPACE_ROOTS` (extra workspace roots, separated by the platform path delimiter such as `:` on Linux/macOS, used to resolve projects; read by `packages/core/src/config/index.ts`). Flags override environment values; allowed hosts are combined. `C9VIEW_WEB_DIST` overrides the built web directory. Missing builds fail with instructions.
 
@@ -24,6 +24,31 @@ C9VIEW_PASSWORD='choose-a-long-password' node packages/cli/dist/main.js --auth p
 Token mode generates a random token per start, or uses `C9VIEW_TOKEN` (at least 32 characters; shorter values fail startup). Open `/login` and paste the token into the form to receive an HttpOnly, SameSite=Strict cookie. Interactive terminals print the token separately. Redirected output and container logs print only the bare login URL: set `C9VIEW_TOKEN` before starting and use that value to log in. `--open` opens a bare URL and never passes the token in browser process arguments. Credentials are not stored on disk.
 
 Password failures use a per-client exponential backoff: 1, 2, 4 seconds, doubling to a 60-second cap. Password checks are blocked while a client is in backoff because passwords are guessable. Token checks verify the token first, so a correct token always logs in and clears that client's backoff; wrong tokens during backoff receive HTTP 429. A rolling global cap permits 60 failures/minute across all clients. HTTP 429 includes `Retry-After` in seconds. Backoff history expires after five idle minutes. Sessions expire after 24 hours and all sessions are invalidated on restart.
+
+## Install a release
+
+Releases are built by `.github/workflows/release.yml` when a `vX.Y.Z` tag is pushed. Nothing has been published yet, so these commands work only after the first release.
+
+```sh
+npx @phatngy/c9view start          # run once, no install
+npm i -g @phatngy/c9view           # or install the c9view command
+c9view start --open
+```
+
+The npm package is one bundled file plus the web build. It needs Node 22 or newer and installs `better-sqlite3` (native) and the Claude Agent SDK as its only dependencies. Prerelease versions (`0.2.0-rc.1`) are on the `next` dist-tag: `npx @phatngy/c9view@next`. `C9VIEW_WEB_DIST` still overrides the bundled web build. `c9view hooks install` writes the path of the installed package's hook file into Claude settings, so use a global install (or reinstall the hooks after an `npx` cache clean): an `npx` cache path can disappear.
+
+The container image is `ghcr.io/phatngy/c9view` for linux/amd64 and linux/arm64, tagged `<version>`, `<major>.<minor>` and `latest` (prereleases get only the full version):
+
+```sh
+docker run --rm -p 127.0.0.1:7777:7777 --user "$(id -u):$(id -g)" \
+  -e C9VIEW_TOKEN="$C9VIEW_TOKEN" \
+  -v "$HOME/.claude:/data/claude:ro" \
+  -v "$HOME/.claude/c9view:/data/claude/c9view" \
+  -v "${C9VIEW_DATA:-$HOME/.local/share/c9view}:/var/lib/c9view" \
+  ghcr.io/phatngy/c9view:<version>
+```
+
+It uses the same environment and mounts as the Compose file below (`C9VIEW_TOKEN` of at least 32 characters, workspace bind mounts at identical paths, optional `--read-only --tmpfs /tmp --cap-drop ALL`). To use a released image in Compose, replace `build: .` with `image: ghcr.io/phatngy/c9view:<version>`.
 
 ## Session control
 
