@@ -1,7 +1,7 @@
 // Checks and notices derived from the esbuild metafiles of the release bundle.
 import type { Metafile } from 'esbuild';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 
 export interface BundledPackage {
   name: string;
@@ -13,18 +13,24 @@ export interface BundledPackage {
 function readJson(path: string): Record<string, unknown> {
   return JSON.parse(readFileSync(path, 'utf8')) as Record<string, unknown>;
 }
-/** The package folder (under a node_modules) that an input file belongs to. */
-function packageDir(repoRoot: string, input: string): string | undefined {
+/**
+ * The package folder (under a node_modules) that a module path belongs to,
+ * relative to the same root as `input`. Handles pnpm's nested layout, bundler
+ * query strings and virtual ids.
+ */
+export function packageDirOf(input: string): string | undefined {
   const marker = 'node_modules/';
-  const at = input.lastIndexOf(marker);
-  if (at < 0) return undefined;
-  const rest = input.slice(at + marker.length).split('/');
+  const path = input.replace(/[?#].*$/, '').replaceAll('\\', '/');
+  const at = path.lastIndexOf(marker);
+  if (at < 0 || path.startsWith('\0')) return undefined;
+  const rest = path.slice(at + marker.length).split('/');
   const depth = rest[0]?.startsWith('@') ? 2 : 1;
-  return join(
-    repoRoot,
-    input.slice(0, at + marker.length),
-    ...rest.slice(0, depth),
-  );
+  if (rest.length <= depth) return undefined;
+  return path.slice(0, at + marker.length) + rest.slice(0, depth).join('/');
+}
+function packageDir(repoRoot: string, input: string): string | undefined {
+  const dir = packageDirOf(input);
+  return dir && resolve(repoRoot, dir);
 }
 export function packageAt(dir: string): BundledPackage {
   const pkg = readJson(join(dir, 'package.json'));
@@ -41,40 +47,66 @@ export function packageAt(dir: string): BundledPackage {
 export function bundledPackages(
   repoRoot: string,
   metafiles: Metafile[],
-  extraDirs: string[] = [],
+  extraModules: string[] = [],
 ): BundledPackage[] {
-  const dirs = new Set(extraDirs);
+  const dirs = new Set<string>();
+  for (const id of extraModules) {
+    const dir = packageDir(repoRoot, id);
+    if (dir) dirs.add(dir);
+  }
   for (const meta of metafiles)
     for (const input of Object.keys(meta.inputs)) {
       const dir = packageDir(repoRoot, input);
       if (dir) dirs.add(dir);
     }
-  return [...dirs]
-    .filter((dir) => existsSync(join(dir, 'package.json')))
-    .map(packageAt)
-    .filter((p) => !p.name.startsWith('@c9view/'))
-    .sort(
-      (a, b) =>
-        a.name.localeCompare(b.name) || a.version.localeCompare(b.version),
-    );
+  return dedupePackages(
+    [...dirs]
+      .filter((dir) => existsSync(join(dir, 'package.json')))
+      .map(packageAt),
+  );
 }
-function licenseText(dir: string): string {
-  const file = readdirSync(dir).find((f) =>
+/** Drops workspace packages and repeats of one name@version; sorts by name. */
+export function dedupePackages(packages: BundledPackage[]): BundledPackage[] {
+  const seen = new Map<string, BundledPackage>();
+  for (const p of packages)
+    if (!p.name.startsWith('@c9view/')) seen.set(`${p.name}@${p.version}`, p);
+  return [...seen.values()].sort(
+    (a, b) =>
+      a.name.localeCompare(b.name) || a.version.localeCompare(b.version),
+  );
+}
+function licenseFile(dir: string): string | undefined {
+  return readdirSync(dir).find((f) =>
     /^(licen[sc]e|copying|notice)(\.|$)/i.test(f),
   );
+}
+/** Release check: every bundled package needs a license file or a license field. */
+export function assertAllLicensed(packages: BundledPackage[]): void {
+  const missing = packages
+    .filter((p) => !licenseFile(p.dir) && p.license === 'see license file')
+    .map((p) => `${p.name}@${p.version}`);
+  if (missing.length > 0)
+    throw new Error(
+      `No license file and no license field for bundled packages: ${missing.join(', ')}`,
+    );
+}
+function licenseText(p: BundledPackage): string {
+  const file = licenseFile(p.dir);
   return file
-    ? readFileSync(join(dir, file), 'utf8').trim()
-    : '(no license file in the package)';
+    ? readFileSync(join(p.dir, file), 'utf8').trim()
+    : `(no license file in the package; license field of its package.json: ${p.license})`;
 }
 export function noticesText(packages: BundledPackage[]): string {
   const header =
-    'Third-party software included in @phatngy/c9view (the bundled code and web build).\n';
+    'Third-party packages bundled into the JavaScript and web app of @phatngy/c9view.\n' +
+    'External runtime dependencies (better-sqlite3 and @anthropic-ai/claude-agent-sdk)\n' +
+    'are not included here; npm installs them with their own licenses.\n';
   return (
     header +
     packages
       .map(
         (p) =>
-          `\n${'='.repeat(72)}\n${p.name}@${p.version} (${p.license})\n${'='.repeat(72)}\n${licenseText(p.dir)}\n`,
+          `\n${'='.repeat(72)}\n${p.name}@${p.version} (${p.license})\n${'='.repeat(72)}\n${licenseText(p)}\n`,
       )
       .join('')
   );
