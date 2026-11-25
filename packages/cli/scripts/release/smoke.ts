@@ -99,7 +99,13 @@ async function main() {
     );
     expect(existsSync(notices), 'the notices file is installed');
     const noticesText = readFileSync(notices, 'utf8');
-    for (const name of ['hono', 'micromark', 'shiki'])
+    for (const name of [
+      'hono',
+      'micromark',
+      'shiki',
+      'tailwindcss',
+      'drizzle-orm',
+    ])
       expect(
         new RegExp(`^${name}@\\S+ \\(`, 'm').test(noticesText),
         `the notices list ${name}`,

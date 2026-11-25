@@ -2,14 +2,17 @@
 // Usage: node --experimental-strip-types scripts/release/pack.ts --version 0.1.0 [--out dir]
 import { build, type BuildOptions, type Plugin } from 'esbuild';
 import {
+  type Dirent,
   cpSync,
   existsSync,
+  readdirSync,
+  realpathSync,
   mkdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { dirname, join, relative, resolve, sep } from 'node:path';
 import {
   assertAllLicensed,
   assertHookEntryDependencyFree,
@@ -120,24 +123,52 @@ async function main() {
     outfile: join(out, 'dist/hooks/hook-entry.js'),
   });
   assertHookEntryDependencyFree(hook.metafile);
-  // Vite records every module it bundled (see apps/web/vite.config.ts).
-  const webModulesFile = join(
-    repoRoot,
-    'apps/web/node_modules/.c9view/web-modules.json',
-  );
+  // Vite records every module it bundled and the files it emitted (see
+  // apps/web/vite.config.ts). Fail if that record is not from this dist.
+  const webRoot = join(repoRoot, 'apps/web');
+  const webModulesFile = join(webRoot, 'node_modules/.c9view/web-modules.json');
   if (!existsSync(webModulesFile))
     throw new Error(
       'The web build did not record its modules; run corepack pnpm build first',
     );
-  const webModules = JSON.parse(
-    readFileSync(webModulesFile, 'utf8'),
-  ) as string[];
+  const record = JSON.parse(readFileSync(webModulesFile, 'utf8')) as {
+    files?: string[];
+    modules?: string[];
+  };
+  if (!Array.isArray(record.files) || !Array.isArray(record.modules))
+    throw new Error(
+      `${webModulesFile} has an unexpected shape; rebuild the web app`,
+    );
+  const distFiles = (
+    readdirSync(webDist, { recursive: true, withFileTypes: true }) as Dirent[]
+  )
+    .filter((e) => e.isFile())
+    .map((e) =>
+      relative(webDist, join(e.parentPath, e.name)).split(sep).join('/'),
+    )
+    .sort();
+  if (JSON.stringify(distFiles) !== JSON.stringify([...record.files].sort()))
+    throw new Error(
+      'apps/web/dist does not match the recorded web build (stale or foreign module list); run corepack pnpm build first',
+    );
+  // Packages whose code reaches the web build without passing through the
+  // module graph: tailwindcss is imported from style.css, and its code
+  // (for example the preflight reset) is inlined into the built CSS, so it is
+  // not in chunk.modules.
+  const EXTRA_WEB_PACKAGES = ['tailwindcss'];
+  const extraDirs = EXTRA_WEB_PACKAGES.map((name) => {
+    const dir = join(webRoot, 'node_modules', name);
+    if (!existsSync(join(dir, 'package.json')))
+      throw new Error(`Extra web package ${name} is not installed at ${dir}`);
+    return realpathSync(dir);
+  });
   const bundled = bundledPackages(repoRoot, [cliBuild.metafile, hook.metafile]);
   assertNoThirdPartyDevelopmentExports(bundled);
   const packages = bundledPackages(
     repoRoot,
     [cliBuild.metafile, hook.metafile],
-    webModules.map((id) => (isAbsolute(id) ? relative(repoRoot, id) : id)),
+    record.modules,
+    extraDirs,
   );
   assertAllLicensed(packages);
   writeFileSync(join(out, 'THIRD-PARTY-NOTICES.txt'), noticesText(packages));
