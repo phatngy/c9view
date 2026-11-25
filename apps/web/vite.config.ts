@@ -6,24 +6,31 @@ import { join } from 'node:path';
 import type { Plugin } from 'vite';
 
 /**
- * Records which modules the production build bundled, outside `dist`, so the
+ * Records the emitted files and which modules the production build bundled, outside `dist`, so the
  * release script can list the third-party packages for THIRD-PARTY-NOTICES.txt.
  * It does not change the build output.
  */
 function recordBundledModules(): Plugin {
+  let root = process.cwd();
   return {
     name: 'c9view-record-bundled-modules',
     apply: 'build',
-    generateBundle(_options, bundle) {
+    configResolved(config) {
+      root = config.root;
+    },
+    writeBundle(_options, bundle) {
       const ids = new Set<string>();
       for (const chunk of Object.values(bundle))
         if (chunk.type === 'chunk')
           for (const id of Object.keys(chunk.modules)) ids.add(id);
-      const dir = join(process.cwd(), 'node_modules/.c9view');
+      const dir = join(root, 'node_modules/.c9view');
       mkdirSync(dir, { recursive: true });
       writeFileSync(
         join(dir, 'web-modules.json'),
-        JSON.stringify([...ids].sort()),
+        JSON.stringify({
+          files: Object.keys(bundle).sort(),
+          modules: [...ids].sort(),
+        }),
       );
     },
   };

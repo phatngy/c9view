@@ -1,7 +1,8 @@
 // Checks and notices derived from the esbuild metafiles of the release bundle.
 import type { Metafile } from 'esbuild';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 export interface BundledPackage {
   name: string;
@@ -43,27 +44,38 @@ export function packageAt(dir: string): BundledPackage {
     dir,
   };
 }
-/** Third-party packages whose code is inlined into the bundle. */
+/**
+ * Third-party packages whose code is inlined into the bundle: the esbuild
+ * inputs, the Vite module ids (absolute paths) and extra package folders.
+ * Nothing is dropped silently: a module outside the repo, or a package folder
+ * without a package.json, is an error.
+ */
 export function bundledPackages(
   repoRoot: string,
   metafiles: Metafile[],
-  extraModules: string[] = [],
+  webModules: string[] = [],
+  extraDirs: string[] = [],
 ): BundledPackage[] {
-  const dirs = new Set<string>();
-  for (const id of extraModules) {
-    const dir = packageDir(repoRoot, id);
-    if (dir) dirs.add(dir);
+  const dirs = new Set(extraDirs);
+  const add = (input: string, where: string) => {
+    const dir = packageDir(repoRoot, input);
+    if (!dir) return;
+    if (!existsSync(join(dir, 'package.json')))
+      throw new Error(`${where} module ${input} has no package.json at ${dir}`);
+    dirs.add(dir);
+  };
+  for (const id of webModules) {
+    if (id.startsWith('\0')) continue; // Bundler virtual modules.
+    const rel = relative(repoRoot, id);
+    if (rel.startsWith('..') || isAbsolute(rel))
+      throw new Error(
+        `Web module ${id} is outside ${repoRoot}; the module list is stale or from another checkout`,
+      );
+    add(rel, 'Web');
   }
   for (const meta of metafiles)
-    for (const input of Object.keys(meta.inputs)) {
-      const dir = packageDir(repoRoot, input);
-      if (dir) dirs.add(dir);
-    }
-  return dedupePackages(
-    [...dirs]
-      .filter((dir) => existsSync(join(dir, 'package.json')))
-      .map(packageAt),
-  );
+    for (const input of Object.keys(meta.inputs)) add(input, 'esbuild');
+  return dedupePackages([...dirs].map(packageAt));
 }
 /** Drops workspace packages and repeats of one name@version; sorts by name. */
 export function dedupePackages(packages: BundledPackage[]): BundledPackage[] {
@@ -80,23 +92,54 @@ function licenseFile(dir: string): string | undefined {
     /^(licen[sc]e|copying|notice)(\.|$)/i.test(f),
   );
 }
-/** Release check: every bundled package needs a license file or a license field. */
-export function assertAllLicensed(packages: BundledPackage[]): void {
-  const missing = packages
-    .filter((p) => !licenseFile(p.dir) && p.license === 'see license file')
-    .map((p) => `${p.name}@${p.version}`);
-  if (missing.length > 0)
+const LICENSES_DIR = join(dirname(fileURLToPath(import.meta.url)), 'licenses');
+/** MIT, BSD and ISC texts carry a copyright line, so they cannot be filled in generically. */
+const NEEDS_OWN_TEXT = /^(MIT|BSD|ISC)/i;
+
+/**
+ * The license text of a package: its own file, else the vendored canonical
+ * text for its SPDX id. Returns an error message when neither exists.
+ */
+function resolveLicense(
+  p: BundledPackage,
+  licensesDir: string,
+): { text: string } | { error: string } {
+  const file = licenseFile(p.dir);
+  if (file) return { text: readFileSync(join(p.dir, file), 'utf8').trim() };
+  const id = p.license;
+  const label = `${p.name}@${p.version} (${id})`;
+  if (id === 'see license file' || NEEDS_OWN_TEXT.test(id))
+    return { error: `${label}: no license file to carry its copyright line` };
+  const vendored = join(licensesDir, `${id}.txt`);
+  if (/^[A-Za-z0-9.+-]+$/.test(id) && existsSync(vendored))
+    return { text: readFileSync(vendored, 'utf8').trim() };
+  return { error: `${label}: no license file and no vendored text for ${id}` };
+}
+/** Release check: every bundled package must carry a license text. */
+export function assertAllLicensed(
+  packages: BundledPackage[],
+  licensesDir = LICENSES_DIR,
+): void {
+  const errors = packages.flatMap((p) => {
+    const r = resolveLicense(p, licensesDir);
+    return 'error' in r ? [r.error] : [];
+  });
+  if (errors.length > 0)
     throw new Error(
-      `No license file and no license field for bundled packages: ${missing.join(', ')}`,
+      `Bundled packages without a license text:\n${errors.join('\n')}`,
     );
 }
-function licenseText(p: BundledPackage): string {
-  const file = licenseFile(p.dir);
-  return file
-    ? readFileSync(join(p.dir, file), 'utf8').trim()
-    : `(no license file in the package; license field of its package.json: ${p.license})`;
+function licenseText(p: BundledPackage, licensesDir: string): string {
+  const r = resolveLicense(p, licensesDir);
+  if ('error' in r) throw new Error(r.error);
+  return licenseFile(p.dir)
+    ? r.text
+    : `(the package ships no license file; this is the standard ${p.license} text)\n\n${r.text}`;
 }
-export function noticesText(packages: BundledPackage[]): string {
+export function noticesText(
+  packages: BundledPackage[],
+  licensesDir = LICENSES_DIR,
+): string {
   const header =
     'Third-party packages bundled into the JavaScript and web app of @phatngy/c9view.\n' +
     'External runtime dependencies (better-sqlite3 and @anthropic-ai/claude-agent-sdk)\n' +
@@ -106,7 +149,7 @@ export function noticesText(packages: BundledPackage[]): string {
     packages
       .map(
         (p) =>
-          `\n${'='.repeat(72)}\n${p.name}@${p.version} (${p.license})\n${'='.repeat(72)}\n${licenseText(p)}\n`,
+          `\n${'='.repeat(72)}\n${p.name}@${p.version} (${p.license})\n${'='.repeat(72)}\n${licenseText(p, licensesDir)}\n`,
       )
       .join('')
   );
