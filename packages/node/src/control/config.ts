@@ -66,7 +66,7 @@ export function assertWritableDirectory(path: string, label: string) {
   }
 }
 export const API_KEY_AUTH_MESSAGE =
-  "Starting or resuming a session from c9view needs an Anthropic API key (ANTHROPIC_API_KEY) or a cloud provider (CLAUDE_CODE_USE_BEDROCK, CLAUDE_CODE_USE_VERTEX, CLAUDE_CODE_USE_FOUNDRY or CLAUDE_CODE_USE_ANTHROPIC_AWS). c9view does not use claude.ai subscription login (Anthropic's Agent SDK policy). Sending to a live terminal session still works.";
+  "Starting or resuming a session from c9view needs an Anthropic API key (ANTHROPIC_API_KEY) or a cloud provider (CLAUDE_CODE_USE_BEDROCK, CLAUDE_CODE_USE_VERTEX, CLAUDE_CODE_USE_FOUNDRY or CLAUDE_CODE_USE_ANTHROPIC_AWS). c9view does not use claude.ai subscription login (Anthropic's Agent SDK policy).";
 const providerFlags = [
   'CLAUDE_CODE_USE_BEDROCK',
   'CLAUDE_CODE_USE_VERTEX',

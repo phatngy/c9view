@@ -231,7 +231,7 @@ it('T117 without an API-key method control starts, reports it, and refuses each 
     const error = await attempt.catch((e: unknown) => e as Error);
     expect(error).toMatchObject(refused);
     expect((error as Error).message).toContain('ANTHROPIC_API_KEY');
-    expect((error as Error).message).toContain('Sending to a live terminal');
+    expect((error as Error).message).not.toContain('live terminal');
     expect((error as Error).message).not.toContain('synthetic');
   }
   expect(t.sdk.runs).toEqual([]);
