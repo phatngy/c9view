@@ -157,7 +157,7 @@ If you use password auth behind Cloudflare Tunnel, set `C9VIEW_TRUST_PROXY=1` so
 
 Set `C9VIEW_TRUST_PROXY=1` only when a trusted proxy controls forwarded headers and clients cannot bypass it. This honors `X-Forwarded-Proto: https` for Secure cookies and uses the first `X-Forwarded-For` address for rate limits. Configure the proxy to replace untrusted forwarded headers. Without proxy trust, rate limiting uses the socket peer (all tunnel users may share one bucket).
 
-Multiple machines and session control are specified in [001-multi-machine](../specs/001-multi-machine/spec.md) and [002-session-control](../specs/002-session-control/spec.md). The planned layout is the hub in Docker and a native node per machine, and with session control or a paired node login is always required.
+Session control ([002](../specs/002-session-control/spec.md)) and remote send ([003](../specs/003-remote-control/spec.md)) are built, but not for this image: its Claude and workspace mounts are read-only and it cannot see host processes, so run the node natively (see [Session control](#session-control)). Multiple machines ([001](../specs/001-multi-machine/spec.md)) are partly built: the hub's merged overview and board work today, while pairing nodes from other machines (step 7b) is not built yet. The planned layout is the hub in Docker and a native node per machine; with session control or a paired node, login is always required.
 
 `C9VIEW_INSECURE_NO_AUTH=1` overrides the read-only exposure startup refusal when auth is `none` and prints a loud warning every start. It does not enable auth or protect data. It is unsafe behind tunnels, even when the listener is loopback. Avoid it for any remotely reachable deployment.
 
@@ -168,7 +168,7 @@ To check an image, build it and run it as your own UID against empty synthetic d
 ```sh
 docker build --no-cache -t c9view:local .
 C9VIEW_VERIFY_DIR="$(mktemp -d)"
-mkdir -p "$C9VIEW_VERIFY_DIR/claude/projects" "$C9VIEW_VERIFY_DIR/state" "$C9VIEW_VERIFY_DIR/db" "$C9VIEW_VERIFY_DIR/workspace"
+mkdir -p "$C9VIEW_VERIFY_DIR/claude/projects" "$C9VIEW_VERIFY_DIR/claude/c9view" "$C9VIEW_VERIFY_DIR/state" "$C9VIEW_VERIFY_DIR/db" "$C9VIEW_VERIFY_DIR/workspace"
 chmod 700 "$C9VIEW_VERIFY_DIR" "$C9VIEW_VERIFY_DIR/claude" "$C9VIEW_VERIFY_DIR/state" "$C9VIEW_VERIFY_DIR/db"
 export C9VIEW_TOKEN="$(node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))")"
 docker run -d --name c9view-verify --user "$(id -u):$(id -g)" \
