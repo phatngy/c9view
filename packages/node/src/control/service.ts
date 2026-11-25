@@ -154,7 +154,7 @@ export function createControlService(
   };
   if (config.control && sdkAuth() !== 'ok')
     console.warn(
-      'c9view: control is on but no API-key method is set; starting or resuming sessions is refused (remote send still works).',
+      'c9view: control is on but no API-key method is set; starting or resuming sessions is refused.',
     );
   const state = dependencies.state ?? openControlState(stateDir);
   const folders = new FolderTrust(store.config.claudeDir, state);
