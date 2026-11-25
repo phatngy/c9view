@@ -92,6 +92,18 @@ async function main() {
       ['install', '--prefix', prefix, '--no-audit', '--no-fund', tarball],
       work,
     );
+    step('THIRD-PARTY-NOTICES.txt lists bundled packages');
+    const notices = join(
+      prefix,
+      'node_modules/@phatngy/c9view/THIRD-PARTY-NOTICES.txt',
+    );
+    expect(existsSync(notices), 'the notices file is installed');
+    const noticesText = readFileSync(notices, 'utf8');
+    for (const name of ['hono', 'micromark', 'shiki'])
+      expect(
+        new RegExp(`^${name}@\\S+ \\(`, 'm').test(noticesText),
+        `the notices list ${name}`,
+      );
     const bin = join(prefix, 'node_modules/.bin/c9view');
     const home = join(work, 'home');
     const claudeDir = join(work, 'claude');

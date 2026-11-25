@@ -5,13 +5,13 @@ import {
   cpSync,
   existsSync,
   mkdirSync,
-  realpathSync,
   readFileSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import {
+  assertAllLicensed,
   assertHookEntryDependencyFree,
   assertNoThirdPartyDevelopmentExports,
   bundledPackages,
@@ -120,20 +120,26 @@ async function main() {
     outfile: join(out, 'dist/hooks/hook-entry.js'),
   });
   assertHookEntryDependencyFree(hook.metafile);
-  // Direct dependencies of the web app are inlined by Vite into web-dist.
-  const webPackage = readJson(join(repoRoot, 'apps/web/package.json'));
-  const webDirs = Object.keys(
-    (webPackage['dependencies'] ?? {}) as Record<string, string>,
-  )
-    .map((name) => join(repoRoot, 'apps/web/node_modules', name))
-    .filter((dir) => existsSync(join(dir, 'package.json')));
+  // Vite records every module it bundled (see apps/web/vite.config.ts).
+  const webModulesFile = join(
+    repoRoot,
+    'apps/web/node_modules/.c9view/web-modules.json',
+  );
+  if (!existsSync(webModulesFile))
+    throw new Error(
+      'The web build did not record its modules; run corepack pnpm build first',
+    );
+  const webModules = JSON.parse(
+    readFileSync(webModulesFile, 'utf8'),
+  ) as string[];
   const bundled = bundledPackages(repoRoot, [cliBuild.metafile, hook.metafile]);
   assertNoThirdPartyDevelopmentExports(bundled);
   const packages = bundledPackages(
     repoRoot,
     [cliBuild.metafile, hook.metafile],
-    webDirs.map((dir) => realpathSync(dir)),
+    webModules.map((id) => (isAbsolute(id) ? relative(repoRoot, id) : id)),
   );
+  assertAllLicensed(packages);
   writeFileSync(join(out, 'THIRD-PARTY-NOTICES.txt'), noticesText(packages));
   cpSync(webDist, join(out, 'web-dist'), { recursive: true });
   for (const file of ['README.md', 'LICENSE'])
