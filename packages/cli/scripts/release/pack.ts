@@ -5,11 +5,18 @@ import {
   cpSync,
   existsSync,
   mkdirSync,
+  realpathSync,
   readFileSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
+import {
+  assertHookEntryDependencyFree,
+  assertNoThirdPartyDevelopmentExports,
+  bundledPackages,
+  noticesText,
+} from './bundle-checks.ts';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 
@@ -80,7 +87,7 @@ async function main() {
   rmSync(out, { recursive: true, force: true });
   mkdirSync(out, { recursive: true });
   const external = Object.keys(EXTERNALS);
-  const common: BuildOptions = {
+  const common = {
     absWorkingDir: repoRoot,
     bundle: true,
     format: 'esm',
@@ -88,11 +95,13 @@ async function main() {
     target: 'node22',
     conditions: ['development'],
     external,
-    legalComments: 'none',
+    legalComments: 'none', // Notices are generated into THIRD-PARTY-NOTICES.txt instead.
+    metafile: true,
     logLevel: 'warning',
-  };
-  // Lazy chunks (beside main.js, so import.meta.url paths hold) keep `--help` and the hook fast path from loading SQLite.
-  await build({
+  } satisfies BuildOptions;
+  // Lazy chunks sit beside main.js so import.meta.url paths hold, and keep
+  // `--help` and the hook fast path from loading SQLite.
+  const cliBuild = await build({
     ...common,
     entryPoints: [join(cliRoot, 'src/main.ts')],
     outdir: join(out, 'dist'),
@@ -105,11 +114,27 @@ async function main() {
     },
   });
   // The hook entry stays one self-contained file with only node: built-ins.
-  await build({
+  const hook = await build({
     ...common,
     entryPoints: [join(repoRoot, 'packages/core/src/hooks/hook-entry.ts')],
     outfile: join(out, 'dist/hooks/hook-entry.js'),
   });
+  assertHookEntryDependencyFree(hook.metafile);
+  // Direct dependencies of the web app are inlined by Vite into web-dist.
+  const webPackage = readJson(join(repoRoot, 'apps/web/package.json'));
+  const webDirs = Object.keys(
+    (webPackage['dependencies'] ?? {}) as Record<string, string>,
+  )
+    .map((name) => join(repoRoot, 'apps/web/node_modules', name))
+    .filter((dir) => existsSync(join(dir, 'package.json')));
+  const bundled = bundledPackages(repoRoot, [cliBuild.metafile, hook.metafile]);
+  assertNoThirdPartyDevelopmentExports(bundled);
+  const packages = bundledPackages(
+    repoRoot,
+    [cliBuild.metafile, hook.metafile],
+    webDirs.map((dir) => realpathSync(dir)),
+  );
+  writeFileSync(join(out, 'THIRD-PARTY-NOTICES.txt'), noticesText(packages));
   cpSync(webDist, join(out, 'web-dist'), { recursive: true });
   for (const file of ['README.md', 'LICENSE'])
     cpSync(join(repoRoot, file), join(out, file));
@@ -128,7 +153,13 @@ async function main() {
         keywords: ['claude-code', 'dashboard', 'sessions', 'token-usage'],
         type: 'module',
         bin: { c9view: './dist/main.js' },
-        files: ['dist', 'web-dist', 'README.md', 'LICENSE'],
+        files: [
+          'dist',
+          'web-dist',
+          'README.md',
+          'LICENSE',
+          'THIRD-PARTY-NOTICES.txt',
+        ],
         engines: { node: '>=22' },
         publishConfig: { access: 'public' },
         dependencies: externalDependencies(),

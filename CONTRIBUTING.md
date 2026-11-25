@@ -41,12 +41,14 @@ Format with `corepack pnpm format`. A change to what a page shows or how it lays
 
 ## Releasing
 
-Maintainers only. Do not bump any version: workspace packages stay private at `0.0.0`, and the published `@phatngy/c9view` version comes from the tag. Push a tag `vX.Y.Z` (or `vX.Y.Z-rc.1` for a prerelease) on `main`. `.github/workflows/release.yml` then lints, tests and builds, assembles and smoke-tests the package (`packages/cli/scripts/release/`), publishes it to npm (prereleases to the `next` dist-tag), pushes `ghcr.io/phatngy/c9view` for amd64 and arm64, and creates a GitHub Release with generated notes. CI runs the same pack and smoke test on every PR.
+Maintainers only. Do not bump any version: workspace packages stay private at `0.0.0`, and the published `@phatngy/c9view` version comes from the tag. Push a tag `vX.Y.Z` (or `vX.Y.Z-rc.1` for a prerelease) on `main`. `.github/workflows/release.yml` then lints, tests and builds, assembles and smoke-tests the package (`packages/cli/scripts/release/`), publishes it to npm (prereleases to the `next` dist-tag), pushes `ghcr.io/phatngy/c9view` for amd64 and arm64, and creates a GitHub Release with generated notes. The tag's commit must be on `main`, or the release stops before anything is published. The tarball that is published is the exact file that passed the smoke test (its sha256 is checked before publishing). CI runs the same pack and smoke test on every PR; the smoke test installs the tarball on Linux, runs `--help`, a fixture `scan`, `hooks install` plus one silent hook run, and `start` with a health and index check.
 
 One-time setup:
 
 - npm: on npmjs.com open the `@phatngy/c9view` package settings (publish a first version by hand, or create the package) and add a Trusted Publisher for GitHub repository `phatngy/c9view`, workflow `release.yml`. No token is then needed. Alternatively add an `NPM_TOKEN` repository secret (a granular token that can publish the package); the workflow uses it when set.
 - GHCR: after the first push, set the `c9view` package visibility to public in the GitHub package settings if you want anonymous pulls.
+
+If a release half-fails: a rerun of the failed jobs is safe. The npm job skips a version that is already on npm, and the image job overwrites its own tags. If the GitHub Release job fails after the others succeeded, rerun only that job. A version published to npm cannot be replaced, so fix a bad package with a new tag.
 
 To try the packaging locally: `corepack pnpm build`, then in `packages/cli` run `node --experimental-strip-types scripts/release/pack.ts --version 0.0.0-local` and `node --experimental-strip-types scripts/release/smoke.ts`.
 

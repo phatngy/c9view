@@ -2,6 +2,8 @@ import { mkdtemp, writeFile, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, it, vi } from 'vitest';
+import { fileURLToPath } from 'node:url';
+import { hookCommand } from '@c9view/core';
 import { runHooksCommand } from './hooks.js';
 it('requires --yes without a TTY and installs/uninstalls against a temporary Claude dir', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'c9view-cli-hooks-'));
@@ -47,6 +49,38 @@ it('requires --yes without a TTY and installs/uninstalls against a temporary Cla
   } finally {
     vi.unstubAllEnvs();
     log.mockRestore();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+it('writes the exact hook command that workspace builds always wrote', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'c9view-cli-hook-cmd-'));
+  const stateDir = join(dir, "custom state's");
+  vi.stubEnv('HOME', dir);
+  vi.stubEnv('C9VIEW_STATE_DIR', stateDir);
+  vi.spyOn(console, 'log').mockImplementation(() => {});
+  try {
+    await runHooksCommand('install', dir, true);
+    const expected = hookCommand(
+      process.execPath,
+      fileURLToPath(
+        new URL(
+          '../dist/hooks/hook-entry.js',
+          import.meta.resolve('@c9view/core'),
+        ),
+      ),
+      stateDir,
+    );
+    const settings = await readFile(join(dir, 'settings.json'), 'utf8');
+    const commands = [
+      ...settings.matchAll(/"command":\s*("(?:[^"\\]|\\.)*")/g),
+    ].map((m) => JSON.parse(m[1]!) as string);
+    expect(commands.length).toBeGreaterThan(0);
+    // Each event appends its own marker flags after the shared command.
+    for (const command of commands)
+      expect(command.startsWith(expected)).toBe(true);
+  } finally {
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
     await rm(dir, { recursive: true, force: true });
   }
 });

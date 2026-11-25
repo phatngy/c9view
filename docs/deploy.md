@@ -35,7 +35,7 @@ npm i -g @phatngy/c9view           # or install the c9view command
 c9view start --open
 ```
 
-The npm package is one bundled file plus the web build. It needs Node 22 or newer and installs `better-sqlite3` (native) and the Claude Agent SDK as its only dependencies. Prerelease versions (`0.2.0-rc.1`) are on the `next` dist-tag: `npx @phatngy/c9view@next`. `C9VIEW_WEB_DIST` still overrides the bundled web build. `c9view hooks install` writes the path of the installed package's hook file into Claude settings, so use a global install (or reinstall the hooks after an `npx` cache clean): an `npx` cache path can disappear.
+The npm package is a bundled entry plus lazy chunks and the web build, with third-party notices in `THIRD-PARTY-NOTICES.txt`. It needs Node 22 or newer and installs `better-sqlite3` (native) and the Claude Agent SDK as its only dependencies. Prerelease versions (`0.2.0-rc.1`) are on the `next` dist-tag: `npx @phatngy/c9view@next`. `C9VIEW_WEB_DIST` still overrides the bundled web build. `c9view hooks install` writes the path of the installed package's hook file into Claude settings, so use a global install (or reinstall the hooks after an `npx` cache clean): an `npx` cache path can disappear.
 
 The container image is `ghcr.io/phatngy/c9view` for linux/amd64 and linux/arm64, tagged `<version>`, `<major>.<minor>` and `latest` (prereleases get only the full version):
 
