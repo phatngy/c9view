@@ -1,0 +1,17 @@
+name: Package and smoke test
+description: Assemble the @phatngy/c9view publish folder from a finished build, pack it, install the tarball and run it.
+inputs:
+  version:
+    description: Version written into the generated package.json
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Assemble the publish folder
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+      run: node --experimental-strip-types packages/cli/scripts/release/pack.ts --version "$VERSION"
+    - name: Smoke test the packed tarball
+      shell: bash
+      run: node --experimental-strip-types packages/cli/scripts/release/smoke.ts

@@ -10,3 +10,4 @@ tests/fixtures
 
 .env*
 **/.env*
+packages/cli/release

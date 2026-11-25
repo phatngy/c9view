@@ -25,7 +25,7 @@ c9view writes its SQLite index (`C9VIEW_DB`) and hook events in its state folder
 
 ## Quick start
 
-Requires Node 22 or newer. Until the npm package is published, run it from a checkout:
+Requires Node 22 or newer. Once the first release is published, `npx @phatngy/c9view start` (or the `ghcr.io/phatngy/c9view` image) will run it; see [docs/deploy.md](docs/deploy.md#install-a-release). Until then, run it from a checkout:
 
 ```sh
 git clone https://github.com/phatngy/c9view.git

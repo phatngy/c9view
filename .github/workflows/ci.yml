@@ -19,6 +19,20 @@ jobs:
       - run: corepack pnpm test
       - run: corepack pnpm build
 
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: corepack enable
+      - run: corepack pnpm install --frozen-lockfile
+      - run: corepack pnpm build
+      - uses: ./.github/actions/package-smoke
+        with:
+          version: 0.0.0-ci
+
   e2e:
     runs-on: ubuntu-latest
     steps:

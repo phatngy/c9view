@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadHub } from './hub-loader.js';
@@ -48,12 +49,18 @@ export async function runStart(options: StartOptions) {
         }
       : {}),
     ...(options.auth ? { auth: options.auth } : {}),
-    // Repository layout fallback; deployed containers set C9VIEW_WEB_DIST.
-    webDist:
-      process.env.C9VIEW_WEB_DIST ??
-      fileURLToPath(new URL('../web/dist/', hubPackage)),
+    webDist: process.env.C9VIEW_WEB_DIST ?? defaultWebDist(hubPackage),
     ...(options.open ? { onListening: openBrowser } : {}),
   });
+}
+/**
+ * The web build to serve: `web-dist/` beside `dist/` in the published package,
+ * else the repository layout. Containers set C9VIEW_WEB_DIST.
+ */
+export function defaultWebDist(hubPackage: string): string {
+  const bundled = new URL('../web-dist/', import.meta.url);
+  if (existsSync(new URL('index.html', bundled))) return fileURLToPath(bundled);
+  return fileURLToPath(new URL('../web/dist/', hubPackage));
 }
 /** The hub's package.json: the installed package, else the repository layout. */
 export function hubPackageUrl(): string {
