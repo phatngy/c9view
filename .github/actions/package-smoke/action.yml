@@ -1,9 +1,16 @@
 name: Package and smoke test
-description: Assemble the @phatngy/c9view publish folder from a finished build, pack it, install the tarball and run it.
+description: Assemble the @phatngy/c9view publish folder from a finished build, pack it once, then install that tarball and run it.
 inputs:
   version:
     description: Version written into the generated package.json
     required: true
+outputs:
+  tarball:
+    description: Path of the packed and smoke-tested tarball
+    value: ${{ steps.pack.outputs.tarball }}
+  sha256:
+    description: sha256 of that tarball
+    value: ${{ steps.pack.outputs.sha256 }}
 runs:
   using: composite
   steps:
@@ -12,6 +19,17 @@ runs:
       env:
         VERSION: ${{ inputs.version }}
       run: node --experimental-strip-types packages/cli/scripts/release/pack.ts --version "$VERSION"
-    - name: Smoke test the packed tarball
+    - name: Pack the tarball once
+      id: pack
       shell: bash
-      run: node --experimental-strip-types packages/cli/scripts/release/smoke.ts
+      run: |
+        mkdir -p "$RUNNER_TEMP/tarball"
+        npm pack packages/cli/release --pack-destination "$RUNNER_TEMP/tarball" --silent
+        tarball="$(ls "$RUNNER_TEMP"/tarball/*.tgz)"
+        echo "tarball=$tarball" >> "$GITHUB_OUTPUT"
+        echo "sha256=$(sha256sum "$tarball" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+    - name: Smoke test that exact tarball
+      shell: bash
+      env:
+        TARBALL: ${{ steps.pack.outputs.tarball }}
+      run: node --experimental-strip-types packages/cli/scripts/release/smoke.ts --tarball "$TARBALL"

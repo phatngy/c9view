@@ -7,10 +7,6 @@
     "allowImportingTsExtensions": false,
     "declaration": true
   },
-  "exclude": [
-    "src/**/*.test.ts"
-  ],
-  "include": [
-    "src/**/*.ts"
-  ]
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/**/*.test.ts"]
 }

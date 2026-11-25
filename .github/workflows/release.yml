@@ -19,6 +19,7 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
       prerelease: ${{ steps.version.outputs.prerelease }}
+      sha256: ${{ steps.smoke.outputs.sha256 }}
     steps:
       - name: Validate the tag is semver
         id: version
@@ -33,6 +34,16 @@ jobs:
           echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
           if [[ -n "${BASH_REMATCH[4]}" ]]; then echo "prerelease=true" >> "$GITHUB_OUTPUT"; else echo "prerelease=false" >> "$GITHUB_OUTPUT"; fi
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Refuse a tag whose commit is not on main
+        run: |
+          git fetch origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::Tag commit $GITHUB_SHA is not reachable from main; merge it first"
+            exit 1
+          fi
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
@@ -42,15 +53,15 @@ jobs:
       - run: corepack pnpm typecheck
       - run: corepack pnpm test
       - run: corepack pnpm build
-      - uses: ./.github/actions/package-smoke
+      - name: Assemble, pack once and smoke test the tarball
+        id: smoke
+        uses: ./.github/actions/package-smoke
         with:
           version: ${{ steps.version.outputs.version }}
-      - name: Pack the tarball that was just smoke tested
-        run: mkdir -p "$RUNNER_TEMP/tarball" && npm pack packages/cli/release --pack-destination "$RUNNER_TEMP/tarball"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: npm-tarball
-          path: ${{ runner.temp }}/tarball/*.tgz
+          path: ${{ steps.smoke.outputs.tarball }}
           if-no-files-found: error
           retention-days: 7
 
@@ -64,27 +75,40 @@ jobs:
     env:
       VERSION: ${{ needs.package.outputs.version }}
       PRERELEASE: ${{ needs.package.outputs.prerelease }}
+      EXPECTED_SHA256: ${{ needs.package.outputs.sha256 }}
       HAS_NPM_TOKEN: ${{ secrets.NPM_TOKEN != '' }}
     steps:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
       # Trusted publishing needs npm 11.5.1 or newer; Node 22 ships npm 10.
-      - run: npm install --global npm@^11.5.1
+      - run: npm install --global npm@11.21.3
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: npm-tarball
           path: tarball
+      - name: Verify the tarball is the one that was smoke tested
+        run: echo "$EXPECTED_SHA256  $(ls tarball/*.tgz)" | sha256sum --check -
+      - name: Skip when this version is already on npm (rerun)
+        id: published
+        run: |
+          if npm view "@phatngy/c9view@$VERSION" version > /dev/null 2>&1; then
+            echo "Version $VERSION is already published; skipping."
+            echo "done=true" >> "$GITHUB_OUTPUT"
+          fi
       - name: Publish with the NPM_TOKEN secret (fallback)
-        if: env.HAS_NPM_TOKEN == 'true'
+        if: steps.published.outputs.done != 'true' && env.HAS_NPM_TOKEN == 'true'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          echo "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" > "$RUNNER_TEMP/npmrc"
+          umask 077
+          npmrc="$RUNNER_TEMP/npmrc"
+          trap 'rm -f "$npmrc"' EXIT
+          echo "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" > "$npmrc"
           tag=latest; [ "$PRERELEASE" = true ] && tag=next
-          NPM_CONFIG_USERCONFIG="$RUNNER_TEMP/npmrc" npm publish tarball/*.tgz --access public --provenance --tag "$tag"
+          NPM_CONFIG_USERCONFIG="$npmrc" npm publish tarball/*.tgz --access public --provenance --tag "$tag"
       - name: Publish with npm trusted publishing (OIDC)
-        if: env.HAS_NPM_TOKEN != 'true'
+        if: steps.published.outputs.done != 'true' && env.HAS_NPM_TOKEN != 'true'
         run: |
           tag=latest; [ "$PRERELEASE" = true ] && tag=next
           npm publish tarball/*.tgz --access public --provenance --tag "$tag"
@@ -98,6 +122,8 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
       - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3

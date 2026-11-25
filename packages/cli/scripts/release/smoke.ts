@@ -1,6 +1,6 @@
 // Packs the release folder, installs the tarball into a temp prefix and runs it.
 // Usage: node --experimental-strip-types scripts/release/smoke.ts [--dir release]
-import { execFileSync, spawn } from 'node:child_process';
+import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -46,26 +46,44 @@ async function waitFor<T>(
     await new Promise((r) => setTimeout(r, 250));
   }
 }
+/** The first string value under a `command` key, wherever the hook tree puts it. */
+function findCommand(value: unknown): string | undefined {
+  if (typeof value !== 'object' || value === null) return undefined;
+  for (const [key, child] of Object.entries(value)) {
+    if (key === 'command' && typeof child === 'string') return child;
+    const found = findCommand(child);
+    if (found) return found;
+  }
+  return undefined;
+}
 function expect(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(`Smoke check failed: ${message}`);
 }
 
 async function main() {
-  const { values } = parseArgs({ options: { dir: { type: 'string' } } });
+  const { values } = parseArgs({
+    options: { dir: { type: 'string' }, tarball: { type: 'string' } },
+  });
   const releaseDir = resolve(values.dir ?? join(cliRoot, 'release'));
   const work = mkdtempSync(join(tmpdir(), 'c9view-smoke-'));
   let child: ReturnType<typeof spawn> | undefined;
   try {
-    step('npm pack');
-    const packed = run(
-      'npm',
-      ['pack', releaseDir, '--pack-destination', work, '--json'],
-      work,
-    );
-    const tarball = join(
-      work,
-      (JSON.parse(packed) as { filename: string }[])[0]!.filename,
-    );
+    let tarball: string;
+    if (values.tarball) {
+      tarball = resolve(values.tarball);
+      step(`using ${tarball}`);
+    } else {
+      step('npm pack');
+      const packed = run(
+        'npm',
+        ['pack', releaseDir, '--pack-destination', work, '--json'],
+        work,
+      );
+      tarball = join(
+        work,
+        (JSON.parse(packed) as { filename: string }[])[0]!.filename,
+      );
+    }
     const prefix = join(work, 'prefix');
     step('npm install of the tarball');
     run('npm', ['init', '-y', '--prefix', prefix], work);
@@ -94,10 +112,13 @@ async function main() {
     expect(run(bin, ['--help'], work, env).includes('Usage:'), '--help usage');
 
     step('c9view scan --json');
-    const summary: unknown = JSON.parse(
-      run(bin, ['scan', '--json'], work, env),
+    const summary = JSON.parse(run(bin, ['scan', '--json'], work, env)) as {
+      sessions?: unknown;
+    };
+    expect(
+      typeof summary.sessions === 'number' && summary.sessions > 0,
+      'the fixture scan finds sessions',
     );
-    expect(typeof summary === 'object' && summary !== null, 'scan prints JSON');
     console.log(`smoke: scan summary ${JSON.stringify(summary)}`);
 
     step('c9view hooks install points at an existing file');
@@ -109,6 +130,30 @@ async function main() {
     const settings = readFileSync(join(settingsDir, 'settings.json'), 'utf8');
     const entry = /'([^']*hook-entry\.js)'/.exec(settings)?.[1];
     expect(entry && existsSync(entry), 'installed hook entry file exists');
+
+    step('the installed hook runs silently and records an event');
+    const settingsJson = JSON.parse(settings) as unknown;
+    const command = findCommand(settingsJson);
+    expect(command, 'settings hold a hook command');
+    const hookRun = spawnSync('sh', ['-c', command], {
+      input: JSON.stringify({
+        hook_event_name: 'Notification',
+        session_id: 'smoke-session',
+        cwd: '/synthetic/project',
+        message: 'Claude is waiting for your input',
+      }),
+      env: { ...env, C9VIEW_STATE_DIR: join(work, 'hook-state') },
+      encoding: 'utf8',
+    });
+    expect(hookRun.status === 0, 'the hook exits 0');
+    expect(
+      hookRun.stdout === '' && hookRun.stderr === '',
+      'the hook is silent',
+    );
+    expect(
+      existsSync(join(work, 'hook-state', 'events.jsonl')),
+      'the hook wrote an event file',
+    );
 
     step('c9view start');
     const port = await freePort();
@@ -129,7 +174,7 @@ async function main() {
     expect(page.ok, '/ responds');
     const html = await page.text();
     const expected = readFileSync(
-      join(releaseDir, 'web-dist/index.html'),
+      join(repoRoot, 'apps/web/dist/index.html'),
       'utf8',
     );
     expect(html.trim() === expected.trim(), '/ serves the web index.html');
